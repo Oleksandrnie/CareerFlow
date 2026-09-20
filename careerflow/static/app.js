@@ -21,6 +21,10 @@ function escapeHtml(value = "") {
   return node.innerHTML;
 }
 
+function escapeAttr(value = "") {
+  return escapeHtml(value).replaceAll('"', "&quot;").replaceAll("'", "&#39;");
+}
+
 function toast(message) {
   const el = document.querySelector("#toast");
   el.textContent = message;
@@ -42,10 +46,12 @@ function renderList() {
     listEl.innerHTML = `<p class="muted">${archivedToggle.checked ? "No archived vacancies." : "No vacancies yet."}</p>`;
     return;
   }
-  listEl.innerHTML = state.vacancies.map(item => `
+    listEl.innerHTML = state.vacancies.map(item => `
     <button class="vacancy-card ${state.selected?.id === item.id ? "active" : ""}" data-id="${item.id}">
       <strong>${escapeHtml(item.title)}</strong>
       <span>${escapeHtml(item.company || "Company not set")}</span>
+      <span class="vacancy-meta">${escapeHtml(item.salary || "Salary not specified")} · Added ${new Date(`${item.created_at}Z`).toLocaleDateString()}</span>
+      <span class="vacancy-summary">${escapeHtml(item.summary || "No summary yet")}</span>
       <span class="card-meta"><span class="badge">${escapeHtml(item.status)}</span><span>${item.match_percent == null ? "—" : `${item.match_percent}%`}</span></span>
     </button>`).join("");
 }
@@ -80,15 +86,19 @@ function activateTab(name) {
   document.querySelectorAll("[data-tab]").forEach(button => button.classList.toggle("active", button.dataset.tab === name));
 }
 
-function openTab(name, vacancy) {
+async function openTab(name, vacancy) {
   activateTab(name);
-  if (name === "Overview") renderOverview(vacancy);
-  if (name === "Resume") renderResumes(vacancy);
-  if (name === "ATS") renderAts(vacancy);
-  if (name === "Timeline") renderTimeline(vacancy);
-  if (name === "Notes") renderNotes(vacancy);
-  if (name === "Files") renderFiles(vacancy);
-  if (name === "AI / Codex") renderAi(vacancy);
+  try {
+    if (name === "Overview") renderOverview(vacancy);
+    if (name === "Resume") await renderResumes(vacancy);
+    if (name === "ATS") await renderAts(vacancy);
+    if (name === "Timeline") await renderTimeline(vacancy);
+    if (name === "Notes") await renderNotes(vacancy);
+    if (name === "Files") await renderFiles(vacancy);
+    if (name === "AI / Codex") await renderAi(vacancy);
+  } catch (error) {
+    document.querySelector("#content-panel").innerHTML = `<p class="error">${escapeHtml(error.message)}</p>`;
+  }
 }
 
 function renderOverview(vacancy) {
@@ -103,10 +113,10 @@ function renderEdit(vacancy) {
   activateTab("Overview");
   document.querySelector("#content-panel").innerHTML = `
     <form id="edit-form" class="form-grid">
-      <label>Title<input name="title" value="${escapeHtml(vacancy.title)}" required></label>
-      <label>Company<input name="company" value="${escapeHtml(vacancy.company)}"></label>
-      <label>Salary<input name="salary" value="${escapeHtml(vacancy.salary)}"></label>
-      <label>Source<input name="source" value="${escapeHtml(vacancy.source)}"></label>
+      <label>Title<input name="title" value="${escapeAttr(vacancy.title)}" required></label>
+      <label>Company<input name="company" value="${escapeAttr(vacancy.company)}"></label>
+      <label>Salary<input name="salary" value="${escapeAttr(vacancy.salary)}"></label>
+      <label>Source<input name="source" value="${escapeAttr(vacancy.source)}"></label>
       <label style="grid-column:1/-1">Summary<textarea name="summary" rows="3">${escapeHtml(vacancy.summary)}</textarea></label>
       <label style="grid-column:1/-1">Description<textarea name="description" rows="14" required>${escapeHtml(vacancy.description)}</textarea></label>
       <div class="actions"><button class="primary">Save changes</button><button class="secondary" type="button" id="cancel-edit">Cancel</button></div>

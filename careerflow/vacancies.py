@@ -160,6 +160,11 @@ def delete_vacancy(
             "SELECT stored_path FROM attachments WHERE vacancy_id = ?", (vacancy_id,)
         )
     )
+    paths_to_remove.extend(
+        item["stored_path"] for item in database.fetch_all(
+            "SELECT stored_path FROM generated_reports WHERE vacancy_id = ?", (vacancy_id,)
+        )
+    )
     with database.transaction() as connection:
         preserved = 0
         if resume_policy == "preserve_resumes":

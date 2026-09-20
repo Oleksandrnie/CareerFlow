@@ -58,6 +58,10 @@ class FoundationTest(unittest.TestCase):
             }.issubset(tables)
         )
 
+    def test_default_codex_profile_is_minimal(self) -> None:
+        self.assertEqual(self.settings.codex_default_model, "gpt-5.6-luna")
+        self.assertEqual(self.settings.codex_reasoning_effort, "low")
+
     def test_root_reports_ready(self) -> None:
         response = self.client.get("/")
         self.assertEqual(response.status_code, 200)

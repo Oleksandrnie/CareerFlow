@@ -85,6 +85,38 @@ class TrackingApiTest(unittest.TestCase):
         self.assertIsNone(preserved["vacancy_id"])
         self.assertEqual(self.client.get(f"/api/vacancies/{self.vacancy['id']}").status_code, 404)
 
+    def test_delete_all_removes_related_local_files(self) -> None:
+        resume = self.client.post(
+            "/api/resumes",
+            data={
+                "kind": "vacancy",
+                "vacancy_id": self.vacancy["id"],
+                "text": "Python platform engineer",
+            },
+        ).json()
+        attachment = self.client.post(
+            f"/api/vacancies/{self.vacancy['id']}/attachments",
+            files={"file": ("notes.txt", b"private notes", "text/plain")},
+        ).json()
+        report = self.client.post(
+            f"/api/vacancies/{self.vacancy['id']}/reports"
+        ).json()
+        stored_paths = [
+            Path(self.vacancy["extracted_text_path"]),
+            Path(resume["extracted_text_path"]),
+            Path(attachment["stored_path"]),
+            Path(report["stored_path"]),
+        ]
+        self.assertTrue(all(path.exists() for path in stored_paths))
+
+        response = self.client.delete(
+            f"/api/vacancies/{self.vacancy['id']}?resume_policy=delete_all"
+        )
+
+        self.assertEqual(response.status_code, 200)
+        self.assertTrue(all(not path.exists() for path in stored_paths))
+        self.assertEqual(self.client.get(f"/api/resumes/{resume['id']}").status_code, 404)
+
 
 if __name__ == "__main__":
     unittest.main()

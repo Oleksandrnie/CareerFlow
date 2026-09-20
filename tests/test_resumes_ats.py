@@ -80,6 +80,30 @@ class ResumeAndAtsTest(unittest.TestCase):
         self.assertEqual(item["evidence"], "")
         self.assertIn("Not evidenced", item["interpretation"])
 
+    def test_ats_ignores_sentence_punctuation_when_matching_skills(self) -> None:
+        result = analyze(
+            "Required: Kubernetes and Node.js experience.",
+            "Built production services with Kubernetes. Maintained Node.js APIs.",
+        )
+
+        requirement = result["requirements"][0]
+        self.assertIn("kubernetes", requirement["matched_keywords"])
+        self.assertIn("node.js", requirement["matched_keywords"])
+        self.assertNotEqual(requirement["classification"], "missing")
+
+    def test_ats_evidence_prioritizes_distinctive_requirement_terms(self) -> None:
+        result = analyze(
+            "Kubernetes experience preferred.",
+            (
+                "Backend engineer with six years of Python experience. "
+                "Deployed services to Kubernetes clusters."
+            ),
+        )
+
+        requirement = result["requirements"][0]
+        self.assertEqual(requirement["classification"], "covered")
+        self.assertIn("Kubernetes", requirement["evidence"])
+
     def test_master_cannot_be_submitted(self) -> None:
         master = self.client.post(
             "/api/resumes", data={"kind": "master", "text": "Python engineer"}

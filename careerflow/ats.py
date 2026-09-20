@@ -18,13 +18,24 @@ STOP_WORDS = {
     "не", "опыт", "от", "по", "работа", "с", "со", "требования", "что", "это",
 }
 
+GENERIC_REQUIREMENT_WORDS = {
+    "experience", "knowledge", "must", "need", "preferred", "proficiency",
+    "required", "requirement", "requirements", "skill", "skills",
+    "знание", "знания", "навык", "навыки", "опыт", "требование", "требования",
+}
+
 
 def _tokens(text: str) -> list[str]:
-    return [
-        token.lower()
-        for token in re.findall(r"[A-Za-zА-Яа-яЁё][A-Za-zА-Яа-яЁё0-9+#.\-/]{1,}", text)
-        if token.lower() not in STOP_WORDS
-    ]
+    tokens: list[str] = []
+    for raw_token in re.findall(
+        r"[A-Za-zА-Яа-яЁё][A-Za-zА-Яа-яЁё0-9+#.\-/]{1,}", text
+    ):
+        # Keep meaningful in-token punctuation (for example C++, C#, Node.js,
+        # and CI/CD), but do not let sentence punctuation change keyword identity.
+        token = raw_token.lower().strip(".-/")
+        if token and token not in STOP_WORDS:
+            tokens.append(token)
+    return tokens
 
 
 def _sentences(text: str) -> list[str]:
@@ -53,14 +64,21 @@ def analyze(vacancy_text: str, resume_text: str) -> dict:
         requirement_tokens = set(_tokens(requirement))
         if not requirement_tokens:
             continue
+        distinctive_tokens = requirement_tokens - GENERIC_REQUIREMENT_WORDS
+        if not distinctive_tokens:
+            distinctive_tokens = requirement_tokens
         overlap = requirement_tokens & resume_tokens
         coverage = len(overlap) / len(requirement_tokens)
         best_evidence = ""
-        best_overlap = 0
+        best_score = (0, 0)
         for sentence in resume_sentences:
-            sentence_overlap = len(requirement_tokens & set(_tokens(sentence)))
-            if sentence_overlap > best_overlap:
-                best_overlap = sentence_overlap
+            sentence_tokens = set(_tokens(sentence))
+            score = (
+                len(distinctive_tokens & sentence_tokens),
+                len(requirement_tokens & sentence_tokens),
+            )
+            if score > best_score:
+                best_score = score
                 best_evidence = sentence
         if coverage >= 0.6:
             classification = "covered"
