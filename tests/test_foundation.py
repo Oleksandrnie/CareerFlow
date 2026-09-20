@@ -61,7 +61,8 @@ class FoundationTest(unittest.TestCase):
     def test_root_reports_ready(self) -> None:
         response = self.client.get("/")
         self.assertEqual(response.status_code, 200)
-        self.assertEqual(response.json(), {"name": "CareerFlow", "status": "ready"})
+        self.assertIn("text/html", response.headers["content-type"])
+        self.assertIn("CareerFlow", response.text)
 
 
 if __name__ == "__main__":

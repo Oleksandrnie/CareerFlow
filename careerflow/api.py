@@ -3,12 +3,16 @@
 from __future__ import annotations
 
 from contextlib import asynccontextmanager
+from pathlib import Path
 
 from fastapi import FastAPI
+from fastapi.responses import FileResponse
+from fastapi.staticfiles import StaticFiles
 
 from . import __version__
 from .config import Settings
 from .db import Database
+from .routes_vacancies import router as vacancies_router
 
 
 def create_app(settings: Settings | None = None) -> FastAPI:
@@ -28,6 +32,9 @@ def create_app(settings: Settings | None = None) -> FastAPI:
     )
     application.state.settings = resolved_settings
     application.state.db = database
+    static_dir = Path(__file__).parent / "static"
+    application.mount("/static", StaticFiles(directory=static_dir), name="static")
+    application.include_router(vacancies_router)
 
     @application.get("/api/health")
     def health() -> dict[str, str]:
@@ -38,12 +45,11 @@ def create_app(settings: Settings | None = None) -> FastAPI:
             "schema_version": str(row["version"] if row else "unknown"),
         }
 
-    @application.get("/")
-    def root() -> dict[str, str]:
-        return {"name": "CareerFlow", "status": "ready"}
+    @application.get("/", response_class=FileResponse)
+    def root() -> FileResponse:
+        return FileResponse(static_dir / "index.html")
 
     return application
 
 
 app = create_app()
-

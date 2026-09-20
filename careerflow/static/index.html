@@ -1,0 +1,64 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <title>CareerFlow</title>
+    <link rel="stylesheet" href="/static/app.css">
+  </head>
+  <body>
+    <header class="topbar">
+      <div>
+        <p class="eyebrow">LOCAL CAREER WORKSPACE</p>
+        <h1>CareerFlow</h1>
+      </div>
+      <button id="new-vacancy" class="primary">+ Add vacancy</button>
+    </header>
+
+    <main class="layout">
+      <aside class="sidebar">
+        <div class="sidebar-head">
+          <h2>Vacancies</h2>
+          <label class="archive-toggle"><input id="show-archived" type="checkbox"> Archived</label>
+        </div>
+        <div id="vacancy-list" class="vacancy-list"></div>
+      </aside>
+
+      <section id="workspace" class="workspace">
+        <div class="empty-state">
+          <span class="empty-icon">↗</span>
+          <h2>Build your job-search workspace</h2>
+          <p>Add a vacancy by pasting its text or dropping a TXT, HTML, PDF, or DOCX file.</p>
+          <button class="primary" data-open-import>Add your first vacancy</button>
+        </div>
+      </section>
+    </main>
+
+    <dialog id="import-dialog">
+      <form id="import-form">
+        <div class="dialog-head">
+          <div><p class="eyebrow">NEW RECORD</p><h2>Add vacancy</h2></div>
+          <button type="button" class="icon-button" data-close-dialog aria-label="Close">×</button>
+        </div>
+        <label class="drop-zone" id="drop-zone">
+          <input id="vacancy-file" name="file" type="file" accept=".txt,.html,.htm,.pdf,.docx">
+          <strong>Drop a file here</strong>
+          <span>or click to choose TXT, HTML, PDF, or DOCX</span>
+          <em id="selected-file"></em>
+        </label>
+        <div class="separator"><span>or paste vacancy text</span></div>
+        <label>Description<textarea name="text" rows="10" placeholder="Paste the full vacancy description…"></textarea></label>
+        <div class="form-grid">
+          <label>Title (optional)<input name="title" placeholder="Auto-detected"></label>
+          <label>Company (optional)<input name="company" placeholder="Auto-detected"></label>
+          <label>Salary (optional)<input name="salary"></label>
+          <label>Source (optional)<input name="source" placeholder="LinkedIn, referral…"></label>
+        </div>
+        <p id="import-error" class="error" role="alert"></p>
+        <div class="dialog-actions"><button type="button" class="secondary" data-close-dialog>Cancel</button><button class="primary" type="submit">Import vacancy</button></div>
+      </form>
+    </dialog>
+    <div id="toast" class="toast" role="status"></div>
+    <script src="/static/app.js" defer></script>
+  </body>
+</html>
