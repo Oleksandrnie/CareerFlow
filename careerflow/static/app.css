@@ -72,6 +72,10 @@ hr { border: 0; border-top: 1px solid var(--line); margin: 24px 0; }
 .requirement blockquote { border-left: 2px solid #c7d3ca; padding-left: 10px; font-style: italic; }
 .tag-list { display: flex; flex-wrap: wrap; gap: 6px; }.tag { border-radius: 999px; background: #f0f2f0; color: var(--muted); padding: 5px 9px; font-size: 12px; }.tag.hit { background: var(--soft); color: var(--brand); }
 .empty-inline { color: var(--muted); text-align: center; padding: 40px 10px; }
+.timeline { display: grid; }.timeline article { display: grid; grid-template-columns: 18px 1fr; gap: 10px; min-height: 72px; }.timeline article > span { width: 10px; height: 10px; margin-top: 5px; border-radius: 50%; background: var(--brand); box-shadow: 0 0 0 4px var(--soft); }.timeline article:not(:last-child) > span::after { content: ""; display: block; width: 2px; height: 62px; margin: 10px 0 0 4px; background: var(--line); }.timeline time { display: block; margin-top: 3px; color: var(--muted); font-size: 11px; }.timeline p { margin-top: 6px; color: var(--muted); font-size: 13px; }
+.note-card { display: grid; gap: 8px; padding: 13px; border: 1px solid var(--line); border-radius: 11px; }.note-card time { color: var(--muted); font-size: 11px; }
+.inline-form { display: flex; gap: 10px; }.inline-form input { flex: 1; }.file-hint { margin-top: 8px; font-size: 12px; }
+.link-button { display: inline-block; text-decoration: none; }
 dialog { width: min(760px, calc(100vw - 28px)); border: 0; border-radius: 18px; padding: 0; box-shadow: 0 24px 80px #12231a4d; }
 dialog::backdrop { background: #13201999; backdrop-filter: blur(2px); }
 dialog form { display: grid; gap: 16px; padding: 24px; }

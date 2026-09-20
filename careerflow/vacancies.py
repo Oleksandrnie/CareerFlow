@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import re
+import shutil
 from pathlib import Path
 from uuid import uuid4
 
@@ -137,3 +138,61 @@ def set_archived(database: Database, vacancy_id: int, archived: bool) -> dict | 
             (vacancy_id, "archived" if archived else "restored", "Vacancy archived" if archived else "Vacancy restored"),
         )
     return get_vacancy(database, vacancy_id)
+
+
+def delete_vacancy(
+    database: Database,
+    storage_dir: Path,
+    vacancy_id: int,
+    resume_policy: str,
+) -> dict[str, int]:
+    vacancy = get_vacancy(database, vacancy_id)
+    if vacancy is None:
+        raise LookupError("Vacancy not found")
+    if resume_policy not in {"delete_all", "preserve_resumes"}:
+        raise ValueError("resume_policy must be delete_all or preserve_resumes")
+    resumes = database.fetch_all(
+        "SELECT * FROM resume_versions WHERE vacancy_id = ? ORDER BY version", (vacancy_id,)
+    )
+    paths_to_remove = [vacancy.get("original_path"), vacancy.get("extracted_text_path")]
+    paths_to_remove.extend(
+        item["stored_path"] for item in database.fetch_all(
+            "SELECT stored_path FROM attachments WHERE vacancy_id = ?", (vacancy_id,)
+        )
+    )
+    with database.transaction() as connection:
+        preserved = 0
+        if resume_policy == "preserve_resumes":
+            next_master = int(
+                connection.execute(
+                    "SELECT COALESCE(MAX(version), 0) + 1 FROM resume_versions WHERE kind = 'master' AND vacancy_id IS NULL"
+                ).fetchone()[0]
+            )
+            for offset, resume in enumerate(resumes):
+                connection.execute(
+                    """
+                    UPDATE resume_versions
+                    SET kind = 'master', vacancy_id = NULL, version = ?, is_submitted = 0,
+                        label = CASE WHEN label = '' THEN ? ELSE label || ? END
+                    WHERE id = ?
+                    """,
+                    (next_master + offset, f"Preserved from {vacancy['title']}", f" · Preserved from {vacancy['title']}", resume["id"]),
+                )
+                preserved += 1
+        else:
+            for resume in resumes:
+                paths_to_remove.extend([resume.get("original_path"), resume.get("extracted_text_path")])
+        connection.execute("DELETE FROM vacancies WHERE id = ?", (vacancy_id,))
+
+    storage_root = storage_dir.resolve()
+    removed_dirs: set[Path] = set()
+    for raw_path in paths_to_remove:
+        if not raw_path:
+            continue
+        path = Path(raw_path).resolve()
+        if path.is_relative_to(storage_root):
+            candidate = path.parent
+            if candidate not in removed_dirs:
+                shutil.rmtree(candidate, ignore_errors=True)
+                removed_dirs.add(candidate)
+    return {"deleted_vacancy_id": vacancy_id, "preserved_resume_count": preserved}

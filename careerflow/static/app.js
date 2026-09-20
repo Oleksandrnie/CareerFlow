@@ -60,12 +60,17 @@ function renderVacancy(vacancy) {
   workspace.innerHTML = `
     <div class="workspace-head">
       <div><p class="eyebrow">${escapeHtml(vacancy.status)}</p><h2>${escapeHtml(vacancy.title)}</h2><p class="muted">${escapeHtml(vacancy.company || "Company not set")} · Added ${new Date(vacancy.created_at + "Z").toLocaleDateString()}</p></div>
-      <div class="actions"><button id="edit-overview" class="secondary">Edit</button><button id="archive-vacancy" class="secondary">${vacancy.archived_at ? "Restore" : "Archive"}</button></div>
+      <div class="actions"><select id="status-selector" aria-label="Vacancy status">${["Saved", "Applied", "Interview", "Waiting", "Offer", "Rejected"].map(status => `<option ${status === vacancy.status ? "selected" : ""}>${status}</option>`).join("")}</select><button id="edit-overview" class="secondary">Edit</button><button id="archive-vacancy" class="secondary">${vacancy.archived_at ? "Restore" : "Archive"}</button><button id="delete-vacancy" class="danger">Delete</button></div>
     </div>
-    <nav class="tabs">${["Overview", "ATS", "Resume", "Timeline", "Notes", "Files", "AI / Codex"].map((tab, i) => `<button class="tab ${i === 0 ? "active" : ""}" data-tab="${tab}" ${i > 2 ? "disabled" : ""}>${tab}</button>`).join("")}</nav>
+    <nav class="tabs">${["Overview", "ATS", "Resume", "Timeline", "Notes", "Files", "AI / Codex"].map((tab, i) => `<button class="tab ${i === 0 ? "active" : ""}" data-tab="${tab}" ${i > 5 ? "disabled" : ""}>${tab}</button>`).join("")}</nav>
     <section class="panel" id="content-panel"></section>`;
   document.querySelector("#edit-overview").onclick = () => renderEdit(vacancy);
   document.querySelector("#archive-vacancy").onclick = () => toggleArchive(vacancy);
+  document.querySelector("#delete-vacancy").onclick = () => removeVacancy(vacancy);
+  document.querySelector("#status-selector").onchange = async event => {
+    const updated = await api(`/api/vacancies/${vacancy.id}/status`, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ status: event.target.value }) });
+    await loadVacancies(); renderVacancy(updated); toast(`Status changed to ${updated.status}`);
+  };
   document.querySelectorAll("[data-tab]").forEach(button => button.onclick = () => openTab(button.dataset.tab, vacancy));
   renderOverview(vacancy);
 }
@@ -79,6 +84,9 @@ function openTab(name, vacancy) {
   if (name === "Overview") renderOverview(vacancy);
   if (name === "Resume") renderResumes(vacancy);
   if (name === "ATS") renderAts(vacancy);
+  if (name === "Timeline") renderTimeline(vacancy);
+  if (name === "Notes") renderNotes(vacancy);
+  if (name === "Files") renderFiles(vacancy);
 }
 
 function renderOverview(vacancy) {
@@ -184,6 +192,63 @@ async function toggleArchive(vacancy) {
   const action = vacancy.archived_at ? "restore" : "archive";
   await api(`/api/vacancies/${vacancy.id}/${action}`, { method: "POST" });
   state.selected = null; renderEmpty(); await loadVacancies(); toast(action === "archive" ? "Vacancy archived" : "Vacancy restored");
+}
+
+async function removeVacancy(vacancy) {
+  const versions = await api(`/api/resumes?kind=vacancy&vacancy_id=${vacancy.id}`);
+  let policy = "delete_all";
+  if (versions.length) {
+    const answer = window.prompt(`This vacancy has ${versions.length} CV version(s). Type KEEP to preserve them in the Master Resume library, DELETE to remove everything, or Cancel to stop.`);
+    if (answer === null) return;
+    if (answer.trim().toUpperCase() === "KEEP") policy = "preserve_resumes";
+    else if (answer.trim().toUpperCase() !== "DELETE") { toast("Deletion cancelled"); return; }
+  } else if (!window.confirm("Permanently delete this vacancy and all of its history and files?")) return;
+  await api(`/api/vacancies/${vacancy.id}?resume_policy=${policy}`, { method: "DELETE" });
+  state.selected = null; renderEmpty(); await loadVacancies(); toast("Vacancy deleted");
+}
+
+async function renderTimeline(vacancy) {
+  const panel = document.querySelector("#content-panel");
+  const [events, interviews] = await Promise.all([
+    api(`/api/vacancies/${vacancy.id}/timeline`),
+    api(`/api/vacancies/${vacancy.id}/interviews`),
+  ]);
+  panel.innerHTML = `<div class="section-head"><div><p class="eyebrow">EVENT LOG</p><h3>Timeline</h3></div></div>
+    <div class="split-grid"><section><div class="timeline">${events.map(event => `<article><span></span><div><strong>${escapeHtml(event.title)}</strong><time>${new Date(event.event_at + (event.event_at.includes("T") ? "" : "Z")).toLocaleString()}</time>${event.details ? `<p>${escapeHtml(event.details)}</p>` : ""}</div></article>`).join("")}</div></section>
+    <section><h4>Add interview #${interviews.length + 1}</h4><form id="interview-form" class="stack"><label>Date and time<input name="interview_at" type="datetime-local" required></label><label>Type<input name="interview_type" value="Interview" placeholder="HR, Technical, Hiring manager…"></label><label>Notes<textarea name="note" rows="4"></textarea></label><label>Result<input name="result" placeholder="Scheduled, passed, follow-up…"></label><p class="error" id="interview-error"></p><button class="primary">Add interview</button></form></section></div>`;
+  document.querySelector("#interview-form").onsubmit = async event => {
+    event.preventDefault(); const payload = Object.fromEntries(new FormData(event.currentTarget));
+    try { await api(`/api/vacancies/${vacancy.id}/interviews`, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(payload) }); const updated = await api(`/api/vacancies/${vacancy.id}`); await loadVacancies(); renderVacancy(updated); openTab("Timeline", updated); toast("Interview added"); }
+    catch (error) { document.querySelector("#interview-error").textContent = error.message; }
+  };
+}
+
+async function renderNotes(vacancy) {
+  const panel = document.querySelector("#content-panel");
+  const notes = await api(`/api/vacancies/${vacancy.id}/notes`);
+  panel.innerHTML = `<div class="section-head"><div><p class="eyebrow">DATED NOTES</p><h3>Notes</h3></div></div>
+    <form id="note-form" class="stack"><label>New note<textarea name="body" rows="4" placeholder="Interview preparation, company research, impressions…" required></textarea></label><p class="error" id="note-error"></p><button class="primary">Add note</button></form><hr>
+    <div class="item-list">${notes.length ? notes.map(note => `<form class="note-card" data-note-id="${note.id}"><textarea name="body" rows="4">${escapeHtml(note.body)}</textarea><div class="card-meta"><time>${new Date(note.created_at + "Z").toLocaleString()}</time><div class="actions"><button class="secondary" type="submit">Save</button><button class="danger" type="button" data-delete-note>Delete</button></div></div></form>`).join("") : `<p class="muted">No notes yet.</p>`}</div>`;
+  document.querySelector("#note-form").onsubmit = async event => {
+    event.preventDefault(); const payload = Object.fromEntries(new FormData(event.currentTarget));
+    try { await api(`/api/vacancies/${vacancy.id}/notes`, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(payload) }); toast("Note added"); renderNotes(vacancy); }
+    catch (error) { document.querySelector("#note-error").textContent = error.message; }
+  };
+  document.querySelectorAll(".note-card").forEach(noteForm => {
+    noteForm.onsubmit = async event => { event.preventDefault(); await api(`/api/vacancies/${vacancy.id}/notes/${noteForm.dataset.noteId}`, { method: "PATCH", headers: { "Content-Type": "application/json" }, body: JSON.stringify(Object.fromEntries(new FormData(noteForm))) }); toast("Note saved"); };
+    noteForm.querySelector("[data-delete-note]").onclick = async () => { if (window.confirm("Delete this note?")) { await api(`/api/vacancies/${vacancy.id}/notes/${noteForm.dataset.noteId}`, { method: "DELETE" }); toast("Note deleted"); renderNotes(vacancy); } };
+  });
+}
+
+async function renderFiles(vacancy) {
+  const panel = document.querySelector("#content-panel");
+  const attachments = await api(`/api/vacancies/${vacancy.id}/attachments`);
+  const formatSize = bytes => bytes < 1024 ? `${bytes} B` : bytes < 1048576 ? `${(bytes / 1024).toFixed(1)} KB` : `${(bytes / 1048576).toFixed(1)} MB`;
+  panel.innerHTML = `<div class="section-head"><div><p class="eyebrow">LOCAL STORAGE</p><h3>Files</h3></div></div>
+    <form id="attachment-form" class="inline-form"><input name="file" type="file" required><button class="primary">Attach file</button></form><p class="muted file-hint">Up to 100 MB. Audio is stored as-is; automatic transcription is outside the MVP.</p><hr>
+    <div class="item-list">${attachments.length ? attachments.map(file => `<article class="item-row"><div><strong>${escapeHtml(file.filename)}</strong><p class="muted">${formatSize(file.size_bytes)} · ${escapeHtml(file.media_type)}</p></div><div class="actions"><a class="secondary link-button" href="/api/vacancies/${vacancy.id}/attachments/${file.id}/download">Download</a><button class="danger" data-delete-file="${file.id}">Delete</button></div></article>`).join("") : `<p class="muted">No attachments yet.</p>`}</div>`;
+  document.querySelector("#attachment-form").onsubmit = async event => { event.preventDefault(); await api(`/api/vacancies/${vacancy.id}/attachments`, { method: "POST", body: new FormData(event.currentTarget) }); toast("File attached"); renderFiles(vacancy); };
+  document.querySelectorAll("[data-delete-file]").forEach(button => button.onclick = async () => { if (window.confirm("Remove this attachment?")) { await api(`/api/vacancies/${vacancy.id}/attachments/${button.dataset.deleteFile}`, { method: "DELETE" }); toast("File removed"); renderFiles(vacancy); } });
 }
 
 function openDialog() { dialog.showModal(); }

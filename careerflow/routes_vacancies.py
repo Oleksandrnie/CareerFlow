@@ -9,7 +9,7 @@ from pydantic import BaseModel
 
 from .files import ImportError as DocumentImportError
 from .files import extract_text, normalize_text
-from .vacancies import create_vacancy, get_vacancy, list_vacancies, set_archived, update_vacancy
+from .vacancies import create_vacancy, delete_vacancy, get_vacancy, list_vacancies, set_archived, update_vacancy
 
 
 router = APIRouter(prefix="/api/vacancies", tags=["vacancies"])
@@ -101,3 +101,18 @@ def restore_vacancy(request: Request, vacancy_id: int) -> dict:
     if result is None:
         raise HTTPException(status_code=404, detail="Vacancy not found")
     return result
+
+
+@router.delete("/{vacancy_id}")
+def remove_vacancy(request: Request, vacancy_id: int, resume_policy: str) -> dict[str, int]:
+    try:
+        return delete_vacancy(
+            request.app.state.db,
+            request.app.state.settings.storage_dir,
+            vacancy_id,
+            resume_policy,
+        )
+    except LookupError as exc:
+        raise HTTPException(status_code=404, detail=str(exc)) from exc
+    except ValueError as exc:
+        raise HTTPException(status_code=422, detail=str(exc)) from exc
