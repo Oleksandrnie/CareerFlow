@@ -60,13 +60,14 @@ function renderVacancy(vacancy) {
   workspace.innerHTML = `
     <div class="workspace-head">
       <div><p class="eyebrow">${escapeHtml(vacancy.status)}</p><h2>${escapeHtml(vacancy.title)}</h2><p class="muted">${escapeHtml(vacancy.company || "Company not set")} · Added ${new Date(vacancy.created_at + "Z").toLocaleDateString()}</p></div>
-      <div class="actions"><select id="status-selector" aria-label="Vacancy status">${["Saved", "Applied", "Interview", "Waiting", "Offer", "Rejected"].map(status => `<option ${status === vacancy.status ? "selected" : ""}>${status}</option>`).join("")}</select><button id="edit-overview" class="secondary">Edit</button><button id="archive-vacancy" class="secondary">${vacancy.archived_at ? "Restore" : "Archive"}</button><button id="delete-vacancy" class="danger">Delete</button></div>
+      <div class="actions"><select id="status-selector" aria-label="Vacancy status">${["Saved", "Applied", "Interview", "Waiting", "Offer", "Rejected"].map(status => `<option ${status === vacancy.status ? "selected" : ""}>${status}</option>`).join("")}</select><button id="export-report" class="secondary">Export .md</button><button id="edit-overview" class="secondary">Edit</button><button id="archive-vacancy" class="secondary">${vacancy.archived_at ? "Restore" : "Archive"}</button><button id="delete-vacancy" class="danger">Delete</button></div>
     </div>
-    <nav class="tabs">${["Overview", "ATS", "Resume", "Timeline", "Notes", "Files", "AI / Codex"].map((tab, i) => `<button class="tab ${i === 0 ? "active" : ""}" data-tab="${tab}" ${i > 5 ? "disabled" : ""}>${tab}</button>`).join("")}</nav>
+    <nav class="tabs">${["Overview", "ATS", "Resume", "Timeline", "Notes", "Files", "AI / Codex"].map((tab, i) => `<button class="tab ${i === 0 ? "active" : ""}" data-tab="${tab}">${tab}</button>`).join("")}</nav>
     <section class="panel" id="content-panel"></section>`;
   document.querySelector("#edit-overview").onclick = () => renderEdit(vacancy);
   document.querySelector("#archive-vacancy").onclick = () => toggleArchive(vacancy);
   document.querySelector("#delete-vacancy").onclick = () => removeVacancy(vacancy);
+  document.querySelector("#export-report").onclick = () => exportReport(vacancy);
   document.querySelector("#status-selector").onchange = async event => {
     const updated = await api(`/api/vacancies/${vacancy.id}/status`, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ status: event.target.value }) });
     await loadVacancies(); renderVacancy(updated); toast(`Status changed to ${updated.status}`);
@@ -87,6 +88,7 @@ function openTab(name, vacancy) {
   if (name === "Timeline") renderTimeline(vacancy);
   if (name === "Notes") renderNotes(vacancy);
   if (name === "Files") renderFiles(vacancy);
+  if (name === "AI / Codex") renderAi(vacancy);
 }
 
 function renderOverview(vacancy) {
@@ -249,6 +251,46 @@ async function renderFiles(vacancy) {
     <div class="item-list">${attachments.length ? attachments.map(file => `<article class="item-row"><div><strong>${escapeHtml(file.filename)}</strong><p class="muted">${formatSize(file.size_bytes)} · ${escapeHtml(file.media_type)}</p></div><div class="actions"><a class="secondary link-button" href="/api/vacancies/${vacancy.id}/attachments/${file.id}/download">Download</a><button class="danger" data-delete-file="${file.id}">Delete</button></div></article>`).join("") : `<p class="muted">No attachments yet.</p>`}</div>`;
   document.querySelector("#attachment-form").onsubmit = async event => { event.preventDefault(); await api(`/api/vacancies/${vacancy.id}/attachments`, { method: "POST", body: new FormData(event.currentTarget) }); toast("File attached"); renderFiles(vacancy); };
   document.querySelectorAll("[data-delete-file]").forEach(button => button.onclick = async () => { if (window.confirm("Remove this attachment?")) { await api(`/api/vacancies/${vacancy.id}/attachments/${button.dataset.deleteFile}`, { method: "DELETE" }); toast("File removed"); renderFiles(vacancy); } });
+}
+
+async function exportReport(vacancy) {
+  const button = document.querySelector("#export-report");
+  button.disabled = true; button.textContent = "Building…";
+  try {
+    const report = await api(`/api/vacancies/${vacancy.id}/reports`, { method: "POST" });
+    const link = document.createElement("a");
+    link.href = `/api/vacancies/${vacancy.id}/reports/${report.id}/download`;
+    link.download = report.filename;
+    document.body.appendChild(link); link.click(); link.remove(); toast("Markdown report generated");
+  } catch (error) { toast(error.message); }
+  finally { button.disabled = false; button.textContent = "Export .md"; }
+}
+
+async function renderAi(vacancy) {
+  const panel = document.querySelector("#content-panel");
+  const history = await api(`/api/vacancies/${vacancy.id}/ai-runs`);
+  const actions = {
+    "Analyze vacancy": "Analyze the role, prioritize its requirements, and identify questions I should clarify.",
+    "Improve resume": "Suggest truthful improvements to the selected resume using only evidence already present in the context.",
+    "Review ATS analysis": "Review the heuristic ATS analysis, point out false positives or weak evidence, and suggest truthful wording improvements.",
+    "Prepare for interview": "Create a focused interview preparation plan with likely questions and evidence-backed talking points.",
+    "Analyze interview notes": "Analyze the interview notes, extract follow-ups, risks, and suggested next actions.",
+    "Custom request": "",
+  };
+  panel.innerHTML = `<div class="section-head"><div><p class="eyebrow">READ-ONLY CLI ASSISTANT</p><h3>AI / Codex</h3></div></div>
+    <p class="callout">CareerFlow sends the generated vacancy Markdown context to <code>codex exec</code> in a read-only, ephemeral session. The response is shown here and never changes your CV or vacancy automatically.</p>
+    <form id="ai-form" class="stack"><div class="form-grid"><label>Action<select name="action" id="ai-action">${Object.keys(actions).map(action => `<option>${action}</option>`).join("")}</select></label><label>Model<input name="model" value="gpt-5.6-luna" placeholder="Leave blank for Luna"></label></div><label>Request<textarea name="prompt" id="ai-prompt" rows="6" required>${escapeHtml(actions["Analyze vacancy"])}</textarea></label><p class="muted">Default: gpt-5.6-luna · reasoning effort low</p><p class="error" id="ai-error"></p><button class="primary" type="submit">Run Codex</button></form>
+    <div id="ai-result"></div>${history.length ? `<hr><h4>Recent responses</h4><div class="item-list">${history.slice(0, 5).map(run => `<article class="item-row"><div><strong>${escapeHtml(run.prompt)}</strong><p class="muted">${new Date(run.created_at + "Z").toLocaleString()} · ${escapeHtml(run.model || "Default model")}</p></div><span class="badge ${run.status === "completed" ? "success" : ""}">${run.status}</span></article>`).join("")}</div>` : ""}`;
+  document.querySelector("#ai-action").onchange = event => { const template = actions[event.target.value]; if (template) document.querySelector("#ai-prompt").value = template; };
+  document.querySelector("#ai-form").onsubmit = async event => {
+    event.preventDefault(); const button = event.currentTarget.querySelector("button"); const errorEl = document.querySelector("#ai-error"); errorEl.textContent = ""; button.disabled = true; button.textContent = "Codex is working…";
+    try {
+      const payload = Object.fromEntries(new FormData(event.currentTarget));
+      const run = await api(`/api/vacancies/${vacancy.id}/ai-runs`, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(payload) });
+      document.querySelector("#ai-result").innerHTML = `<hr><h4>Codex response</h4><pre class="ai-response">${escapeHtml(run.response)}</pre><p class="muted">Review the response, then manually decide what to save as a new resume version or note.</p>`; toast("Codex response received");
+    } catch (error) { errorEl.textContent = error.message; }
+    finally { button.disabled = false; button.textContent = "Run Codex"; }
+  };
 }
 
 function openDialog() { dialog.showModal(); }

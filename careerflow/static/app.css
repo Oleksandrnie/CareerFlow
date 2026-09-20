@@ -76,6 +76,8 @@ hr { border: 0; border-top: 1px solid var(--line); margin: 24px 0; }
 .note-card { display: grid; gap: 8px; padding: 13px; border: 1px solid var(--line); border-radius: 11px; }.note-card time { color: var(--muted); font-size: 11px; }
 .inline-form { display: flex; gap: 10px; }.inline-form input { flex: 1; }.file-hint { margin-top: 8px; font-size: 12px; }
 .link-button { display: inline-block; text-decoration: none; }
+.callout { margin-bottom: 18px; padding: 12px 14px; border-left: 3px solid var(--brand); background: var(--soft); color: #385144; font-size: 13px; line-height: 1.5; }
+.ai-response { max-height: 52vh; overflow: auto; white-space: pre-wrap; border: 1px solid var(--line); border-radius: 10px; background: #f8faf8; padding: 16px; font: 13px/1.55 ui-monospace, SFMono-Regular, Menlo, monospace; }
 dialog { width: min(760px, calc(100vw - 28px)); border: 0; border-radius: 18px; padding: 0; box-shadow: 0 24px 80px #12231a4d; }
 dialog::backdrop { background: #13201999; backdrop-filter: blur(2px); }
 dialog form { display: grid; gap: 16px; padding: 24px; }

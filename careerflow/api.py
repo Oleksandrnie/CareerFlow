@@ -13,6 +13,7 @@ from . import __version__
 from .config import Settings
 from .db import Database
 from .routes_ats import router as ats_router
+from .routes_ai_reports import router as ai_reports_router
 from .routes_resumes import router as resumes_router
 from .routes_tracking import router as tracking_router
 from .routes_vacancies import router as vacancies_router
@@ -41,6 +42,7 @@ def create_app(settings: Settings | None = None) -> FastAPI:
     application.include_router(resumes_router)
     application.include_router(ats_router)
     application.include_router(tracking_router)
+    application.include_router(ai_reports_router)
 
     @application.get("/api/health")
     def health() -> dict[str, str]:

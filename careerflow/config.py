@@ -15,6 +15,8 @@ class Settings:
     database_path: Path
     codex_binary: str
     codex_timeout_seconds: int
+    codex_default_model: str = "gpt-5.6-luna"
+    codex_reasoning_effort: str = "low"
 
     @classmethod
     def from_env(cls, project_root: Path | None = None) -> "Settings":
@@ -31,6 +33,8 @@ class Settings:
             database_path=database_path,
             codex_binary=os.getenv("CAREERFLOW_CODEX_BINARY", "codex"),
             codex_timeout_seconds=int(os.getenv("CAREERFLOW_CODEX_TIMEOUT", "180")),
+            codex_default_model=os.getenv("CAREERFLOW_CODEX_MODEL", "gpt-5.6-luna"),
+            codex_reasoning_effort=os.getenv("CAREERFLOW_CODEX_EFFORT", "low"),
         )
 
     def ensure_directories(self) -> None:
@@ -38,4 +42,3 @@ class Settings:
         self.storage_dir.mkdir(parents=True, exist_ok=True)
         for directory in ("vacancies", "resumes", "attachments", "reports"):
             (self.storage_dir / directory).mkdir(parents=True, exist_ok=True)
-
