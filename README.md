@@ -17,23 +17,38 @@
 
 ## Быстрый запуск
 
-Требования: Python 3.11+ и, для AI-раздела, установленный и авторизованный Codex CLI.
+Требования: macOS/Linux или Windows, Python 3.11+ и, для AI-раздела, установленный и авторизованный Codex CLI.
+
+### Первый запуск
+
+Откройте Terminal и выполните:
 
 ```bash
+cd "/Users/oleksandr/Documents/Custom files/1. Github Repositories/CareerFlow"
 ./start.sh
 ```
 
-Скрипт создаст `.venv`, установит зависимости и откроет сервер на [http://127.0.0.1:8000](http://127.0.0.1:8000). Повторный запуск использует готовое окружение.
+Скрипт автоматически создаст `.venv`, установит проект и запустит локальный сервер. После запуска откройте [http://127.0.0.1:8000](http://127.0.0.1:8000). Остановить сервер можно сочетанием `Ctrl+C`.
 
-Альтернативный ручной запуск:
+### Повторный запуск
 
 ```bash
+cd "/Users/oleksandr/Documents/Custom files/1. Github Repositories/CareerFlow"
+./start.sh
+```
+
+Существующее окружение `.venv` будет переиспользовано. Если Unix-система не разрешает запуск скрипта, выполните `chmod +x start.sh`.
+
+### Ручной запуск
+
+```bash
+cd "/Users/oleksandr/Documents/Custom files/1. Github Repositories/CareerFlow"
 python3 -m venv .venv
 .venv/bin/python -m pip install -e '.[dev]'
 .venv/bin/python run.py
 ```
 
-На Windows после создания окружения используйте `.venv\Scripts\python.exe`.
+На Windows используйте `.venv\Scripts\python.exe` вместо `.venv/bin/python`.
 
 ## Основной сценарий
 
