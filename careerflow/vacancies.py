@@ -146,26 +146,35 @@ def delete_vacancy(
     vacancy_id: int,
     resume_policy: str,
 ) -> dict[str, int]:
-    vacancy = get_vacancy(database, vacancy_id)
-    if vacancy is None:
-        raise LookupError("Vacancy not found")
     if resume_policy not in {"delete_all", "preserve_resumes"}:
         raise ValueError("resume_policy must be delete_all or preserve_resumes")
-    resumes = database.fetch_all(
-        "SELECT * FROM resume_versions WHERE vacancy_id = ? ORDER BY version", (vacancy_id,)
-    )
-    paths_to_remove = [vacancy.get("original_path"), vacancy.get("extracted_text_path")]
-    paths_to_remove.extend(
-        item["stored_path"] for item in database.fetch_all(
-            "SELECT stored_path FROM attachments WHERE vacancy_id = ?", (vacancy_id,)
+    with database.transaction(immediate=True) as connection:
+        vacancy_row = connection.execute(
+            "SELECT * FROM vacancies WHERE id = ?", (vacancy_id,)
+        ).fetchone()
+        if vacancy_row is None:
+            raise LookupError("Vacancy not found")
+        vacancy = dict(vacancy_row)
+        resumes = [
+            dict(row)
+            for row in connection.execute(
+                "SELECT * FROM resume_versions WHERE vacancy_id = ? ORDER BY version",
+                (vacancy_id,),
+            ).fetchall()
+        ]
+        paths_to_remove = [vacancy.get("original_path"), vacancy.get("extracted_text_path")]
+        paths_to_remove.extend(
+            row["stored_path"]
+            for row in connection.execute(
+                "SELECT stored_path FROM attachments WHERE vacancy_id = ?", (vacancy_id,)
+            ).fetchall()
         )
-    )
-    paths_to_remove.extend(
-        item["stored_path"] for item in database.fetch_all(
-            "SELECT stored_path FROM generated_reports WHERE vacancy_id = ?", (vacancy_id,)
+        paths_to_remove.extend(
+            row["stored_path"]
+            for row in connection.execute(
+                "SELECT stored_path FROM generated_reports WHERE vacancy_id = ?", (vacancy_id,)
+            ).fetchall()
         )
-    )
-    with database.transaction() as connection:
         preserved = 0
         if resume_policy == "preserve_resumes":
             next_master = int(

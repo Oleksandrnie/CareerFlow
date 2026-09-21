@@ -142,9 +142,11 @@ class Database:
         return connection
 
     @contextmanager
-    def transaction(self) -> Iterator[sqlite3.Connection]:
+    def transaction(self, *, immediate: bool = False) -> Iterator[sqlite3.Connection]:
         connection = self.connect()
         try:
+            if immediate:
+                connection.execute("BEGIN IMMEDIATE")
             yield connection
             connection.commit()
         except Exception:
@@ -155,11 +157,47 @@ class Database:
 
     def initialize(self) -> None:
         self.path.parent.mkdir(parents=True, exist_ok=True)
-        with self.transaction() as connection:
+        with self.connect() as connection:
             connection.executescript(SCHEMA)
+        with self.transaction(immediate=True) as connection:
             connection.execute(
                 "INSERT OR IGNORE INTO schema_version(version) VALUES (1)"
             )
+            self._ensure_unique_master_versions(connection)
+            connection.execute(
+                """
+                CREATE UNIQUE INDEX IF NOT EXISTS unique_master_resume_version
+                ON resume_versions(version)
+                WHERE kind = 'master' AND vacancy_id IS NULL
+                """
+            )
+            connection.execute(
+                "INSERT OR IGNORE INTO schema_version(version) VALUES (2)"
+            )
+
+    @staticmethod
+    def _ensure_unique_master_versions(connection: sqlite3.Connection) -> None:
+        rows = connection.execute(
+            """
+            SELECT id, version
+            FROM resume_versions
+            WHERE kind = 'master' AND vacancy_id IS NULL
+            ORDER BY version, created_at, id
+            """
+        ).fetchall()
+        seen: set[int] = set()
+        next_version = max((int(row["version"]) for row in rows), default=0)
+        for row in rows:
+            version = int(row["version"])
+            if version not in seen:
+                seen.add(version)
+                continue
+            next_version += 1
+            connection.execute(
+                "UPDATE resume_versions SET version = ? WHERE id = ?",
+                (next_version, int(row["id"])),
+            )
+            seen.add(next_version)
 
     def fetch_one(self, query: str, params: tuple[object, ...] = ()) -> dict | None:
         with self.connect() as connection:
@@ -179,4 +217,3 @@ def insert_and_get_id(
     if cursor.lastrowid is None:
         raise RuntimeError("SQLite did not return an inserted row id")
     return int(cursor.lastrowid)
-

@@ -57,10 +57,14 @@ def add_interview(
     note: str,
     result: str,
 ) -> dict:
-    _ensure_vacancy(database, vacancy_id)
     if not interview_at.strip():
         raise ValueError("Interview date is required")
-    with database.transaction() as connection:
+    with database.transaction(immediate=True) as connection:
+        vacancy_exists = connection.execute(
+            "SELECT 1 FROM vacancies WHERE id = ?", (vacancy_id,)
+        ).fetchone()
+        if vacancy_exists is None:
+            raise LookupError("Vacancy not found")
         row = connection.execute(
             "SELECT COALESCE(MAX(sequence_number), 0) + 1 FROM interviews WHERE vacancy_id = ?",
             (vacancy_id,),

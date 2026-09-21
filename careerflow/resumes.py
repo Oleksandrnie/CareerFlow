@@ -2,12 +2,12 @@
 
 from __future__ import annotations
 
+import shutil
 from pathlib import Path
 from uuid import uuid4
 
 from .db import Database, insert_and_get_id
 from .files import normalize_text, safe_filename, write_bytes, write_text
-from .vacancies import get_vacancy
 
 
 def get_resume(database: Database, resume_id: int) -> dict | None:
@@ -40,7 +40,7 @@ def create_resume(
         raise ValueError("Resume kind must be master or vacancy")
     if kind == "master":
         vacancy_id = None
-    elif vacancy_id is None or get_vacancy(database, vacancy_id) is None:
+    elif vacancy_id is None:
         raise ValueError("A valid vacancy is required for a vacancy resume")
     normalized = normalize_text(content_text)
     if not normalized:
@@ -48,47 +48,56 @@ def create_resume(
 
     scope = "master" if kind == "master" else f"vacancy-{vacancy_id}"
     folder = storage_dir / "resumes" / scope / uuid4().hex
-    extracted_path = folder / "extracted.txt"
-    write_text(extracted_path, normalized)
-    stored_filename: str | None = None
-    original_path: Path | None = None
-    if original_filename and original_content is not None:
-        stored_filename = safe_filename(original_filename)
-        original_path = folder / f"original-{stored_filename}"
-        write_bytes(original_path, original_content)
+    try:
+        extracted_path = folder / "extracted.txt"
+        write_text(extracted_path, normalized)
+        stored_filename: str | None = None
+        original_path: Path | None = None
+        if original_filename and original_content is not None:
+            stored_filename = safe_filename(original_filename)
+            original_path = folder / f"original-{stored_filename}"
+            write_bytes(original_path, original_content)
 
-    with database.transaction() as connection:
-        if vacancy_id is None:
-            row = connection.execute(
-                "SELECT COALESCE(MAX(version), 0) + 1 FROM resume_versions WHERE kind = 'master' AND vacancy_id IS NULL"
-            ).fetchone()
-        else:
-            row = connection.execute(
-                "SELECT COALESCE(MAX(version), 0) + 1 FROM resume_versions WHERE kind = 'vacancy' AND vacancy_id = ?",
-                (vacancy_id,),
-            ).fetchone()
-        version = int(row[0])
-        resume_id = insert_and_get_id(
-            connection,
-            """
-            INSERT INTO resume_versions(
-                vacancy_id, kind, version, label, original_filename, original_path,
-                extracted_text_path, content_text
-            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?)
-            """,
-            (
-                vacancy_id, kind, version, label.strip(), stored_filename,
-                str(original_path) if original_path else None, str(extracted_path), normalized,
-            ),
-        )
-        if vacancy_id is not None:
-            connection.execute(
+        with database.transaction(immediate=True) as connection:
+            if vacancy_id is None:
+                row = connection.execute(
+                    "SELECT COALESCE(MAX(version), 0) + 1 FROM resume_versions WHERE kind = 'master' AND vacancy_id IS NULL"
+                ).fetchone()
+            else:
+                vacancy_exists = connection.execute(
+                    "SELECT 1 FROM vacancies WHERE id = ?", (vacancy_id,)
+                ).fetchone()
+                if vacancy_exists is None:
+                    raise ValueError("A valid vacancy is required for a vacancy resume")
+                row = connection.execute(
+                    "SELECT COALESCE(MAX(version), 0) + 1 FROM resume_versions WHERE kind = 'vacancy' AND vacancy_id = ?",
+                    (vacancy_id,),
+                ).fetchone()
+            version = int(row[0])
+            resume_id = insert_and_get_id(
+                connection,
                 """
-                INSERT INTO timeline_events(vacancy_id, event_type, title, details)
-                VALUES (?, 'resume_created', ?, ?)
+                INSERT INTO resume_versions(
+                    vacancy_id, kind, version, label, original_filename, original_path,
+                    extracted_text_path, content_text
+                ) VALUES (?, ?, ?, ?, ?, ?, ?, ?)
                 """,
-                (vacancy_id, f"Resume v{version} created", label.strip()),
+                (
+                    vacancy_id, kind, version, label.strip(), stored_filename,
+                    str(original_path) if original_path else None, str(extracted_path), normalized,
+                ),
             )
+            if vacancy_id is not None:
+                connection.execute(
+                    """
+                    INSERT INTO timeline_events(vacancy_id, event_type, title, details)
+                    VALUES (?, 'resume_created', ?, ?)
+                    """,
+                    (vacancy_id, f"Resume v{version} created", label.strip()),
+                )
+    except Exception:
+        shutil.rmtree(folder, ignore_errors=True)
+        raise
     result = get_resume(database, resume_id)
     if result is None:
         raise RuntimeError("Created resume could not be loaded")
