@@ -110,7 +110,14 @@ def update_vacancy(database: Database, vacancy_id: int, changes: dict[str, str])
     if not selected:
         return get_vacancy(database, vacancy_id)
     assignments = ", ".join(f"{key} = ?" for key in selected)
-    with database.transaction() as connection:
+    with database.transaction(immediate=True) as connection:
+        current = connection.execute(
+            "SELECT description FROM vacancies WHERE id = ?", (vacancy_id,)
+        ).fetchone()
+        if current is None:
+            return None
+        if "description" in selected and selected["description"] != current["description"]:
+            assignments += ", description_revision = description_revision + 1, match_percent = NULL"
         cursor = connection.execute(
             f"UPDATE vacancies SET {assignments}, updated_at = CURRENT_TIMESTAMP WHERE id = ?",
             (*selected.values(), vacancy_id),

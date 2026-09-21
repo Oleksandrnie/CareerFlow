@@ -172,7 +172,10 @@ async function renderResumes(vacancy) {
 function atsResult(analysis) {
   if (!analysis) return `<div class="empty-inline"><h3>No ATS analysis yet</h3><p>Choose a resume version and run a transparent text comparison.</p></div>`;
   const result = analysis.result;
-  return `<div class="score-row"><div class="score">${analysis.match_percent}%</div><div><h3>Resume match</h3><p class="muted">${escapeHtml(result.disclaimer)}</p></div></div>
+  const resumeLabel = analysis.resume_kind_at_analysis && analysis.resume_version_at_analysis
+    ? `${analysis.resume_kind_at_analysis === "master" ? "Master" : "Vacancy"} Resume v${analysis.resume_version_at_analysis}`
+    : "legacy resume version";
+  return `<div class="score-row"><div class="score">${analysis.match_percent}%</div><div><h3>${analysis.is_stale ? "Historical match — rerun ATS" : "Current resume match"}</h3><p class="muted">Analysis #${analysis.id} · ${escapeHtml(resumeLabel)} (ID ${analysis.resume_version_id})</p><p class="muted">${escapeHtml(result.disclaimer)}</p>${analysis.is_stale ? `<p class="error">Vacancy description changed or this older result has unknown provenance. This score is not current.</p>` : ""}</div></div>
     <div class="metric-grid"><div><strong>${result.counts.covered}</strong><span>Covered</span></div><div><strong>${result.counts.partial}</strong><span>Partial</span></div><div><strong>${result.counts.missing}</strong><span>Missing</span></div></div>
     <h4>Requirements and evidence</h4><div class="item-list">${result.requirements.map(item => `<article class="requirement ${item.classification}"><span class="badge">${item.classification}</span><strong>${escapeHtml(item.requirement)}</strong><p>${escapeHtml(item.interpretation)}</p>${item.evidence ? `<blockquote>${escapeHtml(item.evidence)}</blockquote>` : ""}</article>`).join("")}</div>
     <h4>Keywords</h4><div class="tag-list">${result.keywords.map(word => `<span class="tag ${result.covered_keywords.includes(word) ? "hit" : ""}">${escapeHtml(word)}</span>`).join("")}</div>`;
@@ -188,7 +191,7 @@ async function renderAts(vacancy) {
       api(`/api/vacancies/${vacancy.id}/ats`),
     ]);
     const options = [...versions, ...masters];
-    panel.innerHTML = `<div class="section-head"><div><p class="eyebrow">EVIDENCE-BASED</p><h3>ATS analysis</h3></div><div class="actions"><select id="ats-resume">${options.map(item => `<option value="${item.id}">${item.kind === "master" ? "Master" : "Vacancy"} v${item.version} — ${escapeHtml(item.label || "Untitled")}</option>`).join("")}</select><button id="run-ats" class="primary" ${options.length ? "" : "disabled"}>Run analysis</button></div></div><div id="ats-result">${atsResult(latest)}</div>`;
+    panel.innerHTML = `<div class="section-head"><div><p class="eyebrow">EVIDENCE-BASED</p><h3>ATS analysis</h3></div><div class="actions"><select id="ats-resume">${options.map(item => `<option value="${item.id}" ${latest && item.id === latest.resume_version_id ? "selected" : ""}>${item.kind === "master" ? "Master" : "Vacancy"} v${item.version} — ${escapeHtml(item.label || "Untitled")}</option>`).join("")}</select><button id="run-ats" class="primary" ${options.length ? "" : "disabled"}>Run analysis</button></div></div><div id="ats-result">${atsResult(latest)}</div>`;
     document.querySelector("#run-ats").onclick = async () => {
       const button = document.querySelector("#run-ats"); button.disabled = true; button.textContent = "Analyzing…";
       try {

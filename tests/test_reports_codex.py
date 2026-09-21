@@ -58,6 +58,51 @@ class ReportsAndCodexTest(unittest.TestCase):
         self.assertEqual(download.status_code, 200)
         self.assertIn(b"CareerFlow local context report", download.content)
 
+    def test_master_only_analysis_includes_the_full_analyzed_resume(self) -> None:
+        vacancy = self.client.post(
+            "/api/vacancies", data={"text": "Python Engineer\nRequired Python experience."}
+        ).json()
+        master = self.client.post(
+            "/api/resumes",
+            data={"kind": "master", "text": "Python experience. SECRET_FULL_CV_DETAIL_ONLY."},
+        ).json()
+        self.client.post(
+            f"/api/vacancies/{vacancy['id']}/ats",
+            json={"resume_version_id": master["id"]},
+        )
+
+        report = self.client.post(f"/api/vacancies/{vacancy['id']}/reports").json()["markdown"]
+        self.assertIn("No vacancy-specific resume version has been added", report)
+        self.assertIn(f"Master Resume v{master['version']} (ID {master['id']}", report)
+        self.assertIn("SECRET_FULL_CV_DETAIL_ONLY", report)
+        self.assertIn(f"Resume ID: {master['id']}", report)
+
+    def test_report_distinguishes_analyzed_older_from_submitted_and_latest(self) -> None:
+        submitted = self.client.post(
+            "/api/resumes",
+            data={
+                "kind": "vacancy", "vacancy_id": self.vacancy["id"],
+                "text": "SUBMITTED_CV_DETAIL SQL", "label": "Submitted",
+            },
+        ).json()
+        latest = self.client.post(
+            "/api/resumes",
+            data={
+                "kind": "vacancy", "vacancy_id": self.vacancy["id"],
+                "text": "LATEST_UNSUBMITTED_CV_DETAIL", "label": "Draft",
+            },
+        ).json()
+        self.client.post(f"/api/resumes/{submitted['id']}/submit")
+
+        report = self.client.post(f"/api/vacancies/{self.vacancy['id']}/reports").json()["markdown"]
+        self.assertIn(f"Workflow resume: submitted Vacancy Resume v{submitted['version']}", report)
+        self.assertIn("SUBMITTED_CV_DETAIL", report)
+        self.assertIn(f"Vacancy Resume v{self.resume['version']} (ID {self.resume['id']}", report)
+        self.assertIn("Python engineer using SQL", report)
+        self.assertIn("This differs from the workflow resume", report)
+        self.assertIn(f"Vacancy Resume v{latest['version']}: Draft", report)
+        self.assertNotIn("LATEST_UNSUBMITTED_CV_DETAIL", report)
+
     def test_codex_command_is_noninteractive_read_only_and_no_shell(self) -> None:
         calls = {}
 
