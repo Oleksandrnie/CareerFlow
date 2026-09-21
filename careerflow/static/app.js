@@ -193,7 +193,7 @@ function renderEdit(vacancy) {
       <label>Source<input name="source" value="${escapeAttr(vacancy.source)}"></label>
       <label style="grid-column:1/-1">Summary<textarea name="summary" rows="3">${escapeHtml(vacancy.summary)}</textarea></label>
       <label style="grid-column:1/-1">Description<textarea name="description" rows="14" required>${escapeHtml(vacancy.description)}</textarea></label>
-      <div class="actions"><button class="primary">Save changes</button><button class="secondary" type="button" id="cancel-edit">Cancel</button></div>
+      <div class="actions"><button class="primary" type="submit">Save changes</button><button class="secondary" type="button" id="cancel-edit">Cancel</button></div>
     </form>`;
   document.querySelector("#cancel-edit").onclick = () => openTab("Overview", vacancy);
   document.querySelector("#edit-form").onsubmit = async event => {
@@ -351,7 +351,7 @@ async function renderTimeline(vacancy, view = null) {
   if (!isCurrentView(view)) return;
   panel.innerHTML = `<div class="section-head"><div><p class="eyebrow">EVENT LOG</p><h3>Timeline</h3></div></div>
     <div class="split-grid"><section><div class="timeline">${events.map(event => `<article><span></span><div><strong>${escapeHtml(event.title)}</strong><time>${new Date(event.event_at + (event.event_at.includes("T") ? "" : "Z")).toLocaleString()}</time>${event.details ? `<p>${escapeHtml(event.details)}</p>` : ""}</div></article>`).join("")}</div></section>
-    <section><h4>Add interview #${interviews.length + 1}</h4><form id="interview-form" class="stack"><label>Date and time<input name="interview_at" type="datetime-local" required></label><label>Type<input name="interview_type" value="Interview" placeholder="HR, Technical, Hiring manager…"></label><label>Notes<textarea name="note" rows="4"></textarea></label><label>Result<input name="result" placeholder="Scheduled, passed, follow-up…"></label><p class="error" id="interview-error"></p><button class="primary">Add interview</button></form></section></div>`;
+    <section><h4>Add interview #${interviews.length + 1}</h4><form id="interview-form" class="stack"><label>Date and time<input name="interview_at" type="datetime-local" required></label><label>Type<input name="interview_type" value="Interview" placeholder="HR, Technical, Hiring manager…"></label><label>Notes<textarea name="note" rows="4"></textarea></label><label>Result<input name="result" placeholder="Scheduled, passed, follow-up…"></label><p class="error" id="interview-error"></p><button class="primary" type="submit">Add interview</button></form></section></div>`;
   document.querySelector("#interview-form").onsubmit = async event => {
     event.preventDefault();
     const interviewForm = event.currentTarget;
@@ -372,7 +372,7 @@ async function renderNotes(vacancy, view = null) {
   const notes = await api(`/api/vacancies/${vacancy.id}/notes`);
   if (!isCurrentView(view)) return;
   panel.innerHTML = `<div class="section-head"><div><p class="eyebrow">DATED NOTES</p><h3>Notes</h3></div></div>
-    <form id="note-form" class="stack"><label>New note<textarea name="body" rows="4" placeholder="Interview preparation, company research, impressions…" required></textarea></label><p class="error" id="note-error"></p><button class="primary">Add note</button></form><hr>
+    <form id="note-form" class="stack"><label>New note<textarea name="body" rows="4" placeholder="Interview preparation, company research, impressions…" required></textarea></label><p class="error" id="note-error"></p><button class="primary" type="submit">Add note</button></form><hr>
     <div class="item-list">${notes.length ? notes.map(note => `<form class="note-card" data-note-id="${note.id}"><textarea name="body" rows="4">${escapeHtml(note.body)}</textarea><p class="error" data-note-error></p><div class="card-meta"><time>${new Date(note.created_at + "Z").toLocaleString()}</time><div class="actions"><button class="secondary" type="submit">Save</button><button class="danger" type="button" data-delete-note>Delete</button></div></div></form>`).join("") : `<p class="muted">No notes yet.</p>`}</div>`;
   document.querySelector("#note-form").onsubmit = async event => {
     event.preventDefault();
@@ -412,7 +412,7 @@ async function renderFiles(vacancy, view = null) {
   if (!isCurrentView(view)) return;
   const formatSize = bytes => bytes < 1024 ? `${bytes} B` : bytes < 1048576 ? `${(bytes / 1024).toFixed(1)} KB` : `${(bytes / 1048576).toFixed(1)} MB`;
   panel.innerHTML = `<div class="section-head"><div><p class="eyebrow">LOCAL STORAGE</p><h3>Files</h3></div></div>
-    <form id="attachment-form" class="inline-form"><input name="file" type="file" required><button class="primary">Attach file</button></form><p class="error" id="attachment-error"></p><p class="muted file-hint">Up to 100 MB. Audio is stored as-is; automatic transcription is outside the MVP.</p><hr>
+    <form id="attachment-form" class="inline-form"><input name="file" type="file" required><button class="primary" type="submit">Attach file</button></form><p class="error" id="attachment-error"></p><p class="muted file-hint">Up to 100 MB. Audio is stored as-is; automatic transcription is outside the MVP.</p><hr>
     <div class="item-list">${attachments.length ? attachments.map(file => `<article class="item-row"><div><strong>${escapeHtml(file.filename)}</strong><p class="muted">${formatSize(file.size_bytes)} · ${escapeHtml(file.media_type)}</p></div><div class="actions"><a class="secondary link-button" href="/api/vacancies/${vacancy.id}/attachments/${file.id}/download">Download</a><button class="danger" data-delete-file="${file.id}">Delete</button></div></article>`).join("") : `<p class="muted">No attachments yet.</p>`}</div>`;
   document.querySelector("#attachment-form").onsubmit = async event => {
     event.preventDefault();

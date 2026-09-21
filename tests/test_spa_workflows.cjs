@@ -34,7 +34,12 @@ function fakeElement(tagName = "DIV") {
       return children.get(selector);
     },
     get innerHTML() { return html; },
-    set innerHTML(value) { html = value; children.clear(); this.lists = new Map(); },
+    set innerHTML(value) {
+      for (const [form] of String(value).matchAll(/<form\b[^>]*>[\s\S]*?<\/form>/g)) {
+        assert.match(form, /<button\b[^>]*\btype="submit"[^>]*>/, "Every rendered form needs an explicit submit button");
+      }
+      html = value; children.clear(); this.lists = new Map();
+    },
     lists: new Map(),
   };
 }
@@ -160,6 +165,25 @@ async function testStaleNotesAndCardSelection() {
   assert.match(app.panel.innerHTML, /SECOND_DESCRIPTION/);
 }
 
+async function testEditAndInterviewSubmitControls() {
+  const app = harness();
+  app.run(`renderVacancy(${JSON.stringify(first)})`);
+  app.run('renderEdit(state.selected)');
+  const editForm = app.panel.querySelector("#edit-form");
+  editForm.fields = { title: "Updated role", company: "A", salary: "", source: "", summary: "", description: "FIRST_DESCRIPTION" };
+  const updated = { ...first, title: "Updated role" };
+  app.routes.set("PATCH /api/vacancies/1", updated);
+  app.routes.set("GET /api/vacancies?archived=false", [updated]);
+  await editForm.onsubmit({ preventDefault() {}, currentTarget: editForm });
+  assert.match(app.panel.innerHTML, /FIRST_DESCRIPTION/);
+  assert.equal(app.calls.filter(call => call === "PATCH /api/vacancies/1").length, 1);
+
+  app.routes.set("GET /api/vacancies/1/timeline", []);
+  app.routes.set("GET /api/vacancies/1/interviews", []);
+  await app.run('openTab("Timeline", state.selected)');
+  assert.match(app.panel.innerHTML, /type="submit">Add interview/);
+}
+
 async function testResumePreviewAndEditableCopy() {
   const app = harness();
   app.run(`renderVacancy(${JSON.stringify(first)})`);
@@ -262,6 +286,7 @@ async function testMutationFailuresAndDuplicateRecovery() {
 
 (async () => {
   await testStaleNotesAndCardSelection();
+  await testEditAndInterviewSubmitControls();
   await testResumePreviewAndEditableCopy();
   await testSavedAiDetailAndLateRun();
   await testMutationFailuresAndDuplicateRecovery();
