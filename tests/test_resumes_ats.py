@@ -18,6 +18,7 @@ class ResumeAndAtsTest(unittest.TestCase):
         self.temp_dir = tempfile.TemporaryDirectory()
         root = Path(self.temp_dir.name)
         settings = Settings(root, root / "data", root / "storage", root / "data" / "test.db", "codex", 10)
+        self.settings = settings
         self.context = TestClient(create_app(settings))
         self.client = self.context.__enter__()
         vacancy_response = self.client.post(
@@ -54,6 +55,51 @@ class ResumeAndAtsTest(unittest.TestCase):
         versions = self.client.get(f"/api/resumes?kind=vacancy&vacancy_id={self.vacancy['id']}").json()
         self.assertEqual([item["version"] for item in versions], [2, 1])
         self.assertEqual(sum(item["is_submitted"] for item in versions), 1)
+
+    def test_original_resume_download_is_byte_identical_and_scoped_to_storage(self) -> None:
+        original = b"Python engineer\nSQL and Docker\n"
+        uploaded = self.client.post(
+            "/api/resumes",
+            data={"kind": "master", "label": "Uploaded"},
+            files={"file": ("resume.txt", original, "text/plain")},
+        )
+        self.assertEqual(uploaded.status_code, 201)
+        resume = uploaded.json()
+        download_url = f"/api/resumes/{resume['id']}/download"
+        downloaded = self.client.get(download_url)
+        self.assertEqual(downloaded.status_code, 200)
+        self.assertEqual(downloaded.content, original)
+        self.assertEqual(downloaded.headers["content-type"], "application/octet-stream")
+        self.assertIn("attachment", downloaded.headers["content-disposition"])
+        self.assertIn("resume.txt", downloaded.headers["content-disposition"])
+
+        pasted = self.client.post(
+            "/api/resumes", data={"kind": "master", "text": "Pasted resume"}
+        ).json()
+        self.assertEqual(self.client.get(f"/api/resumes/{pasted['id']}/download").status_code, 404)
+        self.assertEqual(self.client.get("/api/resumes/999999/download").status_code, 404)
+
+        outside = Path(self.temp_dir.name) / "outside-private.txt"
+        outside.write_bytes(b"must not be served")
+        database = self.context.app.state.db
+        with database.transaction() as connection:
+            connection.execute(
+                "UPDATE resume_versions SET original_path = ? WHERE id = ?",
+                (str(outside), resume["id"]),
+            )
+        self.assertEqual(self.client.get(download_url).status_code, 404)
+
+        original_path = Path(resume["original_path"])
+        with database.transaction() as connection:
+            connection.execute(
+                "UPDATE resume_versions SET original_path = ? WHERE id = ?",
+                (str(original_path), resume["id"]),
+            )
+        original_path.unlink()
+        original_path.symlink_to(outside)
+        self.assertEqual(self.client.get(download_url).status_code, 404)
+        original_path.unlink()
+        self.assertEqual(self.client.get(download_url).status_code, 404)
 
     def test_ats_analysis_persists_evidence_and_updates_match(self) -> None:
         resume = self.client.post(

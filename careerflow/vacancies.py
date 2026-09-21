@@ -107,6 +107,10 @@ def list_vacancies(database: Database, archived: bool = False) -> list[dict]:
 
 def update_vacancy(database: Database, vacancy_id: int, changes: dict[str, str]) -> dict | None:
     selected = {key: value.strip() for key, value in changes.items() if key in EDITABLE_FIELDS}
+    if "description" in selected:
+        selected["description"] = normalize_text(selected["description"])
+        if not selected["description"]:
+            raise ValueError("Vacancy description is required")
     if not selected:
         return get_vacancy(database, vacancy_id)
     assignments = ", ".join(f"{key} = ?" for key in selected)

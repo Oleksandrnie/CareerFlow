@@ -14,6 +14,22 @@ def get_resume(database: Database, resume_id: int) -> dict | None:
     return database.fetch_one("SELECT * FROM resume_versions WHERE id = ?", (resume_id,))
 
 
+def get_original_resume(database: Database, storage_dir: Path, resume_id: int) -> tuple[Path, str]:
+    resume = get_resume(database, resume_id)
+    if resume is None or not resume["original_path"] or not resume["original_filename"]:
+        raise LookupError("Resume original not found")
+    filename = safe_filename(resume["original_filename"])
+    path = Path(resume["original_path"]).resolve()
+    allowed_root = (storage_dir / "resumes").resolve()
+    if (
+        not path.is_relative_to(allowed_root)
+        or path.name != f"original-{filename}"
+        or not path.is_file()
+    ):
+        raise LookupError("Resume original not found")
+    return path, filename
+
+
 def list_resumes(database: Database, kind: str, vacancy_id: int | None = None) -> list[dict]:
     if kind == "master":
         return database.fetch_all(
