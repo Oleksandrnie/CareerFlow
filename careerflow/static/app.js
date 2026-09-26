@@ -435,7 +435,7 @@ function renderCleaningReview(preview, errorId) {
     <p class="muted">Cleaning method: ${escapeHtml(preview.method || "local")}</p>
     <div class="form-grid"><label>Original imported text<textarea rows="10" readonly>${escapeHtml(preview.raw_description || "")}</textarea></label><label>Cleaned draft (editable)<textarea rows="10" data-cleaned-description>${escapeHtml(preview.description || "")}</textarea></label></div>
     <div class="split-grid"><section><h4>Removed blocks (${removed.length})</h4><ul class="review-list">${removed.length ? removed.map(item => `<li><strong>${escapeHtml(item.text)}</strong><span class="muted">${escapeHtml(item.reason || "Removed")}</span></li>`).join("") : `<li class="muted">Nothing removed</li>`}</ul></section><section><h4>Needs review (${uncertain.length})</h4><ul class="review-list">${uncertain.length ? uncertain.map(item => `<li><strong>${escapeHtml(item.text)}</strong><span class="muted">${escapeHtml(item.reason || "Uncertain")}</span></li>`).join("") : `<li class="muted">No uncertain blocks</li>`}</ul></section></div>
-    <p class="error" id="${errorId}"></p><div class="dialog-actions"><button type="button" class="secondary" data-cancel-cleaning>Back</button><button type="button" class="primary" data-confirm-cleaning>Confirm cleaned description</button></div></section>`;
+    <p class="error" id="${errorId}"></p><div class="dialog-actions"><button type="button" class="secondary" data-cancel-cleaning>Back</button><button type="button" class="primary" data-confirm-cleaning>Confirm</button></div></section>`;
 }
 
 function codexEscalationPrompt(preview) {
