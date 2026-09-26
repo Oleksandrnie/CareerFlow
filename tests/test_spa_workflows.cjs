@@ -529,12 +529,13 @@ async function testExistingDescriptionReviewAndCodexOptIn() {
   codexApp.panel.querySelector("#review-cleaning-codex").checked = true;
   codexApp.routes.set("POST /api/vacancies/1/description/preview", options => {
     assert.deepEqual(JSON.parse(options.body), { use_codex: true });
-    return { raw_description: confirmed.raw_description, description: "Codex cleaned", method: "codex:rules", removed_blocks: [], uncertain_blocks: [], warnings: [], diagnostics: { classification_source: "codex", codex_requested: true, fallback_used: false } };
+    return { raw_description: confirmed.raw_description, description: "Codex cleaned", method: "codex:rules", removed_blocks: [], uncertain_blocks: [], warnings: [], diagnostics: { classification_source: "codex", codex_requested: true, fallback_used: false, codex_model: "gpt-5.6-sol", codex_effort: "medium" } };
   });
   await codexApp.panel.querySelector("#review-cleaning").onclick();
   assert.match(codexApp.panel.innerHTML, /Clean description/);
   assert.match(codexApp.panel.querySelector("#cleaning-review").innerHTML, /Cleaning method: codex:rules/);
   assert.match(codexApp.panel.querySelector("#cleaning-review").innerHTML, /Codex classification completed successfully/);
+  assert.match(codexApp.panel.querySelector("#cleaning-review").innerHTML, /gpt-5\.6-sol.*medium/);
 
   const fallbackApp = harness();
   fallbackApp.run(`renderVacancy(${JSON.stringify(confirmed)})`);

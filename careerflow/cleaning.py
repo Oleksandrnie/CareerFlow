@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import json
 import re
+from dataclasses import replace
 from typing import Callable
 
 from .codex import CodexError, CodexResult, run_codex
@@ -117,14 +118,14 @@ def retain_reviewable_text(text: str) -> str:
 def _apply_local_safeguards(
     local: list[dict[str, str]], codex: list[dict[str, str]]
 ) -> list[dict[str, str]]:
-    """Keep deterministic removals and reviewable uncertainty authoritative."""
+    """Keep deterministic removals authoritative; let Codex resolve uncertainty."""
 
     local_by_id = {item["id"]: item for item in local}
     if len(local_by_id) != len(local) or {item["id"] for item in codex} != set(local_by_id):
         raise ValueError("Codex cleanup did not return the complete block set")
     return [
         local_by_id[item["id"]]
-        if local_by_id[item["id"]]["classification"] in {"remove", "uncertain"}
+        if local_by_id[item["id"]]["classification"] == "remove"
         else item
         for item in codex
     ]
@@ -195,7 +196,12 @@ def classify_blocks_with_codex(
             json.dumps(payload, ensure_ascii=False),
         ]
     )
-    result = runner(settings, prompt)
+    cleaning_settings = replace(
+        settings,
+        codex_default_model=settings.codex_cleaning_model,
+        codex_reasoning_effort=settings.codex_cleaning_effort,
+    )
+    result = runner(cleaning_settings, prompt)
     return validate_classifications(blocks, _json_payload(result.response))
 
 
@@ -218,6 +224,8 @@ def build_preview(
         "classification_source": "local",
         "codex_requested": use_codex,
         "fallback_used": False,
+        "codex_model": settings.codex_cleaning_model if settings and use_codex else None,
+        "codex_effort": settings.codex_cleaning_effort if settings and use_codex else None,
     }
     local_classified = classify_blocks(blocks)
     if use_codex and settings is not None:

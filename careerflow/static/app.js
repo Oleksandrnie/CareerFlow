@@ -414,10 +414,13 @@ function renderCleaningReview(preview, errorId) {
   const removed = preview.removed_blocks || [];
   const uncertain = preview.uncertain_blocks || [];
   const diagnostics = preview.diagnostics || {};
+  const codexProfile = diagnostics.codex_model
+    ? ` <code>${escapeHtml(diagnostics.codex_model)} / ${escapeHtml(diagnostics.codex_effort || "unknown")}</code>`
+    : "";
   const classificationNotice = diagnostics.classification_source === "codex"
-    ? `<div class="callout">Codex classification completed successfully.</div>`
+    ? `<div class="callout"><span>Codex classification completed successfully.</span>${codexProfile}</div>`
     : diagnostics.codex_requested && diagnostics.fallback_used
-      ? `<div class="callout">${escapeHtml((preview.warnings || [])[0] || "Codex classification failed; local rules were used. Review uncertain blocks before confirmation.")}</div>`
+      ? `<div class="callout"><span>${escapeHtml((preview.warnings || [])[0] || "Codex classification failed; local rules were used. Review uncertain blocks before confirmation.")}</span>${codexProfile}</div>`
       : "";
   return `<section class="cleaning-review"><div class="callout">Review the proposed text before confirming. Original vacancy content remains unchanged.</div>
     ${classificationNotice}
