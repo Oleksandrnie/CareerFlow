@@ -11,7 +11,8 @@
   font-family: Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
 }
 * { box-sizing: border-box; }
-body { margin: 0; color: var(--ink); background: var(--paper); }
+html, body { height: 100%; overflow: hidden; }
+body { display: flex; flex-direction: column; margin: 0; color: var(--ink); background: var(--paper); }
 button, input, textarea, select { font: inherit; }
 button { cursor: pointer; }
 button:disabled { cursor: wait; opacity: .6; }
@@ -147,8 +148,8 @@ dialog form { display: grid; gap: 16px; padding: 24px; }
   .primary-nav { order: 3; width: 100%; min-height: 42px; margin: 0; overflow-x: auto; }
   .primary-nav-item { flex: 1 0 auto; padding: 8px 12px; }
   .topbar { flex-wrap: wrap; }
-  .layout { grid-template-columns: 1fr; }
-  .sidebar { border-right: 0; border-bottom: 1px solid var(--line); max-height: 38vh; overflow: auto; }
+  .layout { grid-template-columns: 1fr; grid-template-rows: minmax(0, 38vh) minmax(0, 1fr); }
+  .sidebar { border-right: 0; border-bottom: 1px solid var(--line); max-height: none; overflow-y: auto; }
   .workspace { padding: 20px 16px; }
   .form-grid { grid-template-columns: 1fr; }
   .split-grid { grid-template-columns: 1fr; }
@@ -186,12 +187,12 @@ dialog form { display: grid; gap: 16px; padding: 24px; }
 .primary-nav { margin-left: 20px; }
 .primary-nav-item { padding: 0 11px; font-size: 13px; }
 .primary, .secondary, .danger { padding: 8px 12px; font-size: 13px; }
-.layout { min-height: calc(100vh - 68px); grid-template-columns: 310px 1fr; }
-.sidebar { padding: 16px 12px; }
+.layout { height: auto; min-height: 0; flex: 1 1 auto; overflow: hidden; grid-template-columns: 310px 1fr; }
+.sidebar { min-height: 0; overflow-y: auto; padding: 16px 12px; }
 .vacancy-list { gap: 6px; }
 .vacancy-card { padding: 10px; }
 .vacancy-card .vacancy-title { display: -webkit-box; overflow: hidden; line-height: 1.2; -webkit-box-orient: vertical; -webkit-line-clamp: 2; }
-.workspace { padding: 24px; }
+.workspace { min-height: 0; overflow-y: auto; padding: 24px; }
 .workspace-head { margin-bottom: 14px; gap: 14px; }
 .workspace-head h2 { max-width: 620px; display: -webkit-box; overflow: hidden; font-size: 26px; line-height: 1.12; -webkit-box-orient: vertical; -webkit-line-clamp: 2; }
 .stage-scroll { margin-bottom: 14px; padding-bottom: 5px; }
