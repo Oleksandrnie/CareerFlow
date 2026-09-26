@@ -60,7 +60,7 @@ const RU = {
   "EVENT LOG": "ЖУРНАЛ СОБЫТИЙ", "Add interview": "Добавить собеседование", "Date and time": "Дата и время", "Type": "Тип", "Notes": "Заметки", "Result": "Результат", "Scheduled, passed, follow-up…": "Назначено, пройдено, дальнейшие шаги…", "Add interview": "Добавить собеседование", "Interview added": "Собеседование добавлено",
   "DATED NOTES": "ЗАМЕТКИ ПО ДАТАМ", "New note": "Новая заметка", "Interview preparation, company research, impressions…": "Подготовка к собеседованию, исследование компании, впечатления…", "Add note": "Добавить заметку", "No notes yet.": "Заметок пока нет.", "Save": "Сохранить", "Note added": "Заметка добавлена", "Note saved": "Заметка сохранена", "Delete this note?": "Удалить эту заметку?", "Note deleted": "Заметка удалена",
   "LOCAL STORAGE": "ЛОКАЛЬНОЕ ХРАНИЛИЩЕ", "Attach file": "Прикрепить файл", "Up to 100 MB. Audio is stored as-is; automatic transcription is outside the MVP.": "До 100 МБ. Аудио хранится как есть; автоматическая расшифровка не входит в MVP.", "No attachments yet.": "Вложений пока нет.", "Download": "Скачать", "Remove this attachment?": "Удалить это вложение?", "File attached": "Файл прикреплён", "File removed": "Файл удалён", "Building…": "Формирование…", "Markdown report generated": "Markdown-отчёт создан",
-  "READ-ONLY CLI ASSISTANT": "CLI-АССИСТЕНТ ТОЛЬКО ДЛЯ ЧТЕНИЯ", "CareerFlow sends the generated vacancy Markdown context to": "CareerFlow отправляет сгенерированный Markdown-контекст вакансии в", "Action": "Действие", "Analyze vacancy": "Анализ вакансии", "Improve resume": "Улучшить резюме", "Review ATS analysis": "Проверить анализ ATS", "Match resume to vacancy": "Сопоставить резюме с вакансией", "Prepare for interview": "Подготовиться к собеседованию", "Analyze interview notes": "Проанализировать заметки собеседования", "Custom request": "Свой запрос", "Model": "Модель", "Reasoning effort": "Уровень рассуждений", "Request": "Запрос", "Run Codex": "Запустить Codex", "Saved responses": "Сохранённые ответы", "No saved responses yet.": "Сохранённых ответов пока нет.", "View response": "Открыть ответ", "Codex is working…": "Codex работает…", "Codex response received": "Ответ Codex получен", "AI match score updated": "AI-оценка совпадения обновлена", "AI match score": "AI-оценка совпадения", "AI score is not available because the model did not return valid JSON.": "AI-оценка недоступна: модель не вернула корректный JSON.", "Review the response, then manually decide what to save as a new resume version or note.": "Проверьте ответ и вручную решите, что сохранить как новую версию резюме или заметку.", "Legacy model unknown": "Старая модель неизвестна", "effort unknown": "уровень неизвестен",
+  "READ-ONLY CLI ASSISTANT": "CLI-АССИСТЕНТ ТОЛЬКО ДЛЯ ЧТЕНИЯ", "CareerFlow sends the generated vacancy Markdown context to": "CareerFlow отправляет сгенерированный Markdown-контекст вакансии в", "Action": "Действие", "Analyze vacancy": "Анализ вакансии", "Improve resume": "Улучшить резюме", "Review ATS analysis": "Проверить анализ ATS", "Match resume to vacancy": "Сопоставить резюме с вакансией", "Prepare for interview": "Подготовиться к собеседованию", "Analyze interview notes": "Проанализировать заметки собеседования", "Custom request": "Свой запрос", "Model": "Модель", "Reasoning effort": "Уровень рассуждений", "Request": "Запрос", "Run Codex": "Запустить Codex", "Saved responses": "Сохранённые ответы", "No saved responses yet.": "Сохранённых ответов пока нет.", "View response": "Открыть ответ", "Hide response": "Скрыть ответ", "Codex is working…": "Codex работает…", "Codex response received": "Ответ Codex получен", "AI match score updated": "AI-оценка совпадения обновлена", "AI match score": "AI-оценка совпадения", "AI score is not available because the model did not return valid JSON.": "AI-оценка недоступна: модель не вернула корректный JSON.", "Review the response, then manually decide what to save as a new resume version or note.": "Проверьте ответ и вручную решите, что сохранить как новую версию резюме или заметку.", "Legacy model unknown": "Старая модель неизвестна", "effort unknown": "уровень неизвестен",
   "Review description": "Проверить описание", "Preparing preview…": "Подготовка предпросмотра…", "Vacancy imported": "Вакансия импортирована", "Deletion cancelled": "Удаление отменено", "Vacancy deleted": "Вакансия удалена", "Vacancy archived": "Вакансия отправлена в архив", "Vacancy restored": "Вакансия восстановлена", "Vacancy updated": "Вакансия обновлена", "Status changed to": "Статус изменён на", "Invalid value": "Недопустимое значение", "Request failed": "Запрос не выполнен", "Error": "Ошибка"
 };
 
@@ -818,7 +818,25 @@ async function exportReport(vacancy) {
 }
 
 function aiHistoryItem(run) {
-  return `<article class="item-row"><div><strong class="ai-history-title">${escapeHtml(shortAiPrompt(run.prompt))}</strong><p class="muted">${new Date(run.created_at + "Z").toLocaleString()} · ${escapeHtml(run.model || "Legacy model unknown")} · ${escapeHtml(run.reasoning_effort || "effort unknown")}</p></div><div class="actions"><span class="badge ${run.status === "completed" ? "success" : ""}">${escapeHtml(run.status)}</span><button class="secondary" type="button" data-open-ai-run="${run.id}" aria-label="View saved response ${run.id}">View response</button></div></article>`;
+  return `<article class="item-row ai-history-row"><div><strong class="ai-history-title">${escapeHtml(shortAiPrompt(run.prompt))}</strong><p class="muted">${new Date(run.created_at + "Z").toLocaleString()} · ${escapeHtml(run.model || "Legacy model unknown")} · ${escapeHtml(run.reasoning_effort || "effort unknown")}</p></div><div class="actions"><span class="badge ${run.status === "completed" ? "success" : ""}">${escapeHtml(run.status)}</span><button class="secondary" type="button" data-open-ai-run="${run.id}" data-vacancy-id="${run.vacancy_id || ""}" aria-expanded="false" aria-controls="ai-inline-${run.id}" aria-label="View saved response ${run.id}">View response</button></div><div id="ai-inline-${run.id}" class="ai-inline-result" hidden></div></article>`;
+}
+
+async function openSavedAiRun(button, vacancy, view, panel) {
+  const row = button.closest?.(".ai-history-row");
+  const inline = row?.querySelector(".ai-inline-result");
+  if (inline?.dataset.loaded === "true") {
+    inline.hidden = !inline.hidden;
+    button.setAttribute("aria-expanded", String(!inline.hidden));
+    button.textContent = inline.hidden ? "View response" : "Hide response";
+    return;
+  }
+  await runAction(button, async () => {
+    const run = await api(`/api/vacancies/${vacancy.id}/ai-runs/${button.dataset.openAiRun}`);
+    if (!isCurrentView(view)) return;
+    const result = `<h4>Saved ${run.status === "completed" ? "response" : "error"} · ${escapeHtml(run.model || "Legacy model unknown")} · ${escapeHtml(run.reasoning_effort || "effort unknown")}</h4><p class="muted">${escapeHtml(run.prompt)}</p><pre class="ai-response">${escapeHtml(run.status === "completed" ? run.response : run.error)}</pre>`;
+    if (inline) { inline.innerHTML = result; inline.dataset.loaded = "true"; inline.hidden = false; button.setAttribute("aria-expanded", "true"); button.textContent = "Hide response"; }
+    panel.querySelector("#ai-history-result").innerHTML = `<hr>${result}`;
+  }, null, view);
 }
 
 function shortAiPrompt(prompt) {
@@ -871,11 +889,7 @@ async function renderAi(vacancy, view = null) {
   };
   updateEfforts(catalog.default_effort);
   modelSelect.onchange = () => updateEfforts("");
-  document.querySelectorAll("[data-open-ai-run]").forEach(button => button.onclick = () => runAction(button, async () => {
-    const run = await api(`/api/vacancies/${vacancy.id}/ai-runs/${button.dataset.openAiRun}`);
-    if (!isCurrentView(view)) return;
-    panel.querySelector("#ai-history-result").innerHTML = `<hr><h4>Saved ${run.status === "completed" ? "response" : "error"} · ${escapeHtml(run.model || "Legacy model unknown")} · ${escapeHtml(run.reasoning_effort || "effort unknown")}</h4><p class="muted">${escapeHtml(run.prompt)}</p><pre class="ai-response">${escapeHtml(run.status === "completed" ? run.response : run.error)}</pre>`;
-  }, null, view));
+  document.querySelectorAll("[data-open-ai-run]").forEach(button => button.onclick = () => openSavedAiRun(button, vacancy, view, panel));
   document.querySelector("#ai-form").onsubmit = async event => {
     event.preventDefault();
     const aiForm = event.currentTarget;
@@ -934,6 +948,15 @@ document.addEventListener("click", async event => {
   }
   if (event.target.closest("[data-open-import]")) openDialog();
   if (event.target.closest("[data-close-dialog]")) closeDialog();
+  const savedAiButton = event.target.closest("[data-open-ai-run]");
+  if (savedAiButton && typeof savedAiButton.onclick !== "function") {
+    const vacancy = state.selected;
+    const panel = document.querySelector("#content-panel");
+    if (vacancy && panel && state.activeTab === "AI / Codex") {
+      openSavedAiRun(savedAiButton, vacancy, currentView(vacancy, "AI / Codex", panel), panel);
+      return;
+    }
+  }
   const card = event.target.closest(".vacancy-card");
   if (card && state.section === "vacancies") {
     const selectionEpoch = ++state.selectionEpoch;
