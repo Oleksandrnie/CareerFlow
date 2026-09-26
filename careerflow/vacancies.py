@@ -140,7 +140,7 @@ def update_vacancy(database: Database, vacancy_id: int, changes: dict[str, str])
         if current is None:
             return None
         if "description" in selected and selected["description"] != current["description"]:
-            assignments += ", description_revision = description_revision + 1, match_percent = NULL, description_confirmed_at = CURRENT_TIMESTAMP, description_cleaning_method = 'manual-edit', description_cleaned_at = CURRENT_TIMESTAMP"
+            assignments += ", description_revision = description_revision + 1, match_percent = NULL, ai_match_percent = NULL, ai_match_updated_at = NULL, description_confirmed_at = CURRENT_TIMESTAMP, description_cleaning_method = 'manual-edit', description_cleaned_at = CURRENT_TIMESTAMP"
         cursor = connection.execute(
             f"UPDATE vacancies SET {assignments}, updated_at = CURRENT_TIMESTAMP WHERE id = ?",
             (*selected.values(), vacancy_id),
@@ -180,10 +180,12 @@ def apply_clean_description(
                 description_confirmed_at = CURRENT_TIMESTAMP,
                 description_revision = description_revision + ?,
                 match_percent = CASE WHEN ? THEN NULL ELSE match_percent END,
+                ai_match_percent = CASE WHEN ? THEN NULL ELSE ai_match_percent END,
+                ai_match_updated_at = CASE WHEN ? THEN NULL ELSE ai_match_updated_at END,
                 updated_at = CURRENT_TIMESTAMP
             WHERE id = ?
             """,
-            (normalized, safe_method, int(changed), int(changed), vacancy_id),
+            (normalized, safe_method, int(changed), int(changed), int(changed), int(changed), vacancy_id),
         )
         connection.execute(
             """

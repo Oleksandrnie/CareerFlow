@@ -36,6 +36,8 @@ CREATE TABLE IF NOT EXISTS vacancies (
         status IN ('Saved', 'Applied', 'Interview', 'Waiting', 'Offer', 'Rejected')
     ),
     match_percent INTEGER,
+    ai_match_percent INTEGER,
+    ai_match_updated_at TEXT,
     description_revision INTEGER NOT NULL DEFAULT 0,
     archived_at TEXT,
     created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
@@ -199,6 +201,18 @@ class Database:
             connection.execute(
                 "INSERT OR IGNORE INTO schema_version(version) VALUES (5)"
             )
+            self._ensure_ai_match_columns(connection)
+            connection.execute(
+                "INSERT OR IGNORE INTO schema_version(version) VALUES (6)"
+            )
+
+    @staticmethod
+    def _ensure_ai_match_columns(connection: sqlite3.Connection) -> None:
+        columns = {row["name"] for row in connection.execute("PRAGMA table_info(vacancies)")}
+        if "ai_match_percent" not in columns:
+            connection.execute("ALTER TABLE vacancies ADD COLUMN ai_match_percent INTEGER")
+        if "ai_match_updated_at" not in columns:
+            connection.execute("ALTER TABLE vacancies ADD COLUMN ai_match_updated_at TEXT")
 
     @staticmethod
     def _ensure_resume_deletion_column(connection: sqlite3.Connection) -> None:

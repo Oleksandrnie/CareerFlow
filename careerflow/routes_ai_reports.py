@@ -3,6 +3,8 @@
 from __future__ import annotations
 
 from pathlib import Path
+import json
+import re
 
 from fastapi import APIRouter, HTTPException, Request
 from fastapi.responses import FileResponse
@@ -23,6 +25,26 @@ from .vacancies import get_vacancy
 
 
 router = APIRouter(prefix="/api/vacancies/{vacancy_id}", tags=["reports", "ai"])
+AI_MATCH_ACTION = "Match resume to vacancy"
+
+
+def parse_ai_match_response(response: str) -> int | None:
+    """Read only a strict JSON score from the dedicated AI match action."""
+    text = response.strip()
+    if text.startswith("```"):
+        text = re.sub(r"^```(?:json)?\s*|\s*```$", "", text, flags=re.I | re.S).strip()
+    try:
+        payload = json.loads(text)
+    except json.JSONDecodeError:
+        return None
+    if not isinstance(payload, dict) or isinstance(payload.get("match_percent"), bool):
+        return None
+    value = payload.get("match_percent")
+    if isinstance(value, float) and not value.is_integer():
+        return None
+    if not isinstance(value, (int, float)) or not 0 <= value <= 100:
+        return None
+    return int(value)
 
 
 class AiRequest(BaseModel):
@@ -109,6 +131,15 @@ def execute_ai(request: Request, vacancy_id: int, payload: AiRequest) -> dict:
         prompt = build_prompt(payload.prompt, context, payload.action)
     except ValueError as exc:
         raise HTTPException(status_code=422, detail=str(exc)) from exc
+    if payload.action == AI_MATCH_ACTION:
+        prompt += (
+            "\n\nReturn JSON only with this exact shape: "
+            '{"match_percent": 0, "summary": "short explanation", '
+            '"strengths": ["..."], "gaps": ["..."]}. '
+            "match_percent must be an integer from 0 to 100. "
+            "Compare only the vacancy requirements with the selected resume evidence; "
+            "ignore page navigation, company marketing, salary and generic wording."
+        )
     try:
         selected_model, selected_effort = validate_model_effort(
             load_model_catalog(request.app.state.settings),
@@ -120,6 +151,7 @@ def execute_ai(request: Request, vacancy_id: int, payload: AiRequest) -> dict:
     response = ""
     error = ""
     status = "completed"
+    ai_match_percent: int | None = None
     try:
         result = run_codex(
             request.app.state.settings,
@@ -128,6 +160,8 @@ def execute_ai(request: Request, vacancy_id: int, payload: AiRequest) -> dict:
             reasoning_effort=selected_effort,
         )
         response = result.response
+        if payload.action == AI_MATCH_ACTION:
+            ai_match_percent = parse_ai_match_response(response)
     except (CodexError, ValueError) as exc:
         status = "failed"
         error = str(exc)
@@ -165,7 +199,14 @@ def execute_ai(request: Request, vacancy_id: int, payload: AiRequest) -> dict:
                 ),
             ),
         )
+        if ai_match_percent is not None:
+            connection.execute(
+                "UPDATE vacancies SET ai_match_percent = ?, ai_match_updated_at = CURRENT_TIMESTAMP, updated_at = CURRENT_TIMESTAMP WHERE id = ?",
+                (ai_match_percent, vacancy_id),
+            )
     row = request.app.state.db.fetch_one("SELECT * FROM ai_runs WHERE id = ?", (run_id,)) or {}
+    if payload.action == AI_MATCH_ACTION:
+        row["ai_match_percent"] = ai_match_percent
     if status == "failed":
         raise HTTPException(status_code=502, detail=error)
     return row

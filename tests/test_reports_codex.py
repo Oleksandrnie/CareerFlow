@@ -10,6 +10,7 @@ from fastapi.testclient import TestClient
 
 from careerflow.api import create_app
 from careerflow.codex import build_prompt, run_codex
+from careerflow.routes_ai_reports import parse_ai_match_response
 from careerflow.config import Settings
 
 
@@ -236,6 +237,38 @@ class ReportsAndCodexTest(unittest.TestCase):
             build_prompt("  ", "context")
         with self.assertRaises(ValueError):
             run_codex(self.settings, "prompt", model="bad model; rm")
+
+    def test_ai_match_parser_accepts_strict_score_only(self) -> None:
+        self.assertEqual(parse_ai_match_response('{"match_percent": 74, "summary": "Good"}'), 74)
+        self.assertEqual(parse_ai_match_response('```json\n{"match_percent": 50}\n```'), 50)
+        for response in (
+            "not json",
+            '{"match_percent": 101}',
+            '{"match_percent": true}',
+            '{"match_percent": 74.5}',
+        ):
+            with self.subTest(response=response):
+                self.assertIsNone(parse_ai_match_response(response))
+
+    @patch("careerflow.routes_ai_reports.run_codex")
+    def test_ai_match_updates_separate_vacancy_score(self, mocked_run) -> None:
+        from careerflow.codex import CodexResult
+
+        mocked_run.return_value = CodexResult(
+            '{"match_percent": 74, "summary": "Good match", "strengths": ["Python"], "gaps": ["Docker"]}',
+            ["codex"],
+        )
+        before = self.client.get(f"/api/vacancies/{self.vacancy['id']}").json()
+        response = self.client.post(
+            f"/api/vacancies/{self.vacancy['id']}/ai-runs",
+            json={"action": "Match resume to vacancy", "prompt": "Compare resume and vacancy", "model": "gpt-5.6-luna"},
+        )
+        self.assertEqual(response.status_code, 201)
+        self.assertEqual(response.json()["ai_match_percent"], 74)
+        self.assertIn("Return JSON only", mocked_run.call_args.args[1])
+        after = self.client.get(f"/api/vacancies/{self.vacancy['id']}").json()
+        self.assertEqual(after["ai_match_percent"], 74)
+        self.assertEqual(after["match_percent"], before["match_percent"])
 
 
 if __name__ == "__main__":
