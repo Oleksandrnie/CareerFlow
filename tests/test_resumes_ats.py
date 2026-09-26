@@ -432,6 +432,98 @@ class ResumeAndAtsTest(unittest.TestCase):
         self.assertEqual(item["evidence"], "")
         self.assertIn("Not evidenced", item["interpretation"])
 
+    def test_ats_accepts_single_skill_lines_in_requirement_sections(self) -> None:
+        result = analyze(
+            "Requirements:\nPython\nSQL\nDocker",
+            "Python SQL Docker",
+        )
+
+        self.assertEqual(
+            [item["requirement"] for item in result["requirements"]],
+            ["Python", "SQL", "Docker"],
+        )
+        self.assertEqual(result["counts"]["covered"], 3)
+        self.assertEqual(result["match_percent"], 100)
+
+    def test_ats_treats_english_duties_like_russian_duties(self) -> None:
+        result = analyze(
+            "What you will do:\nBuild Python services.\nWhat we offer:\nRemote work.",
+            "Build Python services.",
+        )
+
+        self.assertEqual(len(result["requirements"]), 1)
+        self.assertEqual(result["requirements"][0]["requirement"], "Build Python services.")
+        self.assertEqual(result["requirements"][0]["classification"], "covered")
+
+    def test_ats_keeps_requirements_after_the_twelfth_item(self) -> None:
+        skills = [f"Tool{index:02d}" for index in range(1, 15)]
+        result = analyze(
+            "Requirements:\n" + "\n".join(skills),
+            " ".join(skills),
+        )
+
+        self.assertEqual(len(result["requirements"]), 14)
+        self.assertEqual(result["requirements"][-1]["requirement"], "Tool14")
+        self.assertEqual(result["counts"]["covered"], 14)
+
+    def test_ats_does_not_mix_negated_term_with_unrelated_positive_evidence(self) -> None:
+        result = analyze(
+            "Required Python production services experience.",
+            "Required production services expertise. No Python experience.",
+        )
+
+        item = result["requirements"][0]
+        self.assertLess(result["match_percent"], 100)
+        self.assertEqual(result["covered_keywords"], ["production", "services"])
+        self.assertEqual(item["classification"], "partial")
+        self.assertEqual(item["matched_keywords"], ["production", "services"])
+        self.assertEqual(item["evidence"], "Required production services expertise.")
+        self.assertIn("Negative wording", item["interpretation"])
+
+    def test_ats_semantic_matching_does_not_depend_on_requirement_term_order(self) -> None:
+        for vacancy in (
+            "Required Python production services experience.",
+            "Required production services Python experience.",
+        ):
+            with self.subTest(vacancy=vacancy):
+                item = analyze(vacancy, "Python production services.")["requirements"][0]
+                self.assertEqual(item["classification"], "covered")
+                self.assertEqual(
+                    item["matched_keywords"],
+                    ["production", "python", "services"],
+                )
+
+    def test_ats_allows_equivalent_evidence_with_a_different_action_verb(self) -> None:
+        result = analyze(
+            "What you will do:\nBuild Python services.",
+            "Developed Python services.",
+        )
+
+        item = result["requirements"][0]
+        self.assertEqual(item["classification"], "covered")
+        self.assertEqual(item["matched_keywords"], ["python", "services"])
+        self.assertEqual(item["evidence"], "Developed Python services.")
+
+    def test_ats_excludes_generic_scaffolding_from_semantic_coverage(self) -> None:
+        result = analyze("Python knowledge.", "Python")
+
+        self.assertEqual(result["keywords"], ["python"])
+        self.assertEqual(result["covered_keywords"], ["python"])
+        self.assertEqual(result["requirements"][0]["classification"], "covered")
+        self.assertEqual(result["match_percent"], 100)
+
+        russian = analyze("Опыт работы Python.", "Python engineer.")
+        self.assertEqual(russian["requirements"][0]["classification"], "covered")
+        self.assertEqual(russian["requirements"][0]["matched_keywords"], ["python"])
+
+    def test_ats_detects_standalone_explicit_qualifications_in_both_languages(self) -> None:
+        for vacancy in ("Proficiency in Python.", "Знание Python."):
+            with self.subTest(vacancy=vacancy):
+                result = analyze(vacancy, "Python")
+                self.assertEqual(len(result["requirements"]), 1)
+                self.assertEqual(result["requirements"][0]["classification"], "covered")
+                self.assertEqual(result["keywords"], ["python"])
+
     def test_ats_does_not_score_job_intro_or_company_marketing_as_requirements(self) -> None:
         vacancy = """Менеджер по работе с клиентами
 Компания HARDKOD работает с 2010 года.

@@ -12,17 +12,18 @@ from .db import Database, insert_and_get_id
 
 STOP_WORDS = {
     "about", "after", "also", "and", "are", "but", "can", "for", "from", "have",
-    "into", "its", "job", "our", "role", "that", "the", "their", "this", "using",
+    "in", "into", "its", "job", "our", "role", "that", "the", "their", "this", "using",
     "with", "will", "work", "you", "your", "для", "или", "как", "команда", "на",
-    "не", "опыт", "от", "по", "работа", "с", "со", "требования", "что", "это",
+    "не", "опыт", "от", "по", "работа", "работы", "с", "со", "требования", "что", "это",
     "мы", "наш", "наша", "наши", "нашего", "компания", "компании", "вакансия",
     "вакансии", "будет", "будут", "который", "которая", "которые", "вас", "вам",
     "ищем", "перед", "вами", "следующие", "задачи", "также", "этот", "эта", "эти",
 }
 
 GENERIC_REQUIREMENT_WORDS = {
-    "experience", "knowledge", "must", "need", "preferred", "proficiency",
-    "required", "requirement", "requirements", "skill", "skills",
+    "ability", "experience", "expertise", "familiarity", "knowledge", "know",
+    "must", "need", "preferred", "proficiency", "required", "requirement",
+    "requirements", "skill", "skills", "year", "years", "yr", "yrs",
     "знание", "знания", "навык", "навыки", "опыт", "требование", "требования",
 }
 
@@ -56,11 +57,22 @@ def _sentences(text: str) -> list[str]:
     return [part.strip() for part in re.split(r"(?<=[.!?])\s+|\n+", text) if part.strip()]
 
 
+def _semantic_token_sequence(text: str) -> list[str]:
+    """Return requirement terms without qualification scaffolding."""
+    return [token for token in _tokens(text) if token not in GENERIC_REQUIREMENT_WORDS]
+
+
+def _semantic_tokens(text: str) -> list[str]:
+    """Return ordered, distinct semantic requirement terms."""
+    return list(dict.fromkeys(_semantic_token_sequence(text)))
+
+
 def _requirements(text: str) -> list[str]:
     lines = _sentences(text)
     signals = re.compile(
-        r"(?i)\b(required|requirements?|must|need|experience|knowledge|skills?|proficien|"
-        r"обязанност|требован|опыт|знани|навык|умени|владени|необходим|требуется|"
+        r"(?i)\b(required|requirements?|must|need|experience|knowledge|skills?|proficien\w*|"
+        r"обязанност\w*|требован\w*|опыт|знани\w*|навык\w*|умени\w*|"
+        r"владени\w*|необходим\w*|требуется|"
         r"желательно|будет преимуществом|от\s+\d+\s+(?:лет|года?))\b"
     )
     # A requirement is eligible only when the sentence expresses an explicit
@@ -76,10 +88,8 @@ def _requirements(text: str) -> list[str]:
     duty_intro = re.compile(
         r"(?i)^\s*(?:перед\s+вами\s+будут\s+стоять\s+следующие\s+задачи|"
         r"следующие\s+задачи|основные\s+задачи|ваши\s+задачи|"
-        r"что\s+будете\s+делать|обязанности)\s*:?\s*$"
-    )
-    task_heading = re.compile(
-        r"(?i)^\s*(?:what\s+you(?:'ll|\s+will)\s+do)\s*:?\s*$"
+        r"что\s+будете\s+делать|обязанности|"
+        r"what\s+you(?:'ll|\s+will)\s+do)\s*:?\s*$"
     )
     excluded_heading = re.compile(
         r"(?i)^\s*(?:о\s+компании|company|about\s+us|мы\s+предлагаем|"
@@ -94,9 +104,6 @@ def _requirements(text: str) -> list[str]:
             in_requirements_section = True
             in_excluded_section = False
             continue
-        if task_heading.fullmatch(line):
-            in_requirements_section = False
-            continue
         if excluded_heading.fullmatch(line):
             in_requirements_section = False
             in_excluded_section = True
@@ -109,7 +116,7 @@ def _requirements(text: str) -> list[str]:
             continue
         if not in_requirements_section and not signals.search(line):
             continue
-        if len(_tokens(line)) < 2:
+        if not _semantic_tokens(line):
             continue
         # Headings and narrative about the employer are not qualifications.
         if re.match(
@@ -119,7 +126,7 @@ def _requirements(text: str) -> list[str]:
         ):
             continue
         selected.append(line)
-    return selected[:12]
+    return selected
 
 
 def analyze(vacancy_text: str, resume_text: str) -> dict:
@@ -127,56 +134,90 @@ def analyze(vacancy_text: str, resume_text: str) -> dict:
     # the same conservative, deterministic structural filter before both keyword
     # and requirement scoring; reviewable/uncertain blocks remain untouched.
     vacancy_text = retain_reviewable_text(vacancy_text)
-    resume_tokens = set(_tokens(resume_text))
     requirement_lines = _requirements(vacancy_text)
-    vacancy_counts = Counter(_tokens("\n".join(requirement_lines)))
+    vacancy_counts = Counter(_semantic_token_sequence("\n".join(requirement_lines)))
     keywords = [word for word, _ in vacancy_counts.most_common(24)]
     resume_sentences = _sentences(resume_text)
+    resume_facts = [
+        (
+            sentence,
+            set(_tokens(sentence)),
+            bool(NEGATION.search(sentence)),
+            _years_amounts(sentence),
+        )
+        for sentence in resume_sentences
+    ]
     requirement_results: list[dict] = []
+    evidenced_keywords: set[str] = set()
 
     for requirement in requirement_lines:
         requirement_tokens = set(_tokens(requirement))
         if not requirement_tokens:
             continue
-        distinctive_tokens = requirement_tokens - GENERIC_REQUIREMENT_WORDS
-        if not distinctive_tokens:
-            distinctive_tokens = requirement_tokens
-        overlap = requirement_tokens & resume_tokens
-        coverage = len(overlap) / len(requirement_tokens)
+        semantic_token_list = _semantic_tokens(requirement)
+        if not semantic_token_list:
+            semantic_token_list = list(dict.fromkeys(_tokens(requirement)))
+        semantic_tokens = set(semantic_token_list)
         required_years = max(_years_amounts(requirement), default=None)
         best_evidence = ""
-        best_score = (-1, -1, -1)
         best_negative = False
         best_years_ok = True
-        for sentence in resume_sentences:
-            sentence_tokens = set(_tokens(sentence))
-            if not (distinctive_tokens & sentence_tokens):
+        positive_sentences: list[tuple[str, set[str], list[float]]] = []
+        negative_sentences: list[tuple[str, set[str], list[float]]] = []
+        for sentence, sentence_tokens, negative, stated_years in resume_facts:
+            if not (semantic_tokens & sentence_tokens):
                 continue
-            negative = bool(NEGATION.search(sentence))
-            stated_years = _years_amounts(sentence)
-            years_ok = required_years is None or (
-                bool(stated_years) and min(stated_years) >= required_years
+            if negative:
+                negative_sentences.append((sentence, sentence_tokens, stated_years))
+                continue
+            positive_sentences.append((sentence, sentence_tokens, stated_years))
+
+        overlap = (
+            set().union(*(
+                semantic_tokens & sentence_tokens
+                for _, sentence_tokens, _ in positive_sentences
+            ))
+            if positive_sentences else set()
+        )
+        negative_overlap = (
+            set().union(*(
+                semantic_tokens & sentence_tokens
+                for _, sentence_tokens, _ in negative_sentences
+            ))
+            if negative_sentences else set()
+        )
+        unresolved_negative = negative_overlap - overlap
+        if positive_sentences:
+            evidence_candidates: list[tuple[tuple[int, int], str, bool]] = []
+            for sentence, sentence_tokens, stated_years in positive_sentences:
+                years_ok = required_years is None or (
+                    bool(stated_years) and min(stated_years) >= required_years
+                )
+                evidence_candidates.append((
+                    (len(semantic_tokens & sentence_tokens), int(years_ok)),
+                    sentence,
+                    years_ok,
+                ))
+            _, best_evidence, best_years_ok = max(evidence_candidates, key=lambda item: item[0])
+        elif negative_sentences:
+            best_evidence, _, _ = max(
+                negative_sentences,
+                key=lambda item: len(semantic_tokens & item[1]),
             )
-            score = (
-                int(not negative and years_ok),
-                len(distinctive_tokens & sentence_tokens),
-                len(requirement_tokens & sentence_tokens),
-            )
-            if score > best_score:
-                best_score = score
-                best_evidence = sentence
-                best_negative = negative
-                best_years_ok = years_ok
+            best_negative = True
+
+        coverage = len(overlap) / len(semantic_tokens)
         if coverage >= 0.6:
             classification = "covered"
-        elif coverage >= 0.2:
+        elif overlap:
             classification = "partial"
         else:
             classification = "missing"
-            best_evidence = ""
-        if classification == "covered" and (not best_evidence or best_negative or not best_years_ok):
+        if classification == "covered" and unresolved_negative:
             classification = "partial"
-        if classification == "partial" and best_negative:
+        if classification == "covered" and (not best_evidence or not best_years_ok):
+            classification = "partial"
+        if unresolved_negative or best_negative:
             interpretation = "Negative wording is present; this does not confirm the required experience"
         elif classification == "partial" and not best_years_ok:
             interpretation = "The required years are not evidenced by this resume sentence"
@@ -195,8 +236,9 @@ def analyze(vacancy_text: str, resume_text: str) -> dict:
                 "interpretation": interpretation,
             }
         )
+        evidenced_keywords.update(overlap)
 
-    keyword_overlap = [word for word in keywords if word in resume_tokens]
+    keyword_overlap = [word for word in keywords if word in evidenced_keywords]
     keyword_score = len(keyword_overlap) / max(1, len(keywords))
     requirement_score = (
         sum(1 if item["classification"] == "covered" else 0.5 if item["classification"] == "partial" else 0 for item in requirement_results)
@@ -207,7 +249,7 @@ def analyze(vacancy_text: str, resume_text: str) -> dict:
         "match_percent": max(0, min(100, match_percent)),
         "keywords": keywords,
         "covered_keywords": keyword_overlap,
-        "missing_keywords": [word for word in keywords if word not in resume_tokens],
+        "missing_keywords": [word for word in keywords if word not in evidenced_keywords],
         "requirements": requirement_results,
         "counts": {
             "covered": sum(item["classification"] == "covered" for item in requirement_results),
