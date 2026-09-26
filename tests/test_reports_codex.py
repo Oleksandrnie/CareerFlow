@@ -241,6 +241,7 @@ class ReportsAndCodexTest(unittest.TestCase):
     def test_ai_match_parser_accepts_strict_score_only(self) -> None:
         self.assertEqual(parse_ai_match_response('{"match_percent": 74, "summary": "Good"}'), 74)
         self.assertEqual(parse_ai_match_response('```json\n{"match_percent": 50}\n```'), 50)
+        self.assertEqual(parse_ai_match_response('Here is the result:\n{"match_percent": 45, "summary": "ok"}'), 45)
         for response in (
             "not json",
             '{"match_percent": 101}',

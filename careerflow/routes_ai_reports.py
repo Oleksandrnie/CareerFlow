@@ -29,14 +29,25 @@ AI_MATCH_ACTION = "Match resume to vacancy"
 
 
 def parse_ai_match_response(response: str) -> int | None:
-    """Read only a strict JSON score from the dedicated AI match action."""
+    """Read a valid JSON score, tolerating harmless CLI prose/fences around it."""
     text = response.strip()
     if text.startswith("```"):
         text = re.sub(r"^```(?:json)?\s*|\s*```$", "", text, flags=re.I | re.S).strip()
     try:
         payload = json.loads(text)
     except json.JSONDecodeError:
-        return None
+        payload = None
+        decoder = json.JSONDecoder()
+        for match in re.finditer(r"\{", text):
+            try:
+                candidate, _ = decoder.raw_decode(text[match.start():])
+            except json.JSONDecodeError:
+                continue
+            if isinstance(candidate, dict) and "match_percent" in candidate:
+                payload = candidate
+                break
+        if payload is None:
+            return None
     if not isinstance(payload, dict) or isinstance(payload.get("match_percent"), bool):
         return None
     value = payload.get("match_percent")
