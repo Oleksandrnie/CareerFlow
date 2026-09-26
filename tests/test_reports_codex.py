@@ -192,6 +192,7 @@ class ReportsAndCodexTest(unittest.TestCase):
         self.assertEqual(run["prompt"], "What should I prepare?")
         self.assertEqual(run["model"], self.settings.codex_default_model)
         self.assertEqual(run["reasoning_effort"], self.settings.codex_reasoning_effort)
+        self.assertEqual(run["response_language"], "auto")
         self.assertEqual(run["response"], "Full saved answer")
         self.assertEqual(mocked_run.call_args.kwargs["model"], self.settings.codex_default_model)
         self.assertEqual(
@@ -289,6 +290,7 @@ class ReportsAndCodexTest(unittest.TestCase):
         for payload in (
             {"prompt": "   "},
             {"prompt": "Valid question", "model": "bad model; command"},
+            {"prompt": "Valid question", "response_language": "klingon"},
         ):
             with self.subTest(payload=payload):
                 response = self.client.post(url, json=payload)
@@ -317,6 +319,70 @@ class ReportsAndCodexTest(unittest.TestCase):
             build_prompt("  ", "context")
         with self.assertRaises(ValueError):
             run_codex(self.settings, "prompt", model="bad model; rm")
+
+    def test_prompt_response_language_auto_is_unchanged_and_explicit_values_are_strict(self) -> None:
+        expected = "\n".join(
+            [
+                "You are assisting with a job-search workspace.",
+                "Return advice or draft text only. Do not modify files, run commands, or claim experience not evidenced in the supplied context.",
+                "Requested action: Analyze vacancy",
+                "User request: Analyze this role",
+                "",
+                "--- CAREERFLOW CONTEXT ---",
+                "context",
+                "--- END CONTEXT ---",
+            ]
+        )
+        self.assertEqual(
+            build_prompt("Analyze this role", "context", "Analyze vacancy"),
+            expected,
+        )
+        russian = build_prompt(
+            "Analyze this role", "context", "Analyze vacancy", "russian"
+        )
+        self.assertIn("Write all natural-language output in Russian", russian)
+        self.assertIn("Keep required JSON keys", russian)
+        english = build_prompt(
+            "Analyze this role", "context", "Analyze vacancy", "english"
+        )
+        self.assertIn("Write all natural-language output in English", english)
+        with self.assertRaises(ValueError):
+            build_prompt("Analyze this role", "context", response_language="klingon")
+
+    @patch("careerflow.routes_ai_reports.run_codex")
+    def test_explicit_response_language_is_applied_to_match_values_and_persisted(
+        self, mocked_run
+    ) -> None:
+        from careerflow.codex import CodexResult
+
+        mocked_run.return_value = CodexResult(
+            '{"match_percent": 74, "summary": "Хорошее соответствие", '
+            '"strengths": ["Python"], "gaps": ["Docker"]}',
+            ["codex"],
+        )
+        response = self.client.post(
+            f"/api/vacancies/{self.vacancy['id']}/ai-runs",
+            json={
+                "action": "Match resume to vacancy",
+                "prompt": "Compare resume and vacancy",
+                "response_language": " Russian ",
+            },
+        )
+        self.assertEqual(response.status_code, 201)
+        run = response.json()
+        self.assertEqual(run["response_language"], "russian")
+        prompt = mocked_run.call_args.args[1]
+        self.assertIn("Write all natural-language output in Russian", prompt)
+        self.assertIn("Keep required JSON keys", prompt)
+        self.assertIn(
+            '{"match_percent": 0, "summary": "short explanation", '
+            '"strengths": ["..."], "gaps": ["..."]}',
+            prompt,
+        )
+        history = self.client.get(
+            f"/api/vacancies/{self.vacancy['id']}/ai-runs"
+        ).json()
+        self.assertEqual(history[0]["response_language"], "russian")
 
     def test_ai_match_parser_accepts_strict_score_only(self) -> None:
         self.assertEqual(parse_ai_match_response('{"match_percent": 74, "summary": "Good"}'), 74)

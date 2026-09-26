@@ -12,6 +12,7 @@ from pydantic import BaseModel, Field, field_validator
 
 from .codex import (
     ALLOWED_EFFORTS,
+    ALLOWED_RESPONSE_LANGUAGES,
     MODEL_PATTERN,
     CodexError,
     build_prompt,
@@ -72,6 +73,7 @@ class AiRequest(BaseModel):
     action: str = Field(default="", max_length=120)
     model: str = Field(default="", max_length=80)
     reasoning_effort: str = Field(default="", max_length=20)
+    response_language: str = Field(default="auto", max_length=20)
 
     @field_validator("prompt")
     @classmethod
@@ -95,6 +97,14 @@ class AiRequest(BaseModel):
         trimmed = value.strip()
         if trimmed and trimmed not in ALLOWED_EFFORTS:
             raise ValueError("Unsupported Codex reasoning effort")
+        return trimmed
+
+    @field_validator("response_language")
+    @classmethod
+    def validate_response_language(cls, value: str) -> str:
+        trimmed = value.strip().lower()
+        if trimmed not in ALLOWED_RESPONSE_LANGUAGES:
+            raise ValueError("Unsupported response language")
         return trimmed
 
 
@@ -162,7 +172,12 @@ def execute_ai(request: Request, vacancy_id: int, payload: AiRequest) -> dict:
     except (LookupError, ValueError) as exc:
         raise HTTPException(status_code=422, detail=str(exc)) from exc
     try:
-        prompt = build_prompt(payload.prompt, context, payload.action)
+        prompt = build_prompt(
+            payload.prompt,
+            context,
+            payload.action,
+            payload.response_language,
+        )
     except ValueError as exc:
         raise HTTPException(status_code=422, detail=str(exc)) from exc
     if payload.action == AI_MATCH_ACTION:
@@ -216,9 +231,9 @@ def execute_ai(request: Request, vacancy_id: int, payload: AiRequest) -> dict:
             connection,
             """
             INSERT INTO ai_runs(
-                vacancy_id, prompt, action, model, reasoning_effort, source_resume_id,
+                vacancy_id, prompt, action, model, reasoning_effort, response_language, source_resume_id,
                 context_sources_json, response, status, error
-            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
             """,
             (
                 vacancy_id,
@@ -226,6 +241,7 @@ def execute_ai(request: Request, vacancy_id: int, payload: AiRequest) -> dict:
                 payload.action,
                 selected_model,
                 selected_effort,
+                payload.response_language,
                 source_resume_id,
                 json.dumps(context_sources, ensure_ascii=False),
                 response,

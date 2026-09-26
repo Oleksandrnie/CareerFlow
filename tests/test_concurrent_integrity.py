@@ -201,7 +201,7 @@ class MasterVersionMigrationTest(unittest.TestCase):
             self.assertEqual([row["version"] for row in rows], [1, 4, 3])
             self.assertEqual(
                 database.fetch_one("SELECT MAX(version) AS version FROM schema_version")["version"],
-                7,
+                8,
             )
             with self.assertRaises(sqlite3.IntegrityError):
                 with database.transaction() as connection:
