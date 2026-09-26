@@ -10,6 +10,10 @@ const state = {
   interviewCounts: new Map(),
   interviewCountEpochs: new Map(),
   interviewRequests: new Map(),
+  locale: (() => {
+    try { return localStorage.getItem("careerflow-locale") === "ru" ? "ru" : "en"; }
+    catch (_) { return "en"; }
+  })(),
 };
 const listEl = document.querySelector("#vacancy-list");
 const workspace = document.querySelector("#workspace");
@@ -21,6 +25,92 @@ const fileInput = document.querySelector("#vacancy-file");
 const dropZone = document.querySelector("#drop-zone");
 const selectedFile = document.querySelector("#selected-file");
 const archivedToggle = document.querySelector("#show-archived");
+const localeToggle = document.querySelector("#locale-toggle");
+
+const RU = {
+  "LOCAL CAREER WORKSPACE": "ЛОКАЛЬНОЕ ПРОСТРАНСТВО ПОИСКА РАБОТЫ",
+  "Primary navigation": "Основная навигация",
+  "Vacancies": "Вакансии", "Master Resume": "Главное резюме", "+ Add vacancy": "+ Добавить вакансию",
+  "Archived": "Архив", "Build your job-search workspace": "Создайте рабочее пространство для поиска работы",
+  "Add a vacancy by pasting its text or dropping a TXT, HTML, PDF, or DOCX file.": "Добавьте вакансию: вставьте текст или перетащите файл TXT, HTML, PDF или DOCX.",
+  "Add your first vacancy": "Добавить первую вакансию", "NEW RECORD": "НОВАЯ ЗАПИСЬ", "Add vacancy": "Добавить вакансию",
+  "Close": "Закрыть", "Drop a file here": "Перетащите файл сюда", "or click to choose TXT, HTML, PDF, or DOCX": "или нажмите, чтобы выбрать TXT, HTML, PDF или DOCX",
+  "or paste vacancy text": "или вставьте текст вакансии", "Description": "Описание", "Paste the full vacancy description…": "Вставьте полное описание вакансии…",
+  "Use Codex to classify page clutter": "Использовать Codex для классификации лишних блоков", "Only when requested; vacancy text will be sent to the local Codex CLI.": "Только по запросу; текст вакансии будет передан локальному Codex CLI.",
+  "Title (optional)": "Название (необязательно)", "Company (optional)": "Компания (необязательно)", "Salary (optional)": "Зарплата (необязательно)", "Source (optional)": "Источник (необязательно)",
+  "Auto-detected": "Определится автоматически", "LinkedIn, referral…": "LinkedIn, рекомендация…", "Cancel": "Отмена", "Review description": "Проверить описание",
+  "No archived vacancies.": "Архивных вакансий нет.", "No vacancies yet.": "Вакансий пока нет.", "Company not set": "Компания не указана", "Salary not specified": "Зарплата не указана", "No summary yet": "Описание пока отсутствует",
+  "Saved": "Сохранена", "Applied": "Отклик отправлен", "Interview": "Собеседование", "Waiting": "Ожидание", "Offer": "Оффер", "Rejected": "Отказ",
+  "Vacancy stage": "Этап вакансии", "Added": "Добавлена", "ATS": "ATS", "Heuristic ATS text-match score, not a probability of getting the job": "Эвристическая оценка совпадения ATS, не вероятность получения работы",
+  "Overview": "Обзор", "Resume": "Резюме", "Timeline": "История", "Notes": "Заметки", "Files": "Файлы", "AI / Codex": "AI / Codex",
+  "Export .md": "Экспорт .md", "Edit": "Изменить", "Restore": "Восстановить", "Archive": "Архивировать", "Delete": "Удалить",
+  "SALARY": "ЗАРПЛАТА", "SOURCE": "ИСТОЧНИК", "Not specified": "Не указана", "Summary": "Краткое описание", "No summary": "Описание отсутствует",
+  "Confirmed vacancy description": "Подтверждённое описание вакансии", "Used for ATS and Codex context. The original import remains preserved.": "Используется для ATS и контекста Codex. Исходный импорт сохраняется.",
+  "Use Codex for this review": "Использовать Codex для этой проверки", "Clean description": "Очистить описание", "Review the proposed text before confirming. Original vacancy content remains unchanged.": "Проверьте текст перед подтверждением. Исходное содержимое вакансии не изменится.",
+  "Cleaning method:": "Метод очистки:", "Original imported text": "Исходный импортированный текст", "Cleaned draft (editable)": "Очищенный вариант (можно редактировать)", "Removed blocks": "Удалённые блоки", "Needs review": "Требует проверки", "Nothing removed": "Ничего не удалено", "No uncertain blocks": "Сомнительных блоков нет", "Removed": "Удалено", "Uncertain": "Сомнительно", "Back": "Назад", "Confirm cleaned description": "Подтвердить очищенное описание",
+  "Title": "Название", "Company": "Компания", "Salary": "Зарплата", "Source": "Источник", "Save changes": "Сохранить изменения",
+  "Source version deleted": "Исходная версия удалена", "Created independently": "Создано независимо", "Based on Master Resume": "На основе главного резюме", "Based on Vacancy Resume": "На основе резюме вакансии",
+  "Preview": "Предпросмотр", "Create next version": "Создать следующую версию", "Create new version from this": "Создать новую версию на основе этой", "Download Markdown": "Скачать Markdown", "Download original": "Скачать оригинал", "Submitted": "Отправлено", "Mark submitted": "Отметить отправленным",
+  "Permanently delete this resume version? Its stored text and original files will be permanently removed. ATS history and existing copied child versions will remain, and any submitted marker will be cleared. Saved AI/Codex run history and copies already returned or exported outside CareerFlow are not scrubbed automatically.": "Удалить эту версию резюме навсегда? Сохранённый текст и исходные файлы будут удалены. История ATS и уже скопированные дочерние версии останутся, а отметка об отправке будет снята. История запусков AI/Codex и уже экспортированные копии автоматически не очищаются.",
+  "Resume version deleted": "Версия резюме удалена", "GLOBAL IMMUTABLE LIBRARY": "ГЛОБАЛЬНАЯ НЕИЗМЕНЯЕМАЯ БИБЛИОТЕКА", "Create a new version whenever your canonical resume changes.": "Создавайте новую версию при каждом изменении основного резюме.", "Create a Master Resume version": "Создать версию главного резюме", "Create a new version": "Создать новую версию", "Create a version": "Создать версию", "Version name": "Название версии", "Resume file (PDF, DOCX, TXT, MD)": "Файл резюме (PDF, DOCX, TXT, MD)", "Or edit Markdown": "Или отредактируйте Markdown", "Save Master Resume version": "Сохранить версию главного резюме", "Master Resume copied into an editable new-version draft.": "Главное резюме скопировано в редактируемый черновик новой версии.", "Master Resume version created": "Версия главного резюме создана",
+  "VACANCY-SPECIFIC HISTORY": "ИСТОРИЯ ПО ВАКАНСИИ", "Resume versions for this vacancy": "Версии резюме для этой вакансии", "No vacancy-specific versions yet.": "Версий для этой вакансии пока нет.", "Create from Master Resume": "Создать из главного резюме", "Copy into draft": "Скопировать в черновик", "No Master Resume exists yet.": "Главного резюме пока нет.", "Create one in the Master Resume section.": "Создайте его в разделе «Главное резюме».", "Add a vacancy-specific version": "Добавить версию для вакансии", "Save vacancy resume version": "Сохранить версию резюме вакансии", "Vacancy resume version created": "Версия резюме вакансии создана", "Submitted version recorded": "Отправленная версия сохранена",
+  "EVIDENCE-BASED LOCAL COMPARISON": "ЛОКАЛЬНОЕ СРАВНЕНИЕ НА ОСНОВЕ ФАКТОВ", "ATS analysis": "Анализ ATS", "Run analysis": "Запустить анализ", "Run again": "Запустить снова", "Loading ATS workspace…": "Загрузка рабочего пространства ATS…", "Review the cleaned vacancy description before running ATS.": "Проверьте очищенное описание вакансии перед запуском ATS.", "ATS analysis requires a resume.": "Для анализа ATS нужно резюме.", "Create a resume for this vacancy or use a Master Resume version.": "Создайте резюме для этой вакансии или используйте версию главного резюме.", "Select a resume version and run ATS analysis.": "Выберите версию резюме и запустите анализ ATS.", "Create from Master Resume": "Создать из главного резюме", "Add resume": "Добавить резюме", "Requirements and evidence": "Требования и подтверждения", "Keywords": "Ключевые слова", "Covered": "Подтверждено", "Partial": "Частично", "Missing": "Не найдено",
+  "EVENT LOG": "ЖУРНАЛ СОБЫТИЙ", "Add interview": "Добавить собеседование", "Date and time": "Дата и время", "Type": "Тип", "Notes": "Заметки", "Result": "Результат", "Scheduled, passed, follow-up…": "Назначено, пройдено, дальнейшие шаги…", "Add interview": "Добавить собеседование", "Interview added": "Собеседование добавлено",
+  "DATED NOTES": "ЗАМЕТКИ ПО ДАТАМ", "New note": "Новая заметка", "Interview preparation, company research, impressions…": "Подготовка к собеседованию, исследование компании, впечатления…", "Add note": "Добавить заметку", "No notes yet.": "Заметок пока нет.", "Save": "Сохранить", "Note added": "Заметка добавлена", "Note saved": "Заметка сохранена", "Delete this note?": "Удалить эту заметку?", "Note deleted": "Заметка удалена",
+  "LOCAL STORAGE": "ЛОКАЛЬНОЕ ХРАНИЛИЩЕ", "Attach file": "Прикрепить файл", "Up to 100 MB. Audio is stored as-is; automatic transcription is outside the MVP.": "До 100 МБ. Аудио хранится как есть; автоматическая расшифровка не входит в MVP.", "No attachments yet.": "Вложений пока нет.", "Download": "Скачать", "Remove this attachment?": "Удалить это вложение?", "File attached": "Файл прикреплён", "File removed": "Файл удалён", "Building…": "Формирование…", "Markdown report generated": "Markdown-отчёт создан",
+  "READ-ONLY CLI ASSISTANT": "CLI-АССИСТЕНТ ТОЛЬКО ДЛЯ ЧТЕНИЯ", "CareerFlow sends the generated vacancy Markdown context to": "CareerFlow отправляет сгенерированный Markdown-контекст вакансии в", "Action": "Действие", "Analyze vacancy": "Анализ вакансии", "Improve resume": "Улучшить резюме", "Review ATS analysis": "Проверить анализ ATS", "Prepare for interview": "Подготовиться к собеседованию", "Analyze interview notes": "Проанализировать заметки собеседования", "Custom request": "Свой запрос", "Model": "Модель", "Reasoning effort": "Уровень рассуждений", "Request": "Запрос", "Run Codex": "Запустить Codex", "Saved responses": "Сохранённые ответы", "No saved responses yet.": "Сохранённых ответов пока нет.", "View response": "Открыть ответ", "Codex is working…": "Codex работает…", "Codex response received": "Ответ Codex получен", "Review the response, then manually decide what to save as a new resume version or note.": "Проверьте ответ и вручную решите, что сохранить как новую версию резюме или заметку.", "Legacy model unknown": "Старая модель неизвестна", "effort unknown": "уровень неизвестен",
+  "Review description": "Проверить описание", "Preparing preview…": "Подготовка предпросмотра…", "Vacancy imported": "Вакансия импортирована", "Deletion cancelled": "Удаление отменено", "Vacancy deleted": "Вакансия удалена", "Vacancy archived": "Вакансия отправлена в архив", "Vacancy restored": "Вакансия восстановлена", "Vacancy updated": "Вакансия обновлена", "Status changed to": "Статус изменён на", "Invalid value": "Недопустимое значение", "Request failed": "Запрос не выполнен", "Error": "Ошибка"
+};
+
+function translateText(value) {
+  if (state.locale !== "ru") return value;
+  const trimmed = value.trim();
+  if (RU[trimmed]) return value.replace(trimmed, RU[trimmed]);
+  return value
+    .replace(/\bAdded\b/g, RU.Added)
+    .replace(/\bATS (\d+%)/g, `${RU.ATS} $1`)
+    .replace(/Company not set/g, RU["Company not set"])
+    .replace(/Salary not specified/g, RU["Salary not specified"])
+    .replace(/No summary yet/g, RU["No summary yet"])
+    .replace(/Only when selected; vacancy text will be sent to the local Codex CLI\./g, RU["Only when selected; vacancy text will be sent to the local Codex CLI."])
+    .replace(/Status changed to (.+)/g, (_, status) => `${RU["Status changed to"]} ${RU[status] || status}`)
+    .replace(/Interview ·/g, `${RU.Interview} ·`)
+    .replace(/Based on (Master Resume|Vacancy Resume) v(\d+)/g, (_, kind, version) => `${RU[`Based on ${kind}`]} v${version}`)
+    .replace(/(Add interview) #(\d+)/g, (_, label, number) => `${RU[label]} #${number}`);
+}
+
+function applyLocale(root = document.body) {
+  if (!root || state.locale !== "ru") return;
+  const walker = document.createTreeWalker?.(root, typeof NodeFilter === "undefined" ? 4 : NodeFilter.SHOW_TEXT);
+  if (walker) {
+    let node;
+    while ((node = walker.nextNode())) {
+      const parent = node.parentElement;
+      if (!parent || parent.closest("textarea, pre, blockquote, .overview-text, .markdown-preview, .ai-response, .tag")) continue;
+      node.nodeValue = translateText(node.nodeValue);
+    }
+  }
+  root.querySelectorAll?.("[placeholder], [title], [aria-label]").forEach(element => {
+    for (const attribute of ["placeholder", "title", "aria-label"]) {
+      if (element.hasAttribute(attribute)) element.setAttribute(attribute, translateText(element.getAttribute(attribute)));
+    }
+  });
+}
+
+function setLocale(locale) {
+  state.locale = locale === "ru" ? "ru" : "en";
+  try { localStorage.setItem("careerflow-locale", state.locale); } catch (_) { /* Ignore unavailable storage. */ }
+  if (document.documentElement) document.documentElement.lang = state.locale;
+  if (localeToggle) {
+    localeToggle.textContent = state.locale === "ru" ? "eng" : "ru";
+    localeToggle.setAttribute("aria-label", state.locale === "ru" ? "Switch language to English" : "Переключить язык на русский");
+  }
+  if (state.locale === "ru") applyLocale();
+  else window.location.reload();
+}
+
+localeToggle?.addEventListener("click", () => setLocale(state.locale === "ru" ? "en" : "ru"));
+if (typeof MutationObserver !== "undefined") new MutationObserver(() => applyLocale()).observe(document.body, { childList: true, subtree: true });
 
 async function api(url, options = {}) {
   const response = await fetch(url, options);
@@ -850,5 +940,10 @@ form.onsubmit = async event => {
   finally { submit.disabled = false; if (!state.importPreview) submit.textContent = "Review description"; }
 };
 
+if (document.documentElement) document.documentElement.lang = state.locale;
+if (state.locale === "ru") {
+  setLocale("ru");
+  applyLocale();
+}
 setSection("vacancies");
 loadVacancies().catch(error => { workspace.innerHTML = `<p class="error">${escapeHtml(error.message)}</p>`; });

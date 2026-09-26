@@ -18,6 +18,8 @@ button:disabled { cursor: wait; opacity: .6; }
 button:focus-visible, input:focus-visible, textarea:focus-visible, select:focus-visible { outline: 3px solid #8bc2a3; outline-offset: 2px; }
 .topbar { height: 84px; display: flex; align-items: center; justify-content: space-between; padding: 14px 28px; background: var(--surface); border-bottom: 1px solid var(--line); }
 .topbar h1, h2, p { margin: 0; }
+.topbar-actions { display: flex; align-items: center; gap: .65rem; }
+.locale-toggle { min-width: 3.2rem; text-transform: lowercase; }
 .topbar h1 { font-size: 24px; letter-spacing: -0.04em; }
 .primary-nav { display: flex; align-self: stretch; align-items: stretch; gap: 4px; margin-left: 28px; margin-right: auto; }
 .primary-nav-item { border: 0; border-bottom: 3px solid transparent; background: transparent; color: var(--muted); padding: 0 14px; font-weight: 800; }
