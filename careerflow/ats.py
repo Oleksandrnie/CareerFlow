@@ -6,6 +6,7 @@ import json
 import re
 from collections import Counter
 
+from .cleaning import retain_reviewable_text
 from .db import Database, insert_and_get_id
 
 
@@ -64,6 +65,10 @@ def _requirements(text: str) -> list[str]:
 
 
 def analyze(vacancy_text: str, resume_text: str) -> dict:
+    # Confirmed descriptions can still contain manually retained page text. Apply
+    # the same conservative, deterministic structural filter before both keyword
+    # and requirement scoring; reviewable/uncertain blocks remain untouched.
+    vacancy_text = retain_reviewable_text(vacancy_text)
     resume_tokens = set(_tokens(resume_text))
     vacancy_counts = Counter(_tokens(vacancy_text))
     keywords = [word for word, _ in vacancy_counts.most_common(24)]
@@ -164,7 +169,8 @@ def run_analysis(database: Database, vacancy_id: int, resume_id: int) -> dict:
         if not vacancy["description_confirmed_at"]:
             raise ValueError("Review and confirm the cleaned vacancy description before running ATS")
         resume = connection.execute(
-            "SELECT * FROM resume_versions WHERE id = ?", (resume_id,)
+            "SELECT * FROM resume_versions WHERE id = ? AND deleted_at IS NULL",
+            (resume_id,),
         ).fetchone()
         if resume is None:
             raise LookupError("Resume not found")
@@ -205,10 +211,12 @@ def _load_analysis(database: Database, query: str, params: tuple[int, ...]) -> d
     if row:
         current_revision = row.pop("current_description_revision")
         current_description = row.pop("current_description")
+        row["resume_deleted"] = row.pop("referenced_resume_deleted_at") is not None
         row["is_stale"] = (
             row["description_revision"] is None
             or row["description_revision"] != current_revision
             or row["description_snapshot"] != current_description
+            or row["resume_deleted"]
         )
         row["result"] = json.loads(row.pop("result_json"))
     return row
@@ -219,8 +227,10 @@ def get_analysis(database: Database, analysis_id: int) -> dict | None:
         database,
         """
         SELECT a.*, v.description_revision AS current_description_revision,
-               v.description AS current_description
+               v.description AS current_description,
+               r.deleted_at AS referenced_resume_deleted_at
         FROM ats_analyses AS a JOIN vacancies AS v ON v.id = a.vacancy_id
+        LEFT JOIN resume_versions AS r ON r.id = a.resume_version_id
         WHERE a.id = ?
         """,
         (analysis_id,),
@@ -232,8 +242,10 @@ def latest_analysis(database: Database, vacancy_id: int) -> dict | None:
         database,
         """
         SELECT a.*, v.description_revision AS current_description_revision,
-               v.description AS current_description
+               v.description AS current_description,
+               r.deleted_at AS referenced_resume_deleted_at
         FROM ats_analyses AS a JOIN vacancies AS v ON v.id = a.vacancy_id
+        LEFT JOIN resume_versions AS r ON r.id = a.resume_version_id
         WHERE a.vacancy_id = ? ORDER BY a.created_at DESC, a.id DESC LIMIT 1
         """,
         (vacancy_id,),

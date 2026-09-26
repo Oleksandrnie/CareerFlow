@@ -7,8 +7,9 @@ from pathlib import Path
 from fastapi.testclient import TestClient
 
 from careerflow.api import create_app
+from careerflow.ats import analyze
 from careerflow.cleaning import build_preview, classify_blocks_with_codex, split_blocks
-from careerflow.codex import CodexResult
+from careerflow.codex import CodexError, CodexResult
 from careerflow.config import Settings
 from careerflow.files import extract_vacancy_html
 
@@ -134,6 +135,112 @@ class CleaningClassificationTest(unittest.TestCase):
                     runner=lambda settings, prompt, value=response: CodexResult(value, ["codex"]),
                 )
 
+    def test_codex_cannot_restore_clear_noise_or_remove_reviewable_uncertainty(self) -> None:
+        def fake_runner(settings, prompt):
+            return CodexResult(
+                '[{"id":"b1","classification":"keep"},'
+                '{"id":"b2","classification":"keep"},'
+                '{"id":"b3","classification":"remove"}]',
+                ["codex"],
+            )
+
+        preview = build_preview(
+            "Required Python\nApply now\nCareers",
+            settings=self.settings,
+            use_codex=True,
+            codex_runner=fake_runner,
+        )
+        self.assertEqual(preview["description"], "Required Python\nCareers")
+        self.assertEqual(preview["method"], "codex:local-blocks")
+        self.assertEqual(
+            [(item["text"], item["classification"]) for item in preview["blocks"]],
+            [
+                ("Required Python", "keep"),
+                ("Apply now", "remove"),
+                ("Careers", "uncertain"),
+            ],
+        )
+
+    def test_codex_failure_or_invalid_classification_falls_back_with_diagnostics(self) -> None:
+        def cli_failure(settings, prompt):
+            raise CodexError("CLI is busy")
+
+        def invalid_classification(settings, prompt):
+            return CodexResult(
+                '[{"id":"unknown","classification":"remove"}]', ["codex"]
+            )
+
+        failures = (cli_failure, invalid_classification)
+        for runner in failures:
+            with self.subTest(runner=runner):
+                preview = build_preview(
+                    "Required Python\nApply now\nCareers",
+                    settings=self.settings,
+                    use_codex=True,
+                    codex_runner=runner,
+                )
+                self.assertEqual(preview["description"], "Required Python\nCareers")
+                self.assertEqual(preview["method"], "local-fallback:local-blocks")
+                self.assertEqual(preview["diagnostics"]["classification_source"], "local")
+                self.assertTrue(preview["diagnostics"]["fallback_used"])
+                self.assertIn("Review uncertain blocks", preview["warnings"][0])
+
+    def test_structural_noise_and_recommendation_sections_are_removed_conservatively(self) -> None:
+        preview = build_preview(
+            "\n".join(
+                (
+                    "Хабр Карьера",
+                    "Все сервисы Хабра",
+                    "Ответы на любые вопросы об IT",
+                    "Профессиональное развитие в IT.",
+                    "Моя лента",
+                    "Platform Engineer",
+                    "Требования",
+                    "Опыт Python и PostgreSQL от 3 лет.",
+                    "Careers",
+                    "Рекомендуемые вакансии:",
+                    "Unrelated Mobile Developer",
+                    "Требуется опыт Java и Spring.",
+                    "https://career.example/jobs/42",
+                )
+            ),
+            method="pasted-text",
+        )
+        self.assertEqual(
+            preview["description"],
+            "Platform Engineer\nТребования\nОпыт Python и PostgreSQL от 3 лет.\nCareers",
+        )
+        self.assertEqual([item["text"] for item in preview["uncertain_blocks"]], ["Careers"])
+        removed_text = {item["text"] for item in preview["removed_blocks"]}
+        self.assertIn("Все сервисы Хабра", removed_text)
+        self.assertIn("Моя лента", removed_text)
+        self.assertIn("Unrelated Mobile Developer", removed_text)
+        self.assertIn("https://career.example/jobs/42", removed_text)
+
+        result = analyze(
+            "\n".join(item["text"] for item in preview["blocks"]),
+            "Python PostgreSQL developer with 4 years of experience.",
+        )
+        requirements = "\n".join(item["requirement"] for item in result["requirements"])
+        self.assertIn("Python", requirements)
+        for noise in (
+            "Все сервисы Хабра",
+            "Ответы на любые вопросы об IT",
+            "Профессиональное развитие в IT.",
+            "Unrelated Mobile Developer",
+            "Java",
+            "https://career.example/jobs/42",
+        ):
+            self.assertNotIn(noise, requirements)
+        self.assertNotIn("java", result["keywords"])
+        self.assertNotIn("unrelated", result["keywords"])
+
+        resumed_content = build_preview(
+            "Similar jobs\nUnrelated title\nRequirements\nMust know Go",
+            method="pasted-text",
+        )
+        self.assertEqual(resumed_content["description"], "Requirements\nMust know Go")
+
 
 class CleaningApiTest(unittest.TestCase):
     def setUp(self) -> None:
@@ -178,6 +285,56 @@ class CleaningApiTest(unittest.TestCase):
         self.assertNotIn("Search jobs", vacancy["description"])
         self.assertIsNotNone(vacancy["description_confirmed_at"])
         self.assertTrue(Path(vacancy["original_path"]).read_bytes() == html)
+
+    def test_confirmed_html_preview_keeps_real_requirements_out_of_page_noise(self) -> None:
+        html = b"""
+        <html><body><main>
+        <p>&#1061;&#1072;&#1073;&#1088; &#1050;&#1072;&#1088;&#1100;&#1077;&#1088;&#1072;</p>
+        <p>&#1042;&#1089;&#1077; &#1089;&#1077;&#1088;&#1074;&#1080;&#1089;&#1099; &#1061;&#1072;&#1073;&#1088;&#1072;</p>
+        <p>&#1054;&#1090;&#1074;&#1077;&#1090;&#1099; &#1085;&#1072; &#1083;&#1102;&#1073;&#1099;&#1077; &#1074;&#1086;&#1087;&#1088;&#1086;&#1089;&#1099; &#1086;&#1073; IT</p>
+        <p>&#1055;&#1088;&#1086;&#1092;&#1077;&#1089;&#1089;&#1080;&#1086;&#1085;&#1072;&#1083;&#1100;&#1085;&#1086;&#1077; &#1088;&#1072;&#1079;&#1074;&#1080;&#1090;&#1080;&#1077; &#1074; IT</p>
+        <h1>Platform Engineer</h1>
+        <h2>&#1058;&#1088;&#1077;&#1073;&#1086;&#1074;&#1072;&#1085;&#1080;&#1103;</h2>
+        <p>&#1054;&#1087;&#1099;&#1090; Python &#1080; PostgreSQL &#1086;&#1090; 3 &#1083;&#1077;&#1090;.</p>
+        <h2>&#1056;&#1077;&#1082;&#1086;&#1084;&#1077;&#1085;&#1076;&#1091;&#1077;&#1084;&#1099;&#1077; &#1074;&#1072;&#1082;&#1072;&#1085;&#1089;&#1080;&#1080;</h2>
+        <div>Unrelated Mobile Developer</div>
+        <p>&#1058;&#1088;&#1077;&#1073;&#1091;&#1077;&#1090;&#1089;&#1103; &#1086;&#1087;&#1099;&#1090; Java &#1080; Spring.</p>
+        <p>https://career.example/jobs/42</p>
+        </main></body></html>
+        """
+        preview_response = self.client.post(
+            "/api/vacancies/import-preview",
+            files={"file": ("role.html", html, "text/html")},
+        )
+        self.assertEqual(preview_response.status_code, 200)
+        preview = preview_response.json()
+        self.assertIn("Python", preview["description"])
+        self.assertNotIn("&#1061;", preview["description"])
+        self.assertNotIn("Unrelated Mobile Developer", preview["description"])
+
+        vacancy = self.client.post(
+            "/api/vacancies",
+            data={
+                "cleaned_description": preview["description"],
+                "cleaning_method": preview["method"],
+            },
+            files={"file": ("role.html", html, "text/html")},
+        ).json()
+        resume = self.client.post(
+            "/api/resumes",
+            data={"kind": "master", "text": "Python PostgreSQL engineer with 4 years experience."},
+        ).json()
+        analysis = self.client.post(
+            f"/api/vacancies/{vacancy['id']}/ats",
+            json={"resume_version_id": resume["id"]},
+        )
+        self.assertEqual(analysis.status_code, 201)
+        requirements = "\n".join(
+            item["requirement"] for item in analysis.json()["result"]["requirements"]
+        )
+        self.assertIn("Python", requirements)
+        self.assertNotIn("Unrelated Mobile Developer", requirements)
+        self.assertNotIn("Java", requirements)
 
     def test_apply_cleaning_invalidates_ats_but_never_changes_raw(self) -> None:
         vacancy = self.client.post(

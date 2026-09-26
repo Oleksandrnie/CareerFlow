@@ -54,6 +54,7 @@ CREATE TABLE IF NOT EXISTS resume_versions (
     content_text TEXT NOT NULL,
     source_resume_id INTEGER REFERENCES resume_versions(id) ON DELETE SET NULL,
     is_submitted INTEGER NOT NULL DEFAULT 0 CHECK (is_submitted IN (0, 1)),
+    deleted_at TEXT,
     created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
     UNIQUE(kind, vacancy_id, version)
 );
@@ -194,6 +195,18 @@ class Database:
             connection.execute(
                 "INSERT OR IGNORE INTO schema_version(version) VALUES (4)"
             )
+            self._ensure_resume_deletion_column(connection)
+            connection.execute(
+                "INSERT OR IGNORE INTO schema_version(version) VALUES (5)"
+            )
+
+    @staticmethod
+    def _ensure_resume_deletion_column(connection: sqlite3.Connection) -> None:
+        columns = {
+            row["name"] for row in connection.execute("PRAGMA table_info(resume_versions)")
+        }
+        if "deleted_at" not in columns:
+            connection.execute("ALTER TABLE resume_versions ADD COLUMN deleted_at TEXT")
 
     @staticmethod
     def _ensure_track_two_columns(connection: sqlite3.Connection) -> None:

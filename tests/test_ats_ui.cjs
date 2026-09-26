@@ -57,10 +57,10 @@ vm.runInContext(source, context);
   await vm.runInContext("renderAts({id: 1, description_confirmed_at: '2026-09-26'})", context);
   const html = element("#content-panel").innerHTML;
   assert.match(html, /value="43" selected/);
-  assert.match(html, /Historical match — rerun ATS/);
+  assert.match(html, /Historical ATS text match — rerun analysis/);
   assert.match(html, /Vacancy Resume v1 \(ID 43\)/);
   assert.match(html, /This result is historical/);
-  assert.match(html, /not an employer decision and not a Codex analysis/);
+  assert.match(html, /not a probability of getting the job or a definitive assessment of suitability/);
   process.stdout.write("ATS UI provenance contract passed\n");
 })().catch(error => {
   process.stderr.write(`${error.stack}\n`);

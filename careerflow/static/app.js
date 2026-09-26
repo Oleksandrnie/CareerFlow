@@ -1,4 +1,16 @@
-const state = { section: "vacancies", vacancies: [], selected: null, activeTab: null, viewEpoch: 0, selectionEpoch: 0, listEpoch: 0, importPreview: null };
+const state = {
+  section: "vacancies",
+  vacancies: [],
+  selected: null,
+  activeTab: null,
+  viewEpoch: 0,
+  selectionEpoch: 0,
+  listEpoch: 0,
+  importPreview: null,
+  interviewCounts: new Map(),
+  interviewCountEpochs: new Map(),
+  interviewRequests: new Map(),
+};
 const listEl = document.querySelector("#vacancy-list");
 const workspace = document.querySelector("#workspace");
 const appLayout = document.querySelector("#app-layout");
@@ -154,7 +166,7 @@ function renderList() {
       <span>${escapeHtml(item.company || "Company not set")}</span>
       <span class="vacancy-meta">${escapeHtml(item.salary || "Salary not specified")} · Added ${new Date(`${item.created_at}Z`).toLocaleDateString()}</span>
       <span class="vacancy-summary">${escapeHtml(item.summary || "No summary yet")}</span>
-      <span class="card-meta"><span class="badge">${escapeHtml(item.status)}</span><span>${item.match_percent == null ? "—" : `${item.match_percent}%`}</span></span>
+      <span class="card-meta"><span class="badge">${escapeHtml(item.status)}</span><span title="Heuristic ATS text-match score, not a probability of getting the job">${item.match_percent == null ? "—" : `ATS ${item.match_percent}%`}</span></span>
     </button>`).join("");
 }
 
@@ -169,7 +181,7 @@ function renderEmpty() {
 
 const STAGES = ["Saved", "Applied", "Interview", "Waiting", "Offer", "Rejected"];
 
-function stageBar(vacancy, interviewCount = 0) {
+function stageBar(vacancy, interviewCount = state.interviewCounts.get(vacancy.id) ?? 0) {
   return `<div class="stage-scroll" aria-label="Vacancy stage"><div class="stage-bar">${STAGES.map(status => `<button type="button" class="stage-step ${status === vacancy.status ? "active" : ""}" data-stage="${status}" aria-pressed="${status === vacancy.status}">${status === "Interview" ? `Interview · <span data-interview-count>${interviewCount}</span>` : status}</button>`).join("")}</div></div>`;
 }
 
@@ -206,12 +218,46 @@ function bindStageBar(vacancy) {
   });
 }
 
-async function refreshInterviewCount(vacancy, epoch) {
+function interviewCountEpoch(vacancyId) {
+  return state.interviewCountEpochs.get(vacancyId) || 0;
+}
+
+function updateInterviewCount(vacancyId, count, epoch = interviewCountEpoch(vacancyId)) {
+  if (interviewCountEpoch(vacancyId) !== epoch) return;
+  state.interviewCounts.set(vacancyId, count);
+  if (state.section !== "vacancies" || state.selected?.id !== vacancyId) return;
+  const counter = document.querySelector("[data-interview-count]");
+  if (counter) counter.textContent = String(count);
+}
+
+function invalidateInterviewCount(vacancyId) {
+  const epoch = interviewCountEpoch(vacancyId) + 1;
+  state.interviewCountEpochs.set(vacancyId, epoch);
+  state.interviewRequests.delete(vacancyId);
+  return epoch;
+}
+
+function loadInterviews(vacancyId) {
+  const epoch = interviewCountEpoch(vacancyId);
+  const current = state.interviewRequests.get(vacancyId);
+  if (current?.epoch === epoch) return current.promise;
+
+  const request = { epoch, promise: null };
+  request.promise = api(`/api/vacancies/${vacancyId}/interviews`)
+    .then(interviews => {
+      updateInterviewCount(vacancyId, interviews.length, epoch);
+      return interviews;
+    })
+    .finally(() => {
+      if (state.interviewRequests.get(vacancyId) === request) state.interviewRequests.delete(vacancyId);
+    });
+  state.interviewRequests.set(vacancyId, request);
+  return request.promise;
+}
+
+async function refreshInterviewCount(vacancy) {
   try {
-    const interviews = await api(`/api/vacancies/${vacancy.id}/interviews`);
-    if (state.section !== "vacancies" || state.selected?.id !== vacancy.id || state.viewEpoch !== epoch) return;
-    const counter = document.querySelector("[data-interview-count]");
-    if (counter) counter.textContent = String(interviews.length);
+    await loadInterviews(vacancy.id);
   } catch (error) { /* The stage remains usable if the count cannot be refreshed. */ }
 }
 
@@ -237,7 +283,7 @@ function renderVacancy(vacancy) {
   bindStageBar(vacancy);
   document.querySelectorAll("[data-tab]").forEach(button => button.onclick = () => openTab(button.dataset.tab, vacancy));
   renderOverview(vacancy);
-  refreshInterviewCount(vacancy, state.viewEpoch);
+  refreshInterviewCount(vacancy);
 }
 
 function activateTab(name) {
@@ -341,12 +387,21 @@ function renderEdit(vacancy) {
 }
 
 function resumeOrigin(item) {
+  if (item.source_deleted_at) return "Source version deleted";
   if (!item.source_resume_id || !item.source_kind || !item.source_version) return "Created independently";
   return `Based on ${item.source_kind === "master" ? "Master Resume" : "Vacancy Resume"} v${item.source_version}`;
 }
 
 function resumeItem(item, { masterWorkspace = false } = {}) {
-  return `<article class="item-row"><div><strong>${item.kind === "master" ? "Master" : "Vacancy"} Resume v${item.version}</strong><p class="muted">${escapeHtml(item.label || "No label")} · ${new Date(item.created_at + "Z").toLocaleString()}</p><p class="muted resume-origin">${escapeHtml(resumeOrigin(item))}</p></div><div class="actions"><button class="secondary" type="button" data-preview-resume="${item.id}">Preview</button><button class="secondary" type="button" data-use-resume="${item.id}">${masterWorkspace ? "Create next version" : "Create new version from this"}</button><a class="secondary link-button" href="/api/resumes/${item.id}/markdown" download>Download Markdown</a>${item.original_filename ? `<a class="secondary link-button" href="/api/resumes/${item.id}/download" download>Download original</a>` : ""}${item.is_submitted ? `<span class="badge success">Submitted</span>` : item.kind === "vacancy" ? `<button class="secondary" type="button" data-submit-resume="${item.id}">Mark submitted</button>` : ""}</div></article>`;
+  return `<article class="item-row"><div><strong>${item.kind === "master" ? "Master" : "Vacancy"} Resume v${item.version}</strong><p class="muted">${escapeHtml(item.label || "No label")} · ${new Date(item.created_at + "Z").toLocaleString()}</p><p class="muted resume-origin">${escapeHtml(resumeOrigin(item))}</p></div><div class="actions"><button class="secondary" type="button" data-preview-resume="${item.id}">Preview</button><button class="secondary" type="button" data-use-resume="${item.id}">${masterWorkspace ? "Create next version" : "Create new version from this"}</button><a class="secondary link-button" href="/api/resumes/${item.id}/markdown" download>Download Markdown</a>${item.original_filename ? `<a class="secondary link-button" href="/api/resumes/${item.id}/download" download>Download original</a>` : ""}${item.is_submitted ? `<span class="badge success">Submitted</span>` : item.kind === "vacancy" ? `<button class="secondary" type="button" data-submit-resume="${item.id}">Mark submitted</button>` : ""}<button class="danger" type="button" data-delete-resume="${item.id}">Delete</button></div></article>`;
+}
+
+function bindResumeDelete(panel, refresh, viewCheck, view = null) {
+  document.querySelectorAll("[data-delete-resume]").forEach(button => button.onclick = () => runAction(button, async () => {
+    if (!window.confirm("Permanently delete this resume version? Its stored text and original files will be permanently removed. ATS history and existing copied child versions will remain, and any submitted marker will be cleared. Saved AI/Codex run history and copies already returned or exported outside CareerFlow are not scrubbed automatically.")) return;
+    await api(`/api/resumes/${button.dataset.deleteResume}`, { method: "DELETE" });
+    if (viewCheck()) { toast("Resume version deleted"); await refresh(); }
+  }, null, view));
 }
 
 function bindResumePreview(panel, viewCheck) {
@@ -378,12 +433,13 @@ async function renderMasterResume() {
     const masters = await api("/api/resumes?kind=master");
     if (!isCurrentMasterView(epoch)) return;
     workspace.innerHTML = `<div class="standalone-head"><div><p class="eyebrow">GLOBAL IMMUTABLE LIBRARY</p><h2>Master Resume</h2><p class="muted">Create a new version whenever your canonical resume changes.</p></div></div>
-      <section class="panel master-panel"><div class="item-list">${masters.length ? masters.map(item => resumeItem(item, { masterWorkspace: true })).join("") : `<div class="empty-inline"><h3>Create your first Master Resume</h3><p>Upload PDF, DOCX, TXT, or MD, or paste Markdown below.</p></div>`}</div>
-      <div id="resume-preview" aria-live="polite"></div><hr><h3>${masters.length ? "Create a new version" : "Create the first version"}</h3>
+      <section class="panel master-panel"><div class="item-list">${masters.length ? masters.map(item => resumeItem(item, { masterWorkspace: true })).join("") : `<div class="empty-inline"><h3>Create a Master Resume version</h3><p>Upload PDF, DOCX, TXT, or MD, or paste Markdown below. Existing history is retained when prior versions are deleted.</p></div>`}</div>
+      <div id="resume-preview" aria-live="polite"></div><hr><h3>${masters.length ? "Create a new version" : "Create a version"}</h3>
       <form id="resume-form" class="stack"><input type="hidden" name="source_resume_id"><label>Version name<input name="label" placeholder="e.g. September 2026"></label><label>Resume file (PDF, DOCX, TXT, MD)<input name="file" type="file" accept=".pdf,.docx,.txt,.md"></label><label>Or edit Markdown<textarea name="text" rows="14"></textarea></label><p class="error" id="resume-error"></p><button class="primary" type="submit">Save Master Resume version</button></form></section>`;
     const panel = workspace.querySelector?.(".master-panel") || workspace;
     const isCurrent = () => isCurrentMasterView(epoch);
     bindResumePreview(panel, isCurrent);
+    bindResumeDelete(panel, renderMasterResume, isCurrent);
     document.querySelectorAll("[data-use-resume]").forEach(button => button.onclick = () => runAction(button, async () => {
       const resume = await api(`/api/resumes/${button.dataset.useResume}`);
       if (!isCurrent()) return;
@@ -421,6 +477,7 @@ async function renderResumes(vacancy, view = null) {
       <hr><h4>Add a vacancy-specific version</h4><form id="resume-form" class="stack"><input type="hidden" name="source_resume_id"><label>Version name<input name="label" placeholder="e.g. Backend-focused"></label><label>Resume file (PDF, DOCX, TXT, MD)<input name="file" type="file" accept=".pdf,.docx,.txt,.md"></label><label>Or edit Markdown<textarea name="text" rows="12"></textarea></label><p class="error" id="resume-error"></p><button class="primary" type="submit">Save vacancy resume version</button></form>`;
     const isCurrent = () => isCurrentView(view);
     bindResumePreview(panel, isCurrent);
+    bindResumeDelete(panel, () => renderResumes(vacancy, view), isCurrent, view);
     document.querySelectorAll("[data-use-resume]").forEach(button => button.onclick = () => runAction(button, async () => {
       const resume = await api(`/api/resumes/${button.dataset.useResume}`);
       if (!isCurrent()) return;
@@ -461,7 +518,7 @@ function atsResult(analysis) {
   const resumeLabel = analysis.resume_kind_at_analysis && analysis.resume_version_at_analysis
     ? `${analysis.resume_kind_at_analysis === "master" ? "Master" : "Vacancy"} Resume v${analysis.resume_version_at_analysis}`
     : "legacy resume version";
-  return `<div class="score-row"><div class="score">${analysis.match_percent}%</div><div><h3>${analysis.is_stale ? "Historical match — rerun ATS" : "Current resume match"}</h3><p class="muted">Analysis #${analysis.id} · ${escapeHtml(resumeLabel)} (ID ${analysis.resume_version_id})</p><p class="muted">ATS is a local text comparison, not an employer decision and not a Codex analysis.</p><p class="muted">${escapeHtml(result.disclaimer)}</p>${analysis.is_stale ? `<p class="error">The confirmed vacancy description changed after this run. This result is historical; run ATS again for a current score.</p>` : ""}</div></div>
+  return `<div class="score-row"><div class="score" aria-label="ATS text-match score ${analysis.match_percent}%">${analysis.match_percent}%</div><div><h3>${analysis.is_stale ? "Historical ATS text match — rerun analysis" : "ATS text-match score"}</h3><p class="muted">Analysis #${analysis.id} · ${escapeHtml(resumeLabel)} (ID ${analysis.resume_version_id})</p><p class="muted">Heuristic comparison of vacancy wording with resume text. It is not a probability of getting the job or a definitive assessment of suitability.</p><p class="muted">${escapeHtml(result.disclaimer)}</p>${analysis.is_stale ? `<p class="error">${analysis.resume_deleted ? "The resume version used for this analysis was deleted. This result remains historical; create or select a current resume and run ATS again." : "The confirmed vacancy description changed after this run. This result is historical; run ATS again for a current score."}</p>` : ""}</div></div>
     <div class="metric-grid"><div><strong>${result.counts.covered}</strong><span>Covered</span></div><div><strong>${result.counts.partial}</strong><span>Partial</span></div><div><strong>${result.counts.missing}</strong><span>Missing</span></div></div>
     <h4>Requirements and evidence</h4><div class="item-list">${result.requirements.map(item => `<article class="requirement ${item.classification}"><span class="badge">${item.classification}</span><strong>${escapeHtml(item.requirement)}</strong><p>${escapeHtml(item.interpretation)}</p>${item.evidence ? `<blockquote>${escapeHtml(item.evidence)}</blockquote>` : ""}</article>`).join("")}</div>
     <h4>Keywords</h4><div class="tag-list">${result.keywords.map(word => `<span class="tag ${result.covered_keywords.includes(word) ? "hit" : ""}">${escapeHtml(word)}</span>`).join("")}</div>`;
@@ -533,7 +590,7 @@ async function renderTimeline(vacancy, view = null) {
   const panel = document.querySelector("#content-panel");
   const [events, interviews] = await Promise.all([
     api(`/api/vacancies/${vacancy.id}/timeline`),
-    api(`/api/vacancies/${vacancy.id}/interviews`),
+    loadInterviews(vacancy.id),
   ]);
   if (!isCurrentView(view)) return;
   panel.innerHTML = `<div class="section-head"><div><p class="eyebrow">EVENT LOG</p><h3>Timeline</h3></div></div>
@@ -547,6 +604,8 @@ async function renderTimeline(vacancy, view = null) {
     await runAction(interviewForm.querySelector("button[type=submit]"), async () => {
       const payload = Object.fromEntries(new FormData(interviewForm));
       await api(`/api/vacancies/${vacancy.id}/interviews`, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(payload) });
+      const countEpoch = invalidateInterviewCount(vacancy.id);
+      updateInterviewCount(vacancy.id, interviews.length + 1, countEpoch);
       const updated = await api(`/api/vacancies/${vacancy.id}`);
       await loadVacancies();
       if (isCurrentView(view)) { renderVacancy(updated); await openTab("Timeline", updated); toast("Interview added"); }
