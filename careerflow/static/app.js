@@ -1,6 +1,8 @@
-const state = { vacancies: [], selected: null, activeTab: null, viewEpoch: 0, selectionEpoch: 0, listEpoch: 0 };
+const state = { section: "vacancies", vacancies: [], selected: null, activeTab: null, viewEpoch: 0, selectionEpoch: 0, listEpoch: 0, importPreview: null };
 const listEl = document.querySelector("#vacancy-list");
 const workspace = document.querySelector("#workspace");
+const appLayout = document.querySelector("#app-layout");
+const newVacancyButton = document.querySelector("#new-vacancy");
 const dialog = document.querySelector("#import-dialog");
 const form = document.querySelector("#import-form");
 const fileInput = document.querySelector("#vacancy-file");
@@ -37,6 +39,54 @@ function escapeAttr(value = "") {
   return escapeHtml(value).replaceAll('"', "&quot;").replaceAll("'", "&#39;");
 }
 
+function renderSafeMarkdown(value = "") {
+  const inline = text => escapeHtml(text)
+    .replace(/`([^`]+)`/g, "<code>$1</code>")
+    .replace(/\*\*([^*]+)\*\*/g, "<strong>$1</strong>")
+    .replace(/_([^_]+)_/g, "<em>$1</em>");
+  const lines = String(value).replaceAll("\r", "").split("\n");
+  const html = [];
+  let listOpen = false;
+  const closeList = () => { if (listOpen) { html.push("</ul>"); listOpen = false; } };
+  for (const line of lines) {
+    const heading = line.match(/^(#{1,4})\s+(.+)$/);
+    const bullet = line.match(/^[-*]\s+(.+)$/);
+    if (heading) {
+      closeList();
+      const level = heading[1].length;
+      html.push(`<h${level}>${inline(heading[2])}</h${level}>`);
+    } else if (bullet) {
+      if (!listOpen) { html.push("<ul>"); listOpen = true; }
+      html.push(`<li>${inline(bullet[1])}</li>`);
+    } else if (line.trim()) {
+      closeList();
+      html.push(`<p>${inline(line)}</p>`);
+    } else {
+      closeList();
+    }
+  }
+  closeList();
+  return html.join("");
+}
+
+function setSection(section) {
+  state.section = section;
+  document.querySelectorAll("[data-section]").forEach(button => button.classList.toggle("active", button.dataset.section === section));
+  appLayout.classList.toggle("master-mode", section === "master-resume");
+  newVacancyButton.hidden = section !== "vacancies";
+}
+
+function showVacancies() {
+  setSection("vacancies");
+  state.viewEpoch++;
+  if (state.selected) renderVacancy(state.selected);
+  else renderEmpty();
+}
+
+function isCurrentMasterView(epoch, panel = workspace) {
+  return state.section === "master-resume" && state.viewEpoch === epoch && workspace === panel;
+}
+
 function toast(message) {
   const el = document.querySelector("#toast");
   el.textContent = message;
@@ -70,6 +120,8 @@ function currentView(vacancy, tab, panel = document.querySelector("#content-pane
 
 function isCurrentView(view) {
   return !view || (
+    state.section === "vacancies"
+    &&
     state.selected?.id === view.vacancyId
     && state.activeTab === view.tab
     && state.viewEpoch === view.epoch
@@ -107,6 +159,7 @@ function renderList() {
 }
 
 function renderEmpty() {
+  setSection("vacancies");
   state.selected = null;
   state.activeTab = null;
   state.viewEpoch++;
@@ -114,7 +167,56 @@ function renderEmpty() {
   workspace.innerHTML = `<div class="empty-state"><span class="empty-icon">↗</span><h2>Build your job-search workspace</h2><p>Add a vacancy by pasting its text or dropping a TXT, HTML, PDF, or DOCX file.</p><button class="primary" data-open-import>Add your first vacancy</button></div>`;
 }
 
+const STAGES = ["Saved", "Applied", "Interview", "Waiting", "Offer", "Rejected"];
+
+function stageBar(vacancy, interviewCount = 0) {
+  return `<div class="stage-scroll" aria-label="Vacancy stage"><div class="stage-bar">${STAGES.map(status => `<button type="button" class="stage-step ${status === vacancy.status ? "active" : ""}" data-stage="${status}" aria-pressed="${status === vacancy.status}">${status === "Interview" ? `Interview · <span data-interview-count>${interviewCount}</span>` : status}</button>`).join("")}</div></div>`;
+}
+
+function bindStageBar(vacancy) {
+  document.querySelectorAll("[data-stage]").forEach(button => {
+    button.onclick = async () => {
+      if (button.dataset.stage === vacancy.status || button.disabled) return;
+      const buttons = [...document.querySelectorAll("[data-stage]")];
+      const previous = vacancy.status;
+      buttons.forEach(item => {
+        item.disabled = true;
+        item.classList.toggle("active", item.dataset.stage === button.dataset.stage);
+        item.setAttribute?.("aria-pressed", String(item.dataset.stage === button.dataset.stage));
+      });
+      try {
+        const updated = await api(`/api/vacancies/${vacancy.id}/status`, {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ status: button.dataset.stage }),
+        });
+        await loadVacancies();
+        if (state.section === "vacancies" && state.selected?.id === vacancy.id) renderVacancy(updated);
+        toast(`Status changed to ${updated.status}`);
+      } catch (error) {
+        buttons.forEach(item => {
+          item.classList.toggle("active", item.dataset.stage === previous);
+          item.setAttribute?.("aria-pressed", String(item.dataset.stage === previous));
+        });
+        showError(error);
+      } finally {
+        buttons.forEach(item => { item.disabled = false; });
+      }
+    };
+  });
+}
+
+async function refreshInterviewCount(vacancy, epoch) {
+  try {
+    const interviews = await api(`/api/vacancies/${vacancy.id}/interviews`);
+    if (state.section !== "vacancies" || state.selected?.id !== vacancy.id || state.viewEpoch !== epoch) return;
+    const counter = document.querySelector("[data-interview-count]");
+    if (counter) counter.textContent = String(interviews.length);
+  } catch (error) { /* The stage remains usable if the count cannot be refreshed. */ }
+}
+
 function renderVacancy(vacancy) {
+  setSection("vacancies");
   state.selectionEpoch++;
   state.viewEpoch++;
   state.activeTab = "Overview";
@@ -123,30 +225,19 @@ function renderVacancy(vacancy) {
   workspace.innerHTML = `
     <div class="workspace-head">
       <div><p class="eyebrow">${escapeHtml(vacancy.status)}</p><h2>${escapeHtml(vacancy.title)}</h2><p class="muted">${escapeHtml(vacancy.company || "Company not set")} · Added ${new Date(vacancy.created_at + "Z").toLocaleDateString()}</p></div>
-      <div class="actions"><select id="status-selector" aria-label="Vacancy status">${["Saved", "Applied", "Interview", "Waiting", "Offer", "Rejected"].map(status => `<option ${status === vacancy.status ? "selected" : ""}>${status}</option>`).join("")}</select><button id="export-report" class="secondary">Export .md</button><button id="edit-overview" class="secondary">Edit</button><button id="archive-vacancy" class="secondary">${vacancy.archived_at ? "Restore" : "Archive"}</button><button id="delete-vacancy" class="danger">Delete</button></div>
+      <div class="actions"><button id="export-report" class="secondary">Export .md</button><button id="edit-overview" class="secondary">Edit</button><button id="archive-vacancy" class="secondary">${vacancy.archived_at ? "Restore" : "Archive"}</button><button id="delete-vacancy" class="danger">Delete</button></div>
     </div>
+    ${stageBar(vacancy)}
     <nav class="tabs">${["Overview", "ATS", "Resume", "Timeline", "Notes", "Files", "AI / Codex"].map((tab, i) => `<button class="tab ${i === 0 ? "active" : ""}" data-tab="${tab}">${tab}</button>`).join("")}</nav>
     <section class="panel" id="content-panel"></section>`;
   document.querySelector("#edit-overview").onclick = () => renderEdit(vacancy);
   document.querySelector("#archive-vacancy").onclick = event => runAction(event.currentTarget, () => toggleArchive(vacancy));
   document.querySelector("#delete-vacancy").onclick = event => runAction(event.currentTarget, () => removeVacancy(vacancy));
   document.querySelector("#export-report").onclick = () => exportReport(vacancy);
-  document.querySelector("#status-selector").onchange = async event => {
-    const selector = event.currentTarget;
-    const epoch = state.viewEpoch;
-    const selectedStatus = selector.value;
-    await runAction(selector, async () => {
-      const updated = await api(`/api/vacancies/${vacancy.id}/status`, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ status: selectedStatus }) });
-      await loadVacancies();
-      if (state.viewEpoch === epoch && state.selected?.id === vacancy.id) renderVacancy(updated);
-      toast(`Status changed to ${updated.status}`);
-    });
-    if (state.selected?.id === vacancy.id && document.querySelector("#status-selector") === selector) {
-      selector.value = state.vacancies.find(item => item.id === vacancy.id)?.status || vacancy.status;
-    }
-  };
+  bindStageBar(vacancy);
   document.querySelectorAll("[data-tab]").forEach(button => button.onclick = () => openTab(button.dataset.tab, vacancy));
   renderOverview(vacancy);
+  refreshInterviewCount(vacancy, state.viewEpoch);
 }
 
 function activateTab(name) {
@@ -177,7 +268,46 @@ function renderOverview(vacancy) {
   panel.innerHTML = `
     <div class="form-grid"><div><p class="eyebrow">SALARY</p><p>${escapeHtml(vacancy.salary || "Not specified")}</p></div><div><p class="eyebrow">SOURCE</p><p>${escapeHtml(vacancy.source || vacancy.source_type)}</p></div></div>
     <h3>Summary</h3><p>${escapeHtml(vacancy.summary || "No summary")}</p>
-    <h3>Original description</h3><div class="overview-text">${escapeHtml(vacancy.description)}</div>`;
+    <div class="section-head description-head"><div><h3>Confirmed vacancy description</h3><p class="muted">Used for ATS and Codex context. The original import remains preserved.</p></div><div class="stack"><label class="check-row"><input id="review-cleaning-codex" type="checkbox">Use Codex for this review <span class="muted">Only when selected; vacancy text will be sent to the local Codex CLI.</span></label><button class="secondary" id="review-cleaning">Clean description</button></div></div>
+    <div class="overview-text">${escapeHtml(vacancy.description)}</div><div id="cleaning-review" aria-live="polite"></div>`;
+  panel.querySelector("#review-cleaning").onclick = () => renderExistingDescriptionReview(vacancy);
+}
+
+function renderCleaningReview(preview, errorId) {
+  const removed = preview.removed_blocks || [];
+  const uncertain = preview.uncertain_blocks || [];
+  return `<section class="cleaning-review"><div class="callout">Review the proposed text before confirming. Original vacancy content remains unchanged.</div>
+    <p class="muted">Cleaning method: ${escapeHtml(preview.method || "local")}</p>
+    <div class="form-grid"><label>Original imported text<textarea rows="10" readonly>${escapeHtml(preview.raw_description || "")}</textarea></label><label>Cleaned draft (editable)<textarea rows="10" data-cleaned-description>${escapeHtml(preview.description || "")}</textarea></label></div>
+    <div class="split-grid"><section><h4>Removed blocks (${removed.length})</h4><ul class="review-list">${removed.length ? removed.map(item => `<li><strong>${escapeHtml(item.text)}</strong><span class="muted">${escapeHtml(item.reason || "Removed")}</span></li>`).join("") : `<li class="muted">Nothing removed</li>`}</ul></section><section><h4>Needs review (${uncertain.length})</h4><ul class="review-list">${uncertain.length ? uncertain.map(item => `<li><strong>${escapeHtml(item.text)}</strong><span class="muted">${escapeHtml(item.reason || "Uncertain")}</span></li>`).join("") : `<li class="muted">No uncertain blocks</li>`}</ul></section></div>
+    <p class="error" id="${errorId}"></p><div class="dialog-actions"><button type="button" class="secondary" data-cancel-cleaning>Back</button><button type="button" class="primary" data-confirm-cleaning>Confirm cleaned description</button></div></section>`;
+}
+
+async function renderExistingDescriptionReview(vacancy) {
+  const panel = document.querySelector("#content-panel");
+  const target = panel.querySelector("#cleaning-review");
+  const button = panel.querySelector("#review-cleaning");
+  if (button.disabled) return;
+  button.disabled = true;
+  const view = currentView(vacancy, "Overview", panel);
+  try {
+    const useCodex = panel.querySelector("#review-cleaning-codex").checked;
+    const preview = await api(`/api/vacancies/${vacancy.id}/description/preview`, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ use_codex: useCodex }) });
+    if (!isCurrentView(view)) return;
+    target.innerHTML = renderCleaningReview(preview, "cleaning-error");
+    target.querySelector("[data-cancel-cleaning]").onclick = () => { target.innerHTML = ""; };
+    target.querySelector("[data-confirm-cleaning]").onclick = async event => {
+      const confirm = event.currentTarget;
+      await runAction(confirm, async () => {
+        const description = target.querySelector("[data-cleaned-description]").value;
+        const updated = await api(`/api/vacancies/${vacancy.id}/description/apply`, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ description, method: preview.method }) });
+        await loadVacancies();
+        if (isCurrentView(view)) { renderVacancy(updated); toast("Cleaned description confirmed"); }
+      }, target.querySelector("#cleaning-error"), view);
+    };
+  } catch (error) {
+    if (isCurrentView(view)) target.innerHTML = `<p class="error">${escapeHtml(error.message)}</p>`;
+  } finally { if (isCurrentView(view)) button.disabled = false; }
 }
 
 function renderEdit(vacancy) {
@@ -210,8 +340,70 @@ function renderEdit(vacancy) {
   };
 }
 
-function resumeItem(item) {
-  return `<article class="item-row"><div><strong>${item.kind === "master" ? "Master" : "Vacancy"} Resume v${item.version}</strong><p class="muted">${escapeHtml(item.label || "No label")} · ${new Date(item.created_at + "Z").toLocaleString()}</p></div><div class="actions"><button class="secondary" type="button" data-preview-resume="${item.id}">Preview text</button><button class="secondary" type="button" data-use-resume="${item.id}">Create new version from this text</button>${item.original_filename ? `<a class="secondary link-button" href="/api/resumes/${item.id}/download" download>Download original</a>` : ""}${item.is_submitted ? `<span class="badge success">Submitted</span>` : item.kind === "vacancy" ? `<button class="secondary" type="button" data-submit-resume="${item.id}">Mark submitted</button>` : `<button class="secondary" type="button" data-clone-resume="${item.id}">Create vacancy version</button>`}</div></article>`;
+function resumeOrigin(item) {
+  if (!item.source_resume_id || !item.source_kind || !item.source_version) return "Created independently";
+  return `Based on ${item.source_kind === "master" ? "Master Resume" : "Vacancy Resume"} v${item.source_version}`;
+}
+
+function resumeItem(item, { masterWorkspace = false } = {}) {
+  return `<article class="item-row"><div><strong>${item.kind === "master" ? "Master" : "Vacancy"} Resume v${item.version}</strong><p class="muted">${escapeHtml(item.label || "No label")} · ${new Date(item.created_at + "Z").toLocaleString()}</p><p class="muted resume-origin">${escapeHtml(resumeOrigin(item))}</p></div><div class="actions"><button class="secondary" type="button" data-preview-resume="${item.id}">Preview</button><button class="secondary" type="button" data-use-resume="${item.id}">${masterWorkspace ? "Create next version" : "Create new version from this"}</button><a class="secondary link-button" href="/api/resumes/${item.id}/markdown" download>Download Markdown</a>${item.original_filename ? `<a class="secondary link-button" href="/api/resumes/${item.id}/download" download>Download original</a>` : ""}${item.is_submitted ? `<span class="badge success">Submitted</span>` : item.kind === "vacancy" ? `<button class="secondary" type="button" data-submit-resume="${item.id}">Mark submitted</button>` : ""}</div></article>`;
+}
+
+function bindResumePreview(panel, viewCheck) {
+  document.querySelectorAll("[data-preview-resume]").forEach(button => button.onclick = () => runAction(button, async () => {
+    const resume = await api(`/api/resumes/${button.dataset.previewResume}`);
+    if (!viewCheck()) return;
+    panel.querySelector("#resume-preview").innerHTML = `<hr><h4>${resume.kind === "master" ? "Master" : "Vacancy"} Resume v${resume.version}</h4><div class="markdown-preview">${renderSafeMarkdown(resume.content_text)}</div>`;
+  }));
+}
+
+function fillResumeDraft(panel, resume, label) {
+  const resumeForm = panel.querySelector("#resume-form");
+  const textArea = resumeForm.querySelector("textarea[name=text]");
+  textArea.value = resume.content_text;
+  resumeForm.querySelector("input[name=file]").value = "";
+  resumeForm.querySelector("input[name=label]").value = label;
+  resumeForm.querySelector("input[name=source_resume_id]").value = resume.id;
+  textArea.focus();
+}
+
+async function renderMasterResume() {
+  setSection("master-resume");
+  state.selected = null;
+  state.activeTab = "Master Resume";
+  state.selectionEpoch++;
+  const epoch = ++state.viewEpoch;
+  workspace.innerHTML = `<p class="muted">Loading Master Resume versions…</p>`;
+  try {
+    const masters = await api("/api/resumes?kind=master");
+    if (!isCurrentMasterView(epoch)) return;
+    workspace.innerHTML = `<div class="standalone-head"><div><p class="eyebrow">GLOBAL IMMUTABLE LIBRARY</p><h2>Master Resume</h2><p class="muted">Create a new version whenever your canonical resume changes.</p></div></div>
+      <section class="panel master-panel"><div class="item-list">${masters.length ? masters.map(item => resumeItem(item, { masterWorkspace: true })).join("") : `<div class="empty-inline"><h3>Create your first Master Resume</h3><p>Upload PDF, DOCX, TXT, or MD, or paste Markdown below.</p></div>`}</div>
+      <div id="resume-preview" aria-live="polite"></div><hr><h3>${masters.length ? "Create a new version" : "Create the first version"}</h3>
+      <form id="resume-form" class="stack"><input type="hidden" name="source_resume_id"><label>Version name<input name="label" placeholder="e.g. September 2026"></label><label>Resume file (PDF, DOCX, TXT, MD)<input name="file" type="file" accept=".pdf,.docx,.txt,.md"></label><label>Or edit Markdown<textarea name="text" rows="14"></textarea></label><p class="error" id="resume-error"></p><button class="primary" type="submit">Save Master Resume version</button></form></section>`;
+    const panel = workspace.querySelector?.(".master-panel") || workspace;
+    const isCurrent = () => isCurrentMasterView(epoch);
+    bindResumePreview(panel, isCurrent);
+    document.querySelectorAll("[data-use-resume]").forEach(button => button.onclick = () => runAction(button, async () => {
+      const resume = await api(`/api/resumes/${button.dataset.useResume}`);
+      if (!isCurrent()) return;
+      fillResumeDraft(panel, resume, `Based on Master Resume v${resume.version}`);
+      toast("Master Resume copied into an editable new-version draft.");
+    }));
+    panel.querySelector("#resume-form").onsubmit = async event => {
+      event.preventDefault();
+      const resumeForm = event.currentTarget;
+      await runAction(resumeForm.querySelector("button[type=submit]"), async () => {
+        const formData = new FormData(resumeForm);
+        formData.append("kind", "master");
+        if (!formData.get("source_resume_id")) formData.delete?.("source_resume_id");
+        await api("/api/resumes", { method: "POST", body: formData });
+        if (isCurrent()) { toast("Master Resume version created"); await renderMasterResume(); }
+      }, panel.querySelector("#resume-error"));
+    };
+  } catch (error) {
+    if (isCurrentMasterView(epoch)) workspace.innerHTML = `<p class="error">${escapeHtml(error.message)}</p>`;
+  }
 }
 
 async function renderResumes(vacancy, view = null) {
@@ -223,68 +415,53 @@ async function renderResumes(vacancy, view = null) {
       api(`/api/resumes?kind=vacancy&vacancy_id=${vacancy.id}`),
     ]);
     if (!isCurrentView(view)) return;
-    panel.innerHTML = `
-      <div class="section-head"><div><p class="eyebrow">IMMUTABLE HISTORY</p><h3>Resume versions</h3></div></div>
-      <div class="split-grid"><section><h4>For this vacancy</h4><div class="item-list">${versions.length ? versions.map(resumeItem).join("") : `<p class="muted">No tailored versions yet.</p>`}</div></section><section><h4>Master Resume</h4><div class="item-list">${masters.length ? masters.map(resumeItem).join("") : `<p class="muted">No master resume yet.</p>`}</div></section></div>
-      <div id="resume-preview" aria-live="polite"></div>
-      <hr><h4>Add a new version</h4>
-      <form id="resume-form" class="stack">
-        <div class="form-grid"><label>Version type<select name="kind"><option value="vacancy">For this vacancy</option><option value="master">Master Resume</option></select></label><label>Label<input name="label" placeholder="e.g. Backend-focused"></label></div>
-        <label>Resume file (PDF, DOCX, TXT)<input name="file" type="file" accept=".pdf,.docx,.txt,.md"></label>
-        <label>Or paste resume text<textarea name="text" rows="7"></textarea></label>
-        <p class="error" id="resume-error"></p><button class="primary" type="submit">Save new version</button>
-      </form>`;
-    document.querySelector("#resume-form").onsubmit = async event => {
-      event.preventDefault();
-      const resumeForm = event.currentTarget;
-      const errorTarget = panel.querySelector("#resume-error");
-      errorTarget.textContent = "";
-      await runAction(resumeForm.querySelector("button[type=submit]"), async () => {
-        const formData = new FormData(resumeForm);
-        if (formData.get("kind") === "vacancy") formData.append("vacancy_id", vacancy.id);
-        await api("/api/resumes", { method: "POST", body: formData });
-        if (isCurrentView(view)) { toast("Resume version created"); await renderResumes(vacancy, view); }
-      }, errorTarget, view);
-    };
-    document.querySelectorAll("[data-preview-resume]").forEach(button => button.onclick = () => runAction(button, async () => {
-      const resume = await api(`/api/resumes/${button.dataset.previewResume}`);
-      if (!isCurrentView(view)) return;
-      panel.querySelector("#resume-preview").innerHTML = `<hr><h4>${resume.kind === "master" ? "Master" : "Vacancy"} Resume v${resume.version} — text preview</h4><pre class="ai-response">${escapeHtml(resume.content_text)}</pre>`;
-    }, null, view));
+    panel.innerHTML = `<div class="section-head"><div><p class="eyebrow">VACANCY-SPECIFIC HISTORY</p><h3>Resume versions for this vacancy</h3></div></div>
+      <div class="item-list">${versions.length ? versions.map(item => resumeItem(item)).join("") : `<p class="muted">No vacancy-specific versions yet.</p>`}</div><div id="resume-preview" aria-live="polite"></div><hr>
+      <div class="source-picker"><h4>Create from Master Resume</h4>${masters.length ? `<div class="inline-form"><select id="master-source">${masters.map(item => `<option value="${item.id}">Master Resume v${item.version} — ${escapeHtml(item.label || "Untitled")}</option>`).join("")}</select><button class="secondary" type="button" id="create-from-master">Copy into draft</button></div>` : `<p class="muted">No Master Resume exists yet. <button class="text-button" type="button" data-go-master>Create one in the Master Resume section.</button></p>`}</div>
+      <hr><h4>Add a vacancy-specific version</h4><form id="resume-form" class="stack"><input type="hidden" name="source_resume_id"><label>Version name<input name="label" placeholder="e.g. Backend-focused"></label><label>Resume file (PDF, DOCX, TXT, MD)<input name="file" type="file" accept=".pdf,.docx,.txt,.md"></label><label>Or edit Markdown<textarea name="text" rows="12"></textarea></label><p class="error" id="resume-error"></p><button class="primary" type="submit">Save vacancy resume version</button></form>`;
+    const isCurrent = () => isCurrentView(view);
+    bindResumePreview(panel, isCurrent);
     document.querySelectorAll("[data-use-resume]").forEach(button => button.onclick = () => runAction(button, async () => {
       const resume = await api(`/api/resumes/${button.dataset.useResume}`);
-      if (!isCurrentView(view)) return;
-      const resumeForm = panel.querySelector("#resume-form");
-      const textArea = resumeForm.querySelector("textarea[name=text]");
-      textArea.value = resume.content_text;
-      resumeForm.querySelector("input[name=file]").value = "";
-      resumeForm.querySelector("input[name=label]").value = `Based on ${resume.kind} v${resume.version}`;
-      textArea.focus();
-      toast("Stored text copied into the new-version form. Edit it before saving.");
+      if (!isCurrent()) return;
+      fillResumeDraft(panel, resume, `Based on Vacancy Resume v${resume.version}`);
+      toast("Stored Markdown copied into the new-version draft.");
     }, null, view));
-    document.querySelectorAll("[data-clone-resume]").forEach(button => button.onclick = async () => {
-      await runAction(button, async () => {
-        const formData = new FormData(); formData.append("kind", "vacancy"); formData.append("vacancy_id", vacancy.id); formData.append("source_resume_id", button.dataset.cloneResume);
+    const createFromMaster = panel.querySelector("#create-from-master");
+    if (createFromMaster) createFromMaster.onclick = () => runAction(createFromMaster, async () => {
+      const resume = await api(`/api/resumes/${panel.querySelector("#master-source").value}`);
+      if (!isCurrent()) return;
+      fillResumeDraft(panel, resume, `Based on Master Resume v${resume.version}`);
+      toast("Master Resume copied into an editable draft. No AI generation was run.");
+    }, null, view);
+    const goMaster = panel.querySelector("[data-go-master]");
+    if (goMaster) goMaster.onclick = () => renderMasterResume();
+    panel.querySelector("#resume-form").onsubmit = async event => {
+      event.preventDefault();
+      const resumeForm = event.currentTarget;
+      await runAction(resumeForm.querySelector("button[type=submit]"), async () => {
+        const formData = new FormData(resumeForm);
+        formData.append("kind", "vacancy");
+        formData.append("vacancy_id", vacancy.id);
+        if (!formData.get("source_resume_id")) formData.delete?.("source_resume_id");
         await api("/api/resumes", { method: "POST", body: formData });
-        if (isCurrentView(view)) { toast("Vacancy version created"); await renderResumes(vacancy, view); }
-      }, null, view);
-    });
-    document.querySelectorAll("[data-submit-resume]").forEach(button => button.onclick = async () => {
-      await runAction(button, async () => {
-        await api(`/api/resumes/${button.dataset.submitResume}/submit`, { method: "POST" });
-        if (isCurrentView(view)) { toast("Submitted version recorded"); await renderResumes(vacancy, view); }
-      }, null, view);
-    });
+        if (isCurrent()) { toast("Vacancy resume version created"); await renderResumes(vacancy, view); }
+      }, panel.querySelector("#resume-error"), view);
+    };
+    document.querySelectorAll("[data-submit-resume]").forEach(button => button.onclick = () => runAction(button, async () => {
+      await api(`/api/resumes/${button.dataset.submitResume}/submit`, { method: "POST" });
+      if (isCurrent()) { toast("Submitted version recorded"); await renderResumes(vacancy, view); }
+    }, null, view));
   } catch (error) { if (isCurrentView(view)) panel.innerHTML = `<p class="error">${escapeHtml(error.message)}</p>`; }
 }
 
 function atsResult(analysis) {
-  if (!analysis) return `<div class="empty-inline"><h3>No ATS analysis yet</h3><p>Choose a resume version and run a transparent text comparison.</p></div>`;
+  if (!analysis) return "";
   const result = analysis.result;
   const resumeLabel = analysis.resume_kind_at_analysis && analysis.resume_version_at_analysis
     ? `${analysis.resume_kind_at_analysis === "master" ? "Master" : "Vacancy"} Resume v${analysis.resume_version_at_analysis}`
     : "legacy resume version";
-  return `<div class="score-row"><div class="score">${analysis.match_percent}%</div><div><h3>${analysis.is_stale ? "Historical match — rerun ATS" : "Current resume match"}</h3><p class="muted">Analysis #${analysis.id} · ${escapeHtml(resumeLabel)} (ID ${analysis.resume_version_id})</p><p class="muted">${escapeHtml(result.disclaimer)}</p>${analysis.is_stale ? `<p class="error">Vacancy description changed or this older result has unknown provenance. This score is not current.</p>` : ""}</div></div>
+  return `<div class="score-row"><div class="score">${analysis.match_percent}%</div><div><h3>${analysis.is_stale ? "Historical match — rerun ATS" : "Current resume match"}</h3><p class="muted">Analysis #${analysis.id} · ${escapeHtml(resumeLabel)} (ID ${analysis.resume_version_id})</p><p class="muted">ATS is a local text comparison, not an employer decision and not a Codex analysis.</p><p class="muted">${escapeHtml(result.disclaimer)}</p>${analysis.is_stale ? `<p class="error">The confirmed vacancy description changed after this run. This result is historical; run ATS again for a current score.</p>` : ""}</div></div>
     <div class="metric-grid"><div><strong>${result.counts.covered}</strong><span>Covered</span></div><div><strong>${result.counts.partial}</strong><span>Partial</span></div><div><strong>${result.counts.missing}</strong><span>Missing</span></div></div>
     <h4>Requirements and evidence</h4><div class="item-list">${result.requirements.map(item => `<article class="requirement ${item.classification}"><span class="badge">${item.classification}</span><strong>${escapeHtml(item.requirement)}</strong><p>${escapeHtml(item.interpretation)}</p>${item.evidence ? `<blockquote>${escapeHtml(item.evidence)}</blockquote>` : ""}</article>`).join("")}</div>
     <h4>Keywords</h4><div class="tag-list">${result.keywords.map(word => `<span class="tag ${result.covered_keywords.includes(word) ? "hit" : ""}">${escapeHtml(word)}</span>`).join("")}</div>`;
@@ -294,23 +471,33 @@ async function renderAts(vacancy, view = null) {
   const panel = document.querySelector("#content-panel");
   panel.innerHTML = `<p class="muted">Loading ATS workspace…</p>`;
   try {
-    const [masters, versions, latest] = await Promise.all([
-      api("/api/resumes?kind=master"),
+    const [versions, latest] = await Promise.all([
       api(`/api/resumes?kind=vacancy&vacancy_id=${vacancy.id}`),
       api(`/api/vacancies/${vacancy.id}/ats`),
     ]);
     if (!isCurrentView(view)) return;
-    const options = [...versions, ...masters];
-    panel.innerHTML = `<div class="section-head"><div><p class="eyebrow">EVIDENCE-BASED</p><h3>ATS analysis</h3></div><div class="actions"><select id="ats-resume">${options.map(item => `<option value="${item.id}" ${latest && item.id === latest.resume_version_id ? "selected" : ""}>${item.kind === "master" ? "Master" : "Vacancy"} v${item.version} — ${escapeHtml(item.label || "Untitled")}</option>`).join("")}</select><button id="run-ats" class="primary" ${options.length ? "" : "disabled"}>Run analysis</button></div></div><p class="error" id="ats-error"></p><div id="ats-result">${atsResult(latest)}</div>`;
-    document.querySelector("#run-ats").onclick = async () => {
-      const button = panel.querySelector("#run-ats");
-      const errorTarget = panel.querySelector("#ats-error");
+    let emptyState = "";
+    if (!vacancy.description_confirmed_at) {
+      emptyState = `<div class="empty-inline"><h3>Review the cleaned vacancy description before running ATS.</h3><button type="button" class="secondary" data-review-description>Review description</button></div>`;
+    } else if (!versions.length) {
+      emptyState = `<div class="empty-inline"><h3>ATS analysis requires a resume.</h3><p>Create a resume for this vacancy or use a Master Resume version.</p><div class="actions centered"><button type="button" class="secondary" data-open-resume>Create from Master Resume</button><button type="button" class="primary" data-open-resume>Add resume</button></div></div>`;
+    } else if (!latest) {
+      emptyState = `<div class="empty-inline"><h3>Select a resume version and run ATS analysis.</h3><p>ATS is a local text comparison, not an employer decision and not a Codex analysis.</p></div>`;
+    }
+    panel.innerHTML = `<div class="section-head"><div><p class="eyebrow">EVIDENCE-BASED LOCAL COMPARISON</p><h3>ATS analysis</h3></div>${versions.length ? `<div class="actions"><select id="ats-resume">${versions.map(item => `<option value="${item.id}" ${latest && item.id === latest.resume_version_id ? "selected" : ""}>Vacancy Resume v${item.version} — ${escapeHtml(item.label || "Untitled")}</option>`).join("")}</select><button id="run-ats" class="primary" ${vacancy.description_confirmed_at ? "" : "disabled"}>${latest?.is_stale ? "Run again" : "Run analysis"}</button></div>` : ""}</div><p class="error" id="ats-error"></p>${emptyState}<div id="ats-result">${atsResult(latest)}</div>`;
+    document.querySelectorAll("[data-open-resume]").forEach(button => button.onclick = () => openTab("Resume", vacancy));
+    const reviewButton = document.querySelector("[data-review-description]");
+    if (reviewButton) reviewButton.onclick = () => openTab("Overview", vacancy);
+    const runButton = document.querySelector("#run-ats");
+    if (runButton) runButton.onclick = async () => {
+      const button = document.querySelector("#run-ats");
+      const errorTarget = document.querySelector("#ats-error");
       errorTarget.textContent = "";
       await runAction(button, async () => {
-        const resumeId = Number(panel.querySelector("#ats-resume").value);
+        const resumeId = Number(document.querySelector("#ats-resume").value);
         const analysis = await api(`/api/vacancies/${vacancy.id}/ats`, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ resume_version_id: resumeId }) });
         await loadVacancies();
-        if (isCurrentView(view)) { panel.querySelector("#ats-result").innerHTML = atsResult(analysis); toast("ATS analysis completed"); }
+        if (isCurrentView(view)) { document.querySelector("#ats-result").innerHTML = atsResult(analysis); toast("ATS analysis completed"); }
       }, errorTarget, view);
     };
   } catch (error) { if (isCurrentView(view)) panel.innerHTML = `<p class="error">${escapeHtml(error.message)}</p>`; }
@@ -448,12 +635,15 @@ async function exportReport(vacancy) {
 }
 
 function aiHistoryItem(run) {
-  return `<article class="item-row"><div><strong>${escapeHtml(run.prompt)}</strong><p class="muted">${new Date(run.created_at + "Z").toLocaleString()} · ${escapeHtml(run.model || "Legacy model unknown")}</p></div><div class="actions"><span class="badge ${run.status === "completed" ? "success" : ""}">${escapeHtml(run.status)}</span><button class="secondary" type="button" data-open-ai-run="${run.id}" aria-label="View saved response ${run.id}">View response</button></div></article>`;
+  return `<article class="item-row"><div><strong>${escapeHtml(run.prompt)}</strong><p class="muted">${new Date(run.created_at + "Z").toLocaleString()} · ${escapeHtml(run.model || "Legacy model unknown")} · ${escapeHtml(run.reasoning_effort || "effort unknown")}</p></div><div class="actions"><span class="badge ${run.status === "completed" ? "success" : ""}">${escapeHtml(run.status)}</span><button class="secondary" type="button" data-open-ai-run="${run.id}" aria-label="View saved response ${run.id}">View response</button></div></article>`;
 }
 
 async function renderAi(vacancy, view = null) {
   const panel = document.querySelector("#content-panel");
-  const history = await api(`/api/vacancies/${vacancy.id}/ai-runs`);
+  const [history, catalog] = await Promise.all([
+    api(`/api/vacancies/${vacancy.id}/ai-runs`),
+    api("/api/codex/models"),
+  ]);
   if (!isCurrentView(view)) return;
   const actions = {
     "Analyze vacancy": "Analyze the role, prioritize its requirements, and identify questions I should clarify.",
@@ -465,13 +655,22 @@ async function renderAi(vacancy, view = null) {
   };
   panel.innerHTML = `<div class="section-head"><div><p class="eyebrow">READ-ONLY CLI ASSISTANT</p><h3>AI / Codex</h3></div></div>
     <p class="callout">CareerFlow sends the generated vacancy Markdown context to <code>codex exec</code> in a read-only, ephemeral session. The response is shown here and never changes your CV or vacancy automatically.</p>
-    <form id="ai-form" class="stack"><div class="form-grid"><label>Action<select name="action" id="ai-action">${Object.keys(actions).map(action => `<option>${action}</option>`).join("")}</select></label><label>Model<input name="model" value="gpt-5.6-luna" placeholder="Leave blank for Luna"></label></div><label>Request<textarea name="prompt" id="ai-prompt" rows="6" required>${escapeHtml(actions["Analyze vacancy"])}</textarea></label><p class="muted">Default: gpt-5.6-luna · reasoning effort low</p><p class="error" id="ai-error"></p><button class="primary" type="submit">Run Codex</button></form>
+    <form id="ai-form" class="stack"><div class="form-grid"><label>Action<select name="action" id="ai-action">${Object.keys(actions).map(action => `<option>${action}</option>`).join("")}</select></label><label>Model<select name="model" id="ai-model">${catalog.models.map(model => `<option value="${escapeAttr(model.id)}" ${model.id === catalog.default_model ? "selected" : ""}>${escapeHtml(model.name)} (${escapeHtml(model.id)})</option>`).join("")}</select></label><label>Reasoning effort<select name="reasoning_effort" id="ai-effort"></select></label></div>${catalog.source !== "codex-cli" ? `<p class="callout">${escapeHtml(catalog.warning || "Codex CLI catalog unavailable; using configured fallback.")}</p>` : ""}<label>Request<textarea name="prompt" id="ai-prompt" rows="6" required>${escapeHtml(actions["Analyze vacancy"])}</textarea></label><p class="muted">Model and effort are validated against the local Codex CLI catalog.</p><p class="error" id="ai-error"></p><button class="primary" type="submit">Run Codex</button></form>
     <div id="ai-result" aria-live="polite"></div><hr><h4>Saved responses</h4><div class="item-list">${history.length ? history.map(aiHistoryItem).join("") : `<p class="muted">No saved responses yet.</p>`}</div><div id="ai-history-result" aria-live="polite"></div>`;
   document.querySelector("#ai-action").onchange = event => { const template = actions[event.target.value]; if (template) document.querySelector("#ai-prompt").value = template; };
+  const modelSelect = panel.querySelector("#ai-model");
+  const effortSelect = panel.querySelector("#ai-effort");
+  const updateEfforts = preferred => {
+    const selected = catalog.models.find(model => model.id === modelSelect.value) || catalog.models[0];
+    effortSelect.innerHTML = selected.efforts.map(effort => `<option value="${escapeAttr(effort)}">${escapeHtml(effort)}</option>`).join("");
+    effortSelect.value = selected.efforts.includes(preferred) ? preferred : selected.id === catalog.default_model && selected.efforts.includes(catalog.default_effort) ? catalog.default_effort : selected.efforts[0];
+  };
+  updateEfforts(catalog.default_effort);
+  modelSelect.onchange = () => updateEfforts("");
   document.querySelectorAll("[data-open-ai-run]").forEach(button => button.onclick = () => runAction(button, async () => {
     const run = await api(`/api/vacancies/${vacancy.id}/ai-runs/${button.dataset.openAiRun}`);
     if (!isCurrentView(view)) return;
-    panel.querySelector("#ai-history-result").innerHTML = `<hr><h4>Saved ${run.status === "completed" ? "response" : "error"} · ${escapeHtml(run.model || "Legacy model unknown")}</h4><p class="muted">${escapeHtml(run.prompt)}</p><pre class="ai-response">${escapeHtml(run.status === "completed" ? run.response : run.error)}</pre>`;
+    panel.querySelector("#ai-history-result").innerHTML = `<hr><h4>Saved ${run.status === "completed" ? "response" : "error"} · ${escapeHtml(run.model || "Legacy model unknown")} · ${escapeHtml(run.reasoning_effort || "effort unknown")}</h4><p class="muted">${escapeHtml(run.prompt)}</p><pre class="ai-response">${escapeHtml(run.status === "completed" ? run.response : run.error)}</pre>`;
   }, null, view));
   document.querySelector("#ai-form").onsubmit = async event => {
     event.preventDefault();
@@ -487,7 +686,7 @@ async function renderAi(vacancy, view = null) {
         if (run.status === "failed") {
           errorEl.textContent = run.error || "Codex could not complete this request.";
         } else {
-          panel.querySelector("#ai-result").innerHTML = `<hr><h4>Codex response</h4><pre class="ai-response">${escapeHtml(run.response)}</pre><p class="muted">Review the response, then manually decide what to save as a new resume version or note.</p>`;
+          panel.querySelector("#ai-result").innerHTML = `<hr><h4>Codex response · ${escapeHtml(run.model || payload.model)} · ${escapeHtml(run.reasoning_effort || payload.reasoning_effort)}</h4><pre class="ai-response">${escapeHtml(run.response)}</pre><p class="muted">Review the response, then manually decide what to save as a new resume version or note.</p>`;
           toast("Codex response received");
         }
       }
@@ -495,14 +694,43 @@ async function renderAi(vacancy, view = null) {
   };
 }
 
-function openDialog() { dialog.showModal(); }
-function closeDialog() { dialog.close(); form.reset(); selectedFile.textContent = ""; document.querySelector("#import-error").textContent = ""; }
+function importSignature(data, useCodex) {
+  const file = data.get("file");
+  return JSON.stringify({
+    text: data.get("text") || "",
+    file: file?.name ? { name: file.name, size: file.size ?? null, type: file.type || "", lastModified: file.lastModified ?? null } : null,
+    title: data.get("title") || "",
+    company: data.get("company") || "",
+    salary: data.get("salary") || "",
+    source: data.get("source") || "",
+    useCodex,
+  });
+}
+
+function resetImportReview() {
+  state.importPreview = null;
+  const review = document.querySelector("#import-review");
+  if (review) review.innerHTML = "";
+  const submit = form.querySelector("button[type=submit]");
+  submit.hidden = false;
+  submit.disabled = false;
+  submit.textContent = "Review description";
+}
+
+function openDialog() { resetImportReview(); dialog.showModal(); }
+function closeDialog() { dialog.close(); form.reset(); resetImportReview(); selectedFile.textContent = ""; document.querySelector("#import-error").textContent = ""; }
 
 document.addEventListener("click", async event => {
+  const sectionButton = event.target.closest("[data-section]");
+  if (sectionButton) {
+    if (sectionButton.dataset.section === "master-resume") await renderMasterResume();
+    else showVacancies();
+    return;
+  }
   if (event.target.closest("[data-open-import]")) openDialog();
   if (event.target.closest("[data-close-dialog]")) closeDialog();
   const card = event.target.closest(".vacancy-card");
-  if (card) {
+  if (card && state.section === "vacancies") {
     const selectionEpoch = ++state.selectionEpoch;
     try {
       const vacancy = await api(`/api/vacancies/${card.dataset.id}`);
@@ -510,7 +738,7 @@ document.addEventListener("click", async event => {
     } catch (error) { if (selectionEpoch === state.selectionEpoch) showError(error); }
   }
 });
-document.querySelector("#new-vacancy").onclick = openDialog;
+newVacancyButton.onclick = openDialog;
 archivedToggle.onchange = () => { renderEmpty(); loadVacancies().catch(error => showError(error)); };
 fileInput.onchange = () => { selectedFile.textContent = fileInput.files[0]?.name || ""; };
 for (const eventName of ["dragenter", "dragover"]) dropZone.addEventListener(eventName, event => { event.preventDefault(); dropZone.classList.add("dragging"); });
@@ -519,15 +747,49 @@ dropZone.addEventListener("drop", event => { fileInput.files = event.dataTransfe
 form.onsubmit = async event => {
   event.preventDefault();
   const error = document.querySelector("#import-error");
+  const review = document.querySelector("#import-review");
   error.textContent = "";
   const submit = form.querySelector("button[type=submit]");
   if (submit.disabled) return;
-  submit.disabled = true; submit.textContent = "Importing…";
+  if (state.importPreview) return;
+  submit.disabled = true;
   try {
-    const vacancy = await api("/api/vacancies", { method: "POST", body: new FormData(form) });
-    closeDialog(); await loadVacancies(); renderVacancy(vacancy); toast("Vacancy imported");
+    if (!state.importPreview) {
+      submit.textContent = "Preparing preview…";
+      const useCodex = form.querySelector('input[name="use_codex"]')?.checked || false;
+      const previewData = new FormData(form);
+      if (useCodex) previewData.set("use_codex", "true");
+      else previewData.delete?.("use_codex");
+      const preview = await api("/api/vacancies/import-preview", { method: "POST", body: previewData });
+      const snapshot = { preview, input: importSignature(previewData, useCodex) };
+      state.importPreview = snapshot;
+      review.innerHTML = renderCleaningReview(preview, "import-review-error");
+      submit.hidden = true;
+      const confirm = review.querySelector("[data-confirm-cleaning]");
+      confirm.onclick = async () => {
+        if (confirm.disabled) return;
+        confirm.disabled = true;
+        const confirmError = review.querySelector("#import-review-error");
+        confirmError.textContent = "";
+        try {
+          const currentInput = new FormData(form);
+          const currentUseCodex = form.querySelector('input[name="use_codex"]')?.checked || false;
+          const currentSignature = importSignature(currentInput, currentUseCodex);
+          if (currentSignature !== snapshot.input) throw new Error("Import details changed after preview. Go back and review the updated description.");
+          const data = currentInput;
+          data.delete?.("use_codex");
+          data.set("cleaned_description", review.querySelector("[data-cleaned-description]").value);
+          data.set("cleaning_method", preview.method);
+          const vacancy = await api("/api/vacancies", { method: "POST", body: data });
+          closeDialog(); await loadVacancies(); renderVacancy(vacancy); toast("Vacancy imported");
+        } catch (exception) { confirmError.textContent = exception.message; }
+        finally { confirm.disabled = false; }
+      };
+      review.querySelector("[data-cancel-cleaning]").onclick = resetImportReview;
+    }
   } catch (exception) { error.textContent = exception.message; }
-  finally { submit.disabled = false; submit.textContent = "Import vacancy"; }
+  finally { submit.disabled = false; if (!state.importPreview) submit.textContent = "Review description"; }
 };
 
+setSection("vacancies");
 loadVacancies().catch(error => { workspace.innerHTML = `<p class="error">${escapeHtml(error.message)}</p>`; });
