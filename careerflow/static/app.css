@@ -215,5 +215,11 @@ textarea { resize: vertical; max-width: 100%; }
 .ai-readable { font-size: 13px; }
 .ai-history-title { display: -webkit-box; overflow: hidden; font-size: 13px; line-height: 1.25; -webkit-box-orient: vertical; -webkit-line-clamp: 2; }
 #cleaning-review:has(.cleaning-review) { position: fixed; inset: 0; z-index: 30; display: grid; place-items: center; padding: 20px; background: #13201966; }
-#cleaning-review:has(.cleaning-review) .cleaning-review { width: min(1040px, 100%); max-height: min(88vh, 760px); overflow: auto; margin: 0; padding: 20px 20px 76px; background: var(--surface); box-shadow: 0 24px 80px #12231a4d; }
-#cleaning-review:has(.cleaning-review) .cleaning-review .dialog-actions { position: sticky; bottom: -1px; z-index: 2; padding: 10px 0 0; background: linear-gradient(transparent, var(--surface) 25%); }
+#cleaning-review:has(.cleaning-review) .cleaning-review { display: flex; flex-direction: column; width: min(1040px, 100%); height: min(88vh, 760px); overflow: hidden; margin: 0; padding: 20px; background: var(--surface); box-shadow: 0 24px 80px #12231a4d; }
+#cleaning-review:has(.cleaning-review) .cleaning-review > .form-grid { flex: 0 0 auto; grid-template-columns: repeat(2, minmax(0, 1fr)); }
+#cleaning-review:has(.cleaning-review) .cleaning-review > .form-grid textarea { height: 170px; min-height: 120px; }
+#cleaning-review:has(.cleaning-review) .cleaning-review > .split-grid { flex: 1 1 auto; min-height: 0; align-items: start; overflow: hidden; }
+#cleaning-review:has(.cleaning-review) .cleaning-review > .split-grid > section { min-width: 0; min-height: 0; }
+#cleaning-review:has(.cleaning-review) .cleaning-review .review-list { max-height: 25vh; overflow: auto; margin: 0; padding-right: 10px; font-size: 12px; }
+#cleaning-review:has(.cleaning-review) .cleaning-review .review-list strong { font-size: 12px; }
+#cleaning-review:has(.cleaning-review) .cleaning-review .dialog-actions { flex: 0 0 auto; justify-content: flex-end; padding-top: 12px; background: var(--surface); }
