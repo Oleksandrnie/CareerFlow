@@ -495,6 +495,11 @@ async function testImportPreviewEditConfirmAndRecovery() {
 
 async function testExistingDescriptionReviewAndCodexOptIn() {
   const app = harness();
+  app.run('state.locale = "ru"');
+  const localizedHint = app.run('translateText("Only when selected; vacancy text will be sent to the local Codex CLI.")');
+  assert.equal(localizedHint, "Только при выборе; текст вакансии будет передан локальному Codex CLI.");
+  assert.doesNotMatch(localizedHint, /undefined/);
+  app.run('state.locale = "en"');
   const confirmed = { ...first, description_confirmed_at: "2026-09-21", raw_description: "Raw FIRST_DESCRIPTION Apply" };
   app.run(`renderVacancy(${JSON.stringify(confirmed)})`);
   app.routes.set("POST /api/vacancies/1/description/preview", options => {
@@ -524,11 +529,25 @@ async function testExistingDescriptionReviewAndCodexOptIn() {
   codexApp.panel.querySelector("#review-cleaning-codex").checked = true;
   codexApp.routes.set("POST /api/vacancies/1/description/preview", options => {
     assert.deepEqual(JSON.parse(options.body), { use_codex: true });
-    return { raw_description: confirmed.raw_description, description: "Codex cleaned", method: "codex:rules", removed_blocks: [], uncertain_blocks: [] };
+    return { raw_description: confirmed.raw_description, description: "Codex cleaned", method: "codex:rules", removed_blocks: [], uncertain_blocks: [], warnings: [], diagnostics: { classification_source: "codex", codex_requested: true, fallback_used: false } };
   });
   await codexApp.panel.querySelector("#review-cleaning").onclick();
   assert.match(codexApp.panel.innerHTML, /Clean description/);
   assert.match(codexApp.panel.querySelector("#cleaning-review").innerHTML, /Cleaning method: codex:rules/);
+  assert.match(codexApp.panel.querySelector("#cleaning-review").innerHTML, /Codex classification completed successfully/);
+
+  const fallbackApp = harness();
+  fallbackApp.run(`renderVacancy(${JSON.stringify(confirmed)})`);
+  fallbackApp.panel.querySelector("#review-cleaning-codex").checked = true;
+  fallbackApp.routes.set("POST /api/vacancies/1/description/preview", options => {
+    assert.deepEqual(JSON.parse(options.body), { use_codex: true });
+    return { raw_description: confirmed.raw_description, description: "Locally cleaned", method: "local-fallback:rules", removed_blocks: [], uncertain_blocks: [], warnings: ["Codex classification failed; local rules were used. Review uncertain blocks before confirmation."], diagnostics: { classification_source: "local", codex_requested: true, fallback_used: true, codex_error: "SENSITIVE_RAW_CLI_ERROR" } };
+  });
+  await fallbackApp.panel.querySelector("#review-cleaning").onclick();
+  const fallbackReview = fallbackApp.panel.querySelector("#cleaning-review").innerHTML;
+  assert.match(fallbackReview, /Codex classification failed; local rules were used/);
+  assert.match(fallbackReview, /Cleaning method: local-fallback:rules/);
+  assert.doesNotMatch(fallbackReview, /SENSITIVE_RAW_CLI_ERROR/);
 }
 
 async function testSavedAiDetailAndLateRun() {
