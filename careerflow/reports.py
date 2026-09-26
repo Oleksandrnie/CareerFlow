@@ -8,7 +8,7 @@ from pathlib import Path
 
 from .ats import latest_analysis
 from .db import Database, insert_and_get_id
-from .resumes import list_resumes
+from .resumes import get_resume, list_resumes
 from .tracking import interviews, list_attachments, list_notes, timeline
 from .vacancies import get_vacancy
 
@@ -46,6 +46,7 @@ def build_report(database: Database, vacancy_id: int) -> str:
     versions = list_resumes(database, "vacancy", vacancy_id)
     submitted = next((item for item in versions if item["is_submitted"]), None)
     selected = submitted or (versions[0] if versions else None)
+    analyzed_resume = get_resume(database, analysis["resume_version_id"]) if analysis else None
     events = timeline(database, vacancy_id)
     interview_rows = interviews(database, vacancy_id)
     notes = list_notes(database, vacancy_id)
@@ -76,7 +77,7 @@ def build_report(database: Database, vacancy_id: int) -> str:
     if selected:
         lines.extend(
             [
-                f"Using {'submitted' if selected['is_submitted'] else 'latest'} Vacancy Resume v{selected['version']} ({selected['label'] or 'No label'}).",
+                f"Workflow resume: {'submitted' if selected['is_submitted'] else 'latest'} Vacancy Resume v{selected['version']} (ID {selected['id']}; {selected['label'] or 'No label'}).",
                 "",
                 selected["content_text"],
                 "",
@@ -88,12 +89,41 @@ def build_report(database: Database, vacancy_id: int) -> str:
     else:
         lines.append("No vacancy-specific resume version has been added.")
 
+    if analyzed_resume and analysis:
+        analyzed_kind = analysis["resume_kind_at_analysis"] or analyzed_resume["kind"]
+        analyzed_version = analysis["resume_version_at_analysis"] or analyzed_resume["version"]
+        lines.extend(
+            [
+                "",
+                "### Resume used for ATS analysis",
+                "",
+                f"{analyzed_kind.title()} Resume v{analyzed_version} (ID {analyzed_resume['id']}; {analyzed_resume['label'] or 'No label'}).",
+                "",
+            ]
+        )
+        if selected and selected["id"] == analyzed_resume["id"]:
+            lines.append("Same resume as the workflow version shown above.")
+        else:
+            lines.extend(
+                [
+                    "This differs from the workflow resume shown above.",
+                    "",
+                    analyzed_resume["content_text"],
+                ]
+            )
+
     lines.extend(["", "## ATS analysis", ""])
     if analysis:
         result = analysis["result"]
         lines.extend(
             [
-                f"Match: **{analysis['match_percent']}%**",
+                f"Analysis ID: {analysis['id']} · Resume ID: {analysis['resume_version_id']} · Run: {analysis['created_at']}",
+                "",
+                (
+                    f"Historical match (not current): **{analysis['match_percent']}%**"
+                    if analysis["is_stale"]
+                    else f"Current match: **{analysis['match_percent']}%**"
+                ),
                 "",
                 f"> {result['disclaimer']}",
                 "",
@@ -101,6 +131,22 @@ def build_report(database: Database, vacancy_id: int) -> str:
                 "",
             ]
         )
+        if analysis["is_stale"]:
+            lines.extend(
+                [
+                    "This ATS result is stale or has unknown legacy provenance; rerun analysis for the current vacancy description.",
+                    "",
+                ]
+            )
+            if analysis["description_snapshot"] is not None:
+                lines.extend(
+                    [
+                        "### Vacancy description analyzed at that time",
+                        "",
+                        analysis["description_snapshot"],
+                        "",
+                    ]
+                )
         for classification in ("covered", "partial", "missing"):
             lines.extend([f"### {classification.title()}", ""])
             matching = [item for item in result["requirements"] if item["classification"] == classification]

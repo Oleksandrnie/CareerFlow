@@ -77,11 +77,14 @@ def vacancy(request: Request, vacancy_id: int) -> dict:
 
 @router.patch("/{vacancy_id}")
 def edit_vacancy(request: Request, vacancy_id: int, payload: VacancyUpdate) -> dict:
-    result = update_vacancy(
-        request.app.state.db,
-        vacancy_id,
-        {key: value for key, value in payload.model_dump(exclude_none=True).items()},
-    )
+    try:
+        result = update_vacancy(
+            request.app.state.db,
+            vacancy_id,
+            {key: value for key, value in payload.model_dump(exclude_none=True).items()},
+        )
+    except ValueError as exc:
+        raise HTTPException(status_code=422, detail=str(exc)) from exc
     if result is None:
         raise HTTPException(status_code=404, detail="Vacancy not found")
     return result

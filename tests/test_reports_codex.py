@@ -58,6 +58,51 @@ class ReportsAndCodexTest(unittest.TestCase):
         self.assertEqual(download.status_code, 200)
         self.assertIn(b"CareerFlow local context report", download.content)
 
+    def test_master_only_analysis_includes_the_full_analyzed_resume(self) -> None:
+        vacancy = self.client.post(
+            "/api/vacancies", data={"text": "Python Engineer\nRequired Python experience."}
+        ).json()
+        master = self.client.post(
+            "/api/resumes",
+            data={"kind": "master", "text": "Python experience. SECRET_FULL_CV_DETAIL_ONLY."},
+        ).json()
+        self.client.post(
+            f"/api/vacancies/{vacancy['id']}/ats",
+            json={"resume_version_id": master["id"]},
+        )
+
+        report = self.client.post(f"/api/vacancies/{vacancy['id']}/reports").json()["markdown"]
+        self.assertIn("No vacancy-specific resume version has been added", report)
+        self.assertIn(f"Master Resume v{master['version']} (ID {master['id']}", report)
+        self.assertIn("SECRET_FULL_CV_DETAIL_ONLY", report)
+        self.assertIn(f"Resume ID: {master['id']}", report)
+
+    def test_report_distinguishes_analyzed_older_from_submitted_and_latest(self) -> None:
+        submitted = self.client.post(
+            "/api/resumes",
+            data={
+                "kind": "vacancy", "vacancy_id": self.vacancy["id"],
+                "text": "SUBMITTED_CV_DETAIL SQL", "label": "Submitted",
+            },
+        ).json()
+        latest = self.client.post(
+            "/api/resumes",
+            data={
+                "kind": "vacancy", "vacancy_id": self.vacancy["id"],
+                "text": "LATEST_UNSUBMITTED_CV_DETAIL", "label": "Draft",
+            },
+        ).json()
+        self.client.post(f"/api/resumes/{submitted['id']}/submit")
+
+        report = self.client.post(f"/api/vacancies/{self.vacancy['id']}/reports").json()["markdown"]
+        self.assertIn(f"Workflow resume: submitted Vacancy Resume v{submitted['version']}", report)
+        self.assertIn("SUBMITTED_CV_DETAIL", report)
+        self.assertIn(f"Vacancy Resume v{self.resume['version']} (ID {self.resume['id']}", report)
+        self.assertIn("Python engineer using SQL", report)
+        self.assertIn("This differs from the workflow resume", report)
+        self.assertIn(f"Vacancy Resume v{latest['version']}: Draft", report)
+        self.assertNotIn("LATEST_UNSUBMITTED_CV_DETAIL", report)
+
     def test_codex_command_is_noninteractive_read_only_and_no_shell(self) -> None:
         calls = {}
 
@@ -93,6 +138,60 @@ class ReportsAndCodexTest(unittest.TestCase):
         after = self.client.get(f"/api/vacancies/{self.vacancy['id']}").json()
         self.assertEqual(before["description"], after["description"])
         self.assertEqual(len(self.client.get(f"/api/vacancies/{self.vacancy['id']}/ai-runs").json()), 1)
+
+    @patch("careerflow.routes_ai_reports.run_codex")
+    def test_ai_history_returns_full_result_and_resolved_model(self, mocked_run) -> None:
+        from careerflow.codex import CodexResult
+
+        mocked_run.return_value = CodexResult("Full saved answer", ["codex"])
+        url = f"/api/vacancies/{self.vacancy['id']}/ai-runs"
+        created = self.client.post(
+            url, json={"prompt": "  What should I prepare?  ", "action": "Prepare"}
+        )
+        self.assertEqual(created.status_code, 201)
+        run = created.json()
+        self.assertEqual(run["prompt"], "What should I prepare?")
+        self.assertEqual(run["model"], self.settings.codex_default_model)
+        self.assertEqual(run["response"], "Full saved answer")
+        self.assertEqual(mocked_run.call_args.kwargs["model"], self.settings.codex_default_model)
+        self.assertEqual(self.client.get(f"{url}/{run['id']}").json(), run)
+        self.assertEqual(self.client.get(url).json()[0], run)
+
+        other = self.client.post(
+            "/api/vacancies", data={"text": "Different role\nPython"}
+        ).json()
+        self.assertEqual(
+            self.client.get(f"/api/vacancies/{other['id']}/ai-runs/{run['id']}").status_code,
+            404,
+        )
+
+    @patch("careerflow.routes_ai_reports.run_codex")
+    def test_ai_prompt_and_model_validation_return_422_without_run(self, mocked_run) -> None:
+        url = f"/api/vacancies/{self.vacancy['id']}/ai-runs"
+        for payload in (
+            {"prompt": "   "},
+            {"prompt": "Valid question", "model": "bad model; command"},
+        ):
+            with self.subTest(payload=payload):
+                response = self.client.post(url, json=payload)
+                self.assertEqual(response.status_code, 422)
+        mocked_run.assert_not_called()
+        self.assertEqual(self.client.get(url).json(), [])
+
+    @patch("careerflow.routes_ai_reports.run_codex")
+    def test_failed_ai_run_is_retrievable_with_error_and_resolved_model(self, mocked_run) -> None:
+        from careerflow.codex import CodexError
+
+        mocked_run.side_effect = CodexError("CLI unavailable")
+        url = f"/api/vacancies/{self.vacancy['id']}/ai-runs"
+        response = self.client.post(url, json={"prompt": "Help me prepare"})
+        self.assertEqual(response.status_code, 502)
+        history = self.client.get(url).json()
+        self.assertEqual(len(history), 1)
+        self.assertEqual(history[0]["status"], "failed")
+        self.assertEqual(history[0]["error"], "CLI unavailable")
+        self.assertEqual(history[0]["model"], self.settings.codex_default_model)
+        self.assertEqual(self.client.get(f"{url}/{history[0]['id']}").json(), history[0])
 
     def test_prompt_rejects_empty_request_and_model_injection(self) -> None:
         with self.assertRaises(ValueError):
