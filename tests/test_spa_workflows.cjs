@@ -471,9 +471,13 @@ async function testImportPreviewEditConfirmAndRecovery() {
   app.routes.set("POST /api/vacancies/import-preview", options => {
     assert.equal(options.body.get("text"), "Changed raw vacancy");
     assert.equal(options.body.get("use_codex"), "true", "Codex is sent only after the explicit checkbox opt-in");
+    assert.equal(options.body.get("codex_profile"), "primary", "Codex cleanup starts with the primary profile");
     return { raw_description: "Changed raw vacancy", description: "Codex clean draft", method: "codex:rules", removed_blocks: [{ text: "Apply", reason: "CTA" }], uncertain_blocks: [] };
   });
+  let importSuccessPromptCount = 0;
+  app.window.confirm = () => { importSuccessPromptCount++; return true; };
   await importForm.onsubmit({ preventDefault() {} });
+  assert.equal(importSuccessPromptCount, 0, "successful import cleanup must not prompt for escalation");
   const confirm = review.querySelector("[data-confirm-cleaning]");
   review.querySelector("[data-cleaned-description]").value = "User-confirmed draft";
   const pendingCreate = deferred();
@@ -491,6 +495,37 @@ async function testImportPreviewEditConfirmAndRecovery() {
   await creation;
   assert.equal(app.run("state.importPreview"), null);
   assert.equal(submit.hidden, false, "closing a completed import must restore Review for the next vacancy");
+
+  const fallbackApp = harness();
+  const fallbackForm = fallbackApp.document.querySelector("#import-form");
+  fallbackForm.fields = { text: "Fallback vacancy", file: originalFile, title: "Engineer", company: "A", salary: "", source: "Board", use_codex: "true" };
+  fallbackForm.querySelector('input[name="use_codex"]').checked = true;
+  let importPrompt = "";
+  fallbackApp.window.confirm = message => { importPrompt = message; return true; };
+  fallbackApp.routes.set("POST /api/vacancies/import-preview", options => {
+    const profile = options.body.get("codex_profile");
+    if (profile === "primary") return { raw_description: "Fallback vacancy", description: "Local draft", method: "local-fallback:rules", removed_blocks: [], uncertain_blocks: [], diagnostics: { classification_source: "local", codex_requested: true, fallback_used: true, escalation_available: true, escalation_model: "gpt-5.6-sol", escalation_effort: "medium" } };
+    assert.equal(profile, "escalation");
+    return { raw_description: "Fallback vacancy", description: "Escalated draft", method: "codex:rules", removed_blocks: [], uncertain_blocks: [], diagnostics: { classification_source: "codex", codex_requested: true, fallback_used: false } };
+  });
+  await fallbackForm.onsubmit({ preventDefault() {} });
+  assert.match(importPrompt, /primary Codex model.*stronger model.*gpt-5\.6-sol \/ medium/i);
+  assert.match(fallbackApp.document.querySelector("#import-review").innerHTML, /Cleaning method: codex:rules/);
+
+  const cancelApp = harness();
+  const cancelForm = cancelApp.document.querySelector("#import-form");
+  cancelForm.fields = { text: "Fallback vacancy", file: originalFile, title: "Engineer", company: "A", salary: "", source: "Board", use_codex: "true" };
+  cancelForm.querySelector('input[name="use_codex"]').checked = true;
+  let cancelPreviewCalls = 0;
+  cancelApp.window.confirm = () => false;
+  cancelApp.routes.set("POST /api/vacancies/import-preview", options => {
+    cancelPreviewCalls++;
+    assert.equal(options.body.get("codex_profile"), "primary");
+    return { raw_description: "Fallback vacancy", description: "Local draft", method: "local-fallback:rules", removed_blocks: [], uncertain_blocks: [], diagnostics: { classification_source: "local", codex_requested: true, fallback_used: true, escalation_available: true, escalation_model: "gpt-5.6-sol", escalation_effort: "medium" } };
+  });
+  await cancelForm.onsubmit({ preventDefault() {} });
+  assert.equal(cancelPreviewCalls, 1, "Cancel keeps the import local fallback without retrying");
+  assert.match(cancelApp.document.querySelector("#import-review").innerHTML, /Cleaning method: local-fallback:rules/);
 }
 
 async function testExistingDescriptionReviewAndCodexOptIn() {
@@ -528,27 +563,48 @@ async function testExistingDescriptionReviewAndCodexOptIn() {
   codexApp.run(`renderVacancy(${JSON.stringify(confirmed)})`);
   codexApp.panel.querySelector("#review-cleaning-codex").checked = true;
   codexApp.routes.set("POST /api/vacancies/1/description/preview", options => {
-    assert.deepEqual(JSON.parse(options.body), { use_codex: true });
-    return { raw_description: confirmed.raw_description, description: "Codex cleaned", method: "codex:rules", removed_blocks: [], uncertain_blocks: [], warnings: [], diagnostics: { classification_source: "codex", codex_requested: true, fallback_used: false, codex_model: "gpt-5.6-sol", codex_effort: "medium" } };
+    assert.deepEqual(JSON.parse(options.body), { use_codex: true, codex_profile: "primary" });
+    return { raw_description: confirmed.raw_description, description: "Codex cleaned", method: "codex:rules", removed_blocks: [], uncertain_blocks: [], warnings: [], diagnostics: { classification_source: "codex", codex_requested: true, fallback_used: false, codex_profile: "primary", codex_model: "gpt-5.6-luna", codex_effort: "low" } };
   });
+  let successPromptCount = 0;
+  codexApp.window.confirm = () => { successPromptCount++; return true; };
   await codexApp.panel.querySelector("#review-cleaning").onclick();
+  assert.equal(successPromptCount, 0, "successful primary cleanup must not prompt for escalation");
   assert.match(codexApp.panel.innerHTML, /Clean description/);
   assert.match(codexApp.panel.querySelector("#cleaning-review").innerHTML, /Cleaning method: codex:rules/);
   assert.match(codexApp.panel.querySelector("#cleaning-review").innerHTML, /Codex classification completed successfully/);
-  assert.match(codexApp.panel.querySelector("#cleaning-review").innerHTML, /gpt-5\.6-sol.*medium/);
+  assert.match(codexApp.panel.querySelector("#cleaning-review").innerHTML, /gpt-5\.6-luna.*low/);
 
   const fallbackApp = harness();
   fallbackApp.run(`renderVacancy(${JSON.stringify(confirmed)})`);
   fallbackApp.panel.querySelector("#review-cleaning-codex").checked = true;
   fallbackApp.routes.set("POST /api/vacancies/1/description/preview", options => {
-    assert.deepEqual(JSON.parse(options.body), { use_codex: true });
-    return { raw_description: confirmed.raw_description, description: "Locally cleaned", method: "local-fallback:rules", removed_blocks: [], uncertain_blocks: [], warnings: ["Codex classification failed; local rules were used. Review uncertain blocks before confirmation."], diagnostics: { classification_source: "local", codex_requested: true, fallback_used: true, codex_error: "SENSITIVE_RAW_CLI_ERROR" } };
+    const body = JSON.parse(options.body);
+    assert.equal(body.use_codex, true);
+    if (body.codex_profile === "primary") return { raw_description: confirmed.raw_description, description: "Locally cleaned", method: "local-fallback:rules", removed_blocks: [], uncertain_blocks: [], warnings: ["Codex classification failed; local rules were used. Review uncertain blocks before confirmation."], diagnostics: { classification_source: "local", codex_requested: true, fallback_used: true, escalation_available: true, escalation_model: "gpt-5.6-sol", escalation_effort: "medium", codex_error: "SENSITIVE_RAW_CLI_ERROR" } };
+    assert.equal(body.codex_profile, "escalation");
+    return { raw_description: confirmed.raw_description, description: "Escalated cleaned", method: "codex:rules", removed_blocks: [], uncertain_blocks: [], warnings: [], diagnostics: { classification_source: "codex", codex_requested: true, fallback_used: false, codex_model: "gpt-5.6-sol", codex_effort: "medium" } };
   });
+  let fallbackPrompt = "";
+  fallbackApp.window.confirm = message => { fallbackPrompt = message; return true; };
   await fallbackApp.panel.querySelector("#review-cleaning").onclick();
   const fallbackReview = fallbackApp.panel.querySelector("#cleaning-review").innerHTML;
-  assert.match(fallbackReview, /Codex classification failed; local rules were used/);
-  assert.match(fallbackReview, /Cleaning method: local-fallback:rules/);
+  assert.match(fallbackPrompt, /primary Codex model.*stronger model.*gpt-5\.6-sol \/ medium/i);
+  assert.match(fallbackReview, /Cleaning method: codex:rules/);
   assert.doesNotMatch(fallbackReview, /SENSITIVE_RAW_CLI_ERROR/);
+
+  const cancelApp = harness();
+  cancelApp.run(`renderVacancy(${JSON.stringify(confirmed)})`);
+  cancelApp.panel.querySelector("#review-cleaning-codex").checked = true;
+  cancelApp.routes.set("POST /api/vacancies/1/description/preview", options => {
+    const body = JSON.parse(options.body);
+    assert.equal(body.codex_profile, "primary");
+    return { raw_description: confirmed.raw_description, description: "Locally cleaned", method: "local-fallback:rules", removed_blocks: [], uncertain_blocks: [], warnings: ["Codex classification failed; local rules were used."], diagnostics: { classification_source: "local", codex_requested: true, fallback_used: true, escalation_available: true, escalation_model: "gpt-5.6-sol", escalation_effort: "medium" } };
+  });
+  cancelApp.window.confirm = () => false;
+  await cancelApp.panel.querySelector("#review-cleaning").onclick();
+  assert.match(cancelApp.panel.querySelector("#cleaning-review").innerHTML, /Cleaning method: local-fallback:rules/);
+  assert.equal(cancelApp.calls.filter(call => call === "POST /api/vacancies/1/description/preview").length, 1, "Cancel keeps the local fallback without retrying");
 }
 
 async function testSavedAiDetailAndLateRun() {

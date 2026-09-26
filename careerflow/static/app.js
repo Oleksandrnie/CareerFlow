@@ -48,6 +48,7 @@ const RU = {
   "Confirmed vacancy description": "Подтверждённое описание вакансии", "Used for ATS and Codex context. The original import remains preserved.": "Используется для ATS и контекста Codex. Исходный импорт сохраняется.",
   "Use Codex for this review": "Использовать Codex для этой проверки", "Only when selected; vacancy text will be sent to the local Codex CLI.": "Только при выборе; текст вакансии будет передан локальному Codex CLI.", "Clean description": "Очистить описание", "Review the proposed text before confirming. Original vacancy content remains unchanged.": "Проверьте текст перед подтверждением. Исходное содержимое вакансии не изменится.",
   "Codex classification completed successfully.": "Классификация Codex успешно завершена.", "Codex classification failed; local rules were used. Review uncertain blocks before confirmation.": "Классификация Codex не удалась; использованы локальные правила. Проверьте сомнительные блоки перед подтверждением.",
+  "The primary Codex model could not classify this description.": "Основная модель Codex не смогла классифицировать это описание.", "Retry once with the stronger model": "Повторить один раз с более мощной моделью",
   "Cleaning method:": "Метод очистки:", "Original imported text": "Исходный импортированный текст", "Cleaned draft (editable)": "Очищенный вариант (можно редактировать)", "Removed blocks": "Удалённые блоки", "Needs review": "Требует проверки", "Nothing removed": "Ничего не удалено", "No uncertain blocks": "Сомнительных блоков нет", "Removed": "Удалено", "Uncertain": "Сомнительно", "Back": "Назад", "Confirm cleaned description": "Подтвердить очищенное описание",
   "Title": "Название", "Company": "Компания", "Salary": "Зарплата", "Source": "Источник", "Save changes": "Сохранить изменения",
   "Source version deleted": "Исходная версия удалена", "Created independently": "Создано независимо", "Based on Master Resume": "На основе главного резюме", "Based on Vacancy Resume": "На основе резюме вакансии",
@@ -430,6 +431,18 @@ function renderCleaningReview(preview, errorId) {
     <p class="error" id="${errorId}"></p><div class="dialog-actions"><button type="button" class="secondary" data-cancel-cleaning>Back</button><button type="button" class="primary" data-confirm-cleaning>Confirm cleaned description</button></div></section>`;
 }
 
+function codexEscalationPrompt(preview) {
+  const diagnostics = preview?.diagnostics || {};
+  if (!diagnostics.fallback_used || diagnostics.escalation_available !== true || !diagnostics.escalation_model || !diagnostics.escalation_effort) return false;
+  const model = `${diagnostics.escalation_model} / ${diagnostics.escalation_effort}`;
+  return window.confirm(`${translateText("The primary Codex model could not classify this description.")} ${translateText("Retry once with the stronger model")} ${model}?`);
+}
+
+async function retryWithCodexEscalation(preview, request) {
+  if (!codexEscalationPrompt(preview)) return preview;
+  return request("escalation");
+}
+
 async function renderExistingDescriptionReview(vacancy) {
   const panel = document.querySelector("#content-panel");
   const target = panel.querySelector("#cleaning-review");
@@ -439,7 +452,9 @@ async function renderExistingDescriptionReview(vacancy) {
   const view = currentView(vacancy, "Overview", panel);
   try {
     const useCodex = panel.querySelector("#review-cleaning-codex").checked;
-    const preview = await api(`/api/vacancies/${vacancy.id}/description/preview`, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ use_codex: useCodex }) });
+    const requestPreview = codexProfile => api(`/api/vacancies/${vacancy.id}/description/preview`, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ use_codex: useCodex, ...(useCodex ? { codex_profile: codexProfile } : {}) }) });
+    const initialPreview = await requestPreview(useCodex ? "primary" : undefined);
+    const preview = useCodex ? await retryWithCodexEscalation(initialPreview, profile => requestPreview(profile)) : initialPreview;
     if (!isCurrentView(view)) return;
     target.innerHTML = renderCleaningReview(preview, "cleaning-error");
     target.querySelector("[data-cancel-cleaning]").onclick = () => { target.innerHTML = ""; };
@@ -920,7 +935,15 @@ form.onsubmit = async event => {
       const previewData = new FormData(form);
       if (useCodex) previewData.set("use_codex", "true");
       else previewData.delete?.("use_codex");
-      const preview = await api("/api/vacancies/import-preview", { method: "POST", body: previewData });
+      if (useCodex) previewData.set("codex_profile", "primary");
+      else previewData.delete?.("codex_profile");
+      const initialPreview = await api("/api/vacancies/import-preview", { method: "POST", body: previewData });
+      const preview = useCodex
+        ? await retryWithCodexEscalation(initialPreview, profile => {
+          previewData.set("codex_profile", profile);
+          return api("/api/vacancies/import-preview", { method: "POST", body: previewData });
+        })
+        : initialPreview;
       const snapshot = { preview, input: importSignature(previewData, useCodex) };
       state.importPreview = snapshot;
       review.innerHTML = renderCleaningReview(preview, "import-review-error");
@@ -938,6 +961,7 @@ form.onsubmit = async event => {
           if (currentSignature !== snapshot.input) throw new Error("Import details changed after preview. Go back and review the updated description.");
           const data = currentInput;
           data.delete?.("use_codex");
+          data.delete?.("codex_profile");
           data.set("cleaned_description", review.querySelector("[data-cleaned-description]").value);
           data.set("cleaning_method", preview.method);
           const vacancy = await api("/api/vacancies", { method: "POST", body: data });
