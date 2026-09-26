@@ -5,7 +5,7 @@ from __future__ import annotations
 import json
 import re
 from dataclasses import replace
-from typing import Callable
+from typing import Callable, Literal
 
 from .codex import CodexError, CodexResult, run_codex
 from .config import Settings
@@ -13,6 +13,8 @@ from .files import normalize_text
 
 
 CLASSIFICATIONS = {"keep", "remove", "uncertain"}
+CleaningCodexProfile = Literal["primary", "escalation"]
+CLEANING_CODEX_PROFILES = {"primary", "escalation"}
 RECOMMENDATION_HEADING = re.compile(
     r"(?i)^(?:(?:recommended|similar|related|other|more)\s+"
     r"(?:jobs?|roles?|vacanc(?:y|ies))|(?:jobs?|roles?)\s+(?:for you|you may like)|"
@@ -181,8 +183,11 @@ def classify_blocks_with_codex(
     settings: Settings,
     blocks: list[dict[str, str]],
     *,
+    codex_profile: CleaningCodexProfile = "primary",
     runner: Callable[..., CodexResult] = run_codex,
 ) -> list[dict[str, str]]:
+    if codex_profile not in CLEANING_CODEX_PROFILES:
+        raise ValueError("Unsupported Codex cleanup profile")
     payload = [{"id": block["id"], "text": block["text"]} for block in blocks]
     prompt = "\n".join(
         [
@@ -196,10 +201,16 @@ def classify_blocks_with_codex(
             json.dumps(payload, ensure_ascii=False),
         ]
     )
+    if codex_profile == "escalation":
+        model = settings.codex_cleaning_escalation_model
+        effort = settings.codex_cleaning_escalation_effort
+    else:
+        model = settings.codex_cleaning_model
+        effort = settings.codex_cleaning_effort
     cleaning_settings = replace(
         settings,
-        codex_default_model=settings.codex_cleaning_model,
-        codex_reasoning_effort=settings.codex_cleaning_effort,
+        codex_default_model=model,
+        codex_reasoning_effort=effort,
     )
     result = runner(cleaning_settings, prompt)
     return validate_classifications(blocks, _json_payload(result.response))
@@ -212,37 +223,70 @@ def build_preview(
     method: str = "local-blocks",
     settings: Settings | None = None,
     use_codex: bool = False,
+    codex_profile: CleaningCodexProfile = "primary",
     codex_runner: Callable[..., CodexResult] = run_codex,
 ) -> dict:
+    if codex_profile not in CLEANING_CODEX_PROFILES:
+        raise ValueError("Unsupported Codex cleanup profile")
     raw = normalize_text(raw_text)
     candidate = normalize_text(candidate_text if candidate_text is not None else raw_text)
     blocks = split_blocks(candidate)
     if not blocks:
         raise ValueError("Vacancy description is required")
     warnings: list[str] = []
-    diagnostics = {
+    attempted_model = None
+    attempted_effort = None
+    if settings is not None and use_codex:
+        if codex_profile == "escalation":
+            attempted_model = settings.codex_cleaning_escalation_model
+            attempted_effort = settings.codex_cleaning_escalation_effort
+        else:
+            attempted_model = settings.codex_cleaning_model
+            attempted_effort = settings.codex_cleaning_effort
+    diagnostics: dict[str, object] = {
         "classification_source": "local",
         "codex_requested": use_codex,
+        "codex_profile": codex_profile if use_codex else None,
         "fallback_used": False,
-        "codex_model": settings.codex_cleaning_model if settings and use_codex else None,
-        "codex_effort": settings.codex_cleaning_effort if settings and use_codex else None,
+        "codex_model": attempted_model,
+        "codex_effort": attempted_effort,
+        "escalation_available": False,
     }
     local_classified = classify_blocks(blocks)
     if use_codex and settings is not None:
         try:
             classified = _apply_local_safeguards(
                 local_classified,
-                classify_blocks_with_codex(settings, blocks, runner=codex_runner),
+                classify_blocks_with_codex(
+                    settings,
+                    blocks,
+                    codex_profile=codex_profile,
+                    runner=codex_runner,
+                ),
             )
             diagnostics["classification_source"] = "codex"
         except (CodexError, ValueError) as exc:
             classified = local_classified
             diagnostics["fallback_used"] = True
             diagnostics["codex_error"] = normalize_text(str(exc))[:500]
-            warnings.append(
-                "Codex classification failed; local rules were used. "
-                "Review uncertain blocks before confirmation."
-            )
+            if codex_profile == "primary":
+                diagnostics.update(
+                    {
+                        "escalation_available": True,
+                        "escalation_model": settings.codex_cleaning_escalation_model,
+                        "escalation_effort": settings.codex_cleaning_escalation_effort,
+                    }
+                )
+                warnings.append(
+                    "Codex primary classification failed; local rules were used. "
+                    "The configured escalation profile can be tried. "
+                    "Review uncertain blocks before confirmation."
+                )
+            else:
+                warnings.append(
+                    "Codex escalation classification failed; local rules were used. "
+                    "Review uncertain blocks before confirmation."
+                )
     else:
         classified = local_classified
         if use_codex:
