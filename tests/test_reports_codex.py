@@ -152,8 +152,13 @@ class ReportsAndCodexTest(unittest.TestCase):
         run = created.json()
         self.assertEqual(run["prompt"], "What should I prepare?")
         self.assertEqual(run["model"], self.settings.codex_default_model)
+        self.assertEqual(run["reasoning_effort"], self.settings.codex_reasoning_effort)
         self.assertEqual(run["response"], "Full saved answer")
         self.assertEqual(mocked_run.call_args.kwargs["model"], self.settings.codex_default_model)
+        self.assertEqual(
+            mocked_run.call_args.kwargs["reasoning_effort"],
+            self.settings.codex_reasoning_effort,
+        )
         self.assertEqual(self.client.get(f"{url}/{run['id']}").json(), run)
         self.assertEqual(self.client.get(url).json()[0], run)
 
@@ -191,6 +196,7 @@ class ReportsAndCodexTest(unittest.TestCase):
         self.assertEqual(history[0]["status"], "failed")
         self.assertEqual(history[0]["error"], "CLI unavailable")
         self.assertEqual(history[0]["model"], self.settings.codex_default_model)
+        self.assertEqual(history[0]["reasoning_effort"], self.settings.codex_reasoning_effort)
         self.assertEqual(self.client.get(f"{url}/{history[0]['id']}").json(), history[0])
 
     def test_prompt_rejects_empty_request_and_model_injection(self) -> None:

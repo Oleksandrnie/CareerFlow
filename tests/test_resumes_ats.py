@@ -353,6 +353,11 @@ class AtsLegacyMigrationTest(unittest.TestCase):
             self.assertEqual(vacancy["description_confirmed_at"], "2026-09-21")
             resume = database.fetch_one("SELECT * FROM resume_versions WHERE id = 1")
             self.assertIsNone(resume["source_resume_id"])
+            ai_columns = {
+                row["name"]
+                for row in database.fetch_all("PRAGMA table_info(ai_runs)")
+            }
+            self.assertIn("reasoning_effort", ai_columns)
 
 
 if __name__ == "__main__":
