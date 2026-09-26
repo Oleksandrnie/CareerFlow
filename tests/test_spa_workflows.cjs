@@ -620,6 +620,10 @@ async function testSavedAiDetailAndLateRun() {
   await app.run('openTab("AI / Codex", state.selected)');
   assert.match(app.panel.innerHTML, /name="model" id="ai-model"/);
   assert.match(app.panel.innerHTML, /name="reasoning_effort" id="ai-effort"/);
+  assert.match(app.panel.innerHTML, /Match resume to vacancy/);
+  app.panel.querySelector("#ai-action").value = "Match resume to vacancy";
+  app.panel.querySelector("#ai-action").onchange({ target: app.panel.querySelector("#ai-action") });
+  assert.match(app.panel.querySelector("#ai-prompt").value, /match_percent/);
   app.panel.querySelector("#ai-model").value = "gpt-6-sol";
   app.panel.querySelector("#ai-model").onchange();
   assert.equal(app.panel.querySelector("#ai-effort").value, "high");
