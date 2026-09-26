@@ -27,6 +27,7 @@ const dropZone = document.querySelector("#drop-zone");
 const selectedFile = document.querySelector("#selected-file");
 const archivedToggle = document.querySelector("#show-archived");
 const localeToggle = document.querySelector("#locale-toggle");
+const VACANCY_TABS = ["Overview", "Resume", "ATS", "AI / Codex", "Timeline", "Notes", "Files"];
 
 const RU = {
   "LOCAL CAREER WORKSPACE": "ЛОКАЛЬНОЕ ПРОСТРАНСТВО ПОИСКА РАБОТЫ",
@@ -50,7 +51,7 @@ const RU = {
   "Use Codex for this review": "Использовать Codex для этой проверки", "Only when selected; vacancy text will be sent to the local Codex CLI.": "Только при выборе; текст вакансии будет передан локальному Codex CLI.", "Clean description": "Очистить описание", "Review the proposed text before confirming. Original vacancy content remains unchanged.": "Проверьте текст перед подтверждением. Исходное содержимое вакансии не изменится.",
   "Codex classification completed successfully.": "Классификация Codex успешно завершена.", "Codex classification failed; local rules were used. Review uncertain blocks before confirmation.": "Классификация Codex не удалась; использованы локальные правила. Проверьте сомнительные блоки перед подтверждением.",
   "The primary Codex model could not classify this description.": "Основная модель Codex не смогла классифицировать это описание.", "Retry once with the stronger model": "Повторить один раз с более мощной моделью",
-  "Cleaning method:": "Метод очистки:", "Original imported text": "Исходный импортированный текст", "Cleaned draft (editable)": "Очищенный вариант (можно редактировать)", "Removed blocks": "Удалённые блоки", "Needs review": "Требует проверки", "Nothing removed": "Ничего не удалено", "No uncertain blocks": "Сомнительных блоков нет", "Removed": "Удалено", "Uncertain": "Сомнительно", "Back": "Назад", "Confirm cleaned description": "Подтвердить очищенное описание",
+  "Cleaning method:": "Метод очистки:", "Original imported text": "Исходный импортированный текст", "Cleaned draft (editable)": "Очищенный вариант (можно редактировать)", "Removed blocks": "Удалённые блоки", "Needs review": "Требует проверки", "Nothing removed": "Ничего не удалено", "No uncertain blocks": "Сомнительных блоков нет", "Removed": "Удалено", "Uncertain": "Сомнительно", "Back": "Назад", "Confirm": "Подтвердить", "Confirm cleaned description": "Подтвердить очищенное описание",
   "Title": "Название", "Company": "Компания", "Salary": "Зарплата", "Source": "Источник", "Save changes": "Сохранить изменения",
   "Source version deleted": "Исходная версия удалена", "Created independently": "Создано независимо", "Based on Master Resume": "На основе главного резюме", "Based on Vacancy Resume": "На основе резюме вакансии",
   "Preview": "Предпросмотр", "Create next version": "Создать следующую версию", "Create new version from this": "Создать новую версию на основе этой", "Download Markdown": "Скачать Markdown", "Download original": "Скачать оригинал", "Submitted": "Отправлено", "Mark submitted": "Отметить отправленным",
@@ -374,7 +375,7 @@ function renderVacancy(vacancy) {
       <div class="actions"><button id="export-report" class="secondary">Export .md</button><button id="edit-overview" class="secondary">Edit</button><button id="archive-vacancy" class="secondary">${vacancy.archived_at ? "Restore" : "Archive"}</button><button id="delete-vacancy" class="danger">Delete</button></div>
     </div>
     ${stageBar(vacancy)}
-    <nav class="tabs">${["Overview", "ATS", "Resume", "Timeline", "Notes", "Files", "AI / Codex"].map((tab, i) => `<button class="tab ${i === 0 ? "active" : ""}" data-tab="${tab}">${tab}</button>`).join("")}</nav>
+    <nav class="tabs">${VACANCY_TABS.map((tab, i) => `<button class="tab ${i === 0 ? "active" : ""}" data-tab="${tab}">${tab}</button>`).join("")}</nav>
     <section class="panel" id="content-panel"></section>`;
   document.querySelector("#edit-overview").onclick = () => renderEdit(vacancy);
   document.querySelector("#archive-vacancy").onclick = event => runAction(event.currentTarget, () => toggleArchive(vacancy));
@@ -411,8 +412,13 @@ async function openTab(name, vacancy) {
 
 function renderOverview(vacancy) {
   const panel = document.querySelector("#content-panel");
+  const source = String(vacancy.source || "").trim();
+  const sourceIsUrl = /^https?:\/\//i.test(source);
+  const sourceValue = sourceIsUrl
+    ? `<a class="source-link" href="${escapeAttr(source)}" target="_blank" rel="noopener noreferrer">${escapeHtml(source)}</a>`
+    : escapeHtml(source || vacancy.source_type || translateText("Not specified"));
   panel.innerHTML = `
-    <div class="form-grid"><div><p class="eyebrow">SALARY</p><p>${escapeHtml(vacancy.salary || "Not specified")}</p></div><div><p class="eyebrow">SOURCE</p><p>${escapeHtml(vacancy.source || vacancy.source_type)}</p></div></div>
+    <div class="form-grid overview-meta"><div><p class="eyebrow">SALARY</p><p>${escapeHtml(vacancy.salary || "Not specified")}</p></div><div><p class="eyebrow">SOURCE</p><p>${sourceValue}</p></div></div>
     <h3>Summary</h3><p>${escapeHtml(vacancy.summary || "No summary")}</p>
     <div class="section-head description-head"><div><h3>Confirmed vacancy description</h3><p class="muted">Used for ATS and Codex context. The original import remains preserved.</p></div><div class="stack"><label class="check-row"><input id="review-cleaning-codex" type="checkbox">Use Codex for this review <span class="muted">Only when selected; vacancy text will be sent to the local Codex CLI.</span></label><button class="secondary" id="review-cleaning">Clean description</button></div></div>
     <div class="overview-text">${escapeHtml(vacancy.description)}</div><div id="cleaning-review" aria-live="polite"></div>`;

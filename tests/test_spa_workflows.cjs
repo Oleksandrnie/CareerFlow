@@ -194,6 +194,22 @@ async function testStaleNotesAndCardSelection() {
   assert.match(app.panel.innerHTML, /SECOND_DESCRIPTION/);
 }
 
+async function testOverviewLinkAndTabOrder() {
+  const app = harness();
+  const vacancy = {
+    ...first,
+    source: "https://example.com/jobs/project-manager",
+    source_type: "html",
+  };
+  app.run(`renderVacancy(${JSON.stringify(vacancy)})`);
+  const workspaceHtml = app.run('document.querySelector("#workspace").innerHTML');
+  const tabOrder = [...workspaceHtml.matchAll(/data-tab="([^"]+)"/g)].map(match => match[1]);
+  assert.deepEqual(tabOrder, ["Overview", "Resume", "ATS", "AI / Codex", "Timeline", "Notes", "Files"]);
+  assert.match(app.panel.innerHTML, /href="https:\/\/example\.com\/jobs\/project-manager"/);
+  assert.match(app.panel.innerHTML, /target="_blank"/);
+  assert.doesNotMatch(app.panel.innerHTML, /VACANCY LINK/);
+}
+
 async function testEditAndInterviewSubmitControls() {
   const app = harness();
   app.routes.set("GET /api/vacancies/1/interviews", []);
@@ -756,6 +772,7 @@ async function testMutationFailuresAndDuplicateRecovery() {
 
 (async () => {
   await testStaleNotesAndCardSelection();
+  await testOverviewLinkAndTabOrder();
   await testEditAndInterviewSubmitControls();
   await testInterviewCounterLifecycleAndStaleReads();
   await testResumePreviewAndEditableCopy();
