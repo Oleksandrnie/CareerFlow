@@ -132,6 +132,7 @@ CREATE TABLE IF NOT EXISTS ai_runs (
     action TEXT NOT NULL DEFAULT '',
     model TEXT NOT NULL DEFAULT '',
     reasoning_effort TEXT,
+    response_language TEXT NOT NULL DEFAULT 'auto',
     source_resume_id INTEGER REFERENCES resume_versions(id) ON DELETE SET NULL,
     context_sources_json TEXT NOT NULL DEFAULT '{}',
     response TEXT NOT NULL DEFAULT '',
@@ -211,6 +212,18 @@ class Database:
             self._ensure_ai_run_context_columns(connection)
             connection.execute(
                 "INSERT OR IGNORE INTO schema_version(version) VALUES (7)"
+            )
+            self._ensure_ai_run_response_language_column(connection)
+            connection.execute(
+                "INSERT OR IGNORE INTO schema_version(version) VALUES (8)"
+            )
+
+    @staticmethod
+    def _ensure_ai_run_response_language_column(connection: sqlite3.Connection) -> None:
+        columns = {row["name"] for row in connection.execute("PRAGMA table_info(ai_runs)")}
+        if "response_language" not in columns:
+            connection.execute(
+                "ALTER TABLE ai_runs ADD COLUMN response_language TEXT NOT NULL DEFAULT 'auto'"
             )
 
     @staticmethod

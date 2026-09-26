@@ -15,6 +15,7 @@ from .config import Settings
 
 MODEL_PATTERN = re.compile(r"^[A-Za-z0-9._:-]{1,80}$")
 ALLOWED_EFFORTS = {"low", "medium", "high", "xhigh", "max", "ultra"}
+ALLOWED_RESPONSE_LANGUAGES = {"auto", "russian", "english"}
 MODEL_CATALOG_TTL_SECONDS = 30.0
 _MODEL_CATALOG_CACHE: dict[tuple[str, str, str], tuple[float, dict]] = {}
 
@@ -157,13 +158,32 @@ def validate_model_effort(catalog: dict, model: str, effort: str) -> tuple[str, 
     return selected_model, selected_effort
 
 
-def build_prompt(user_prompt: str, context: str, action: str = "") -> str:
+def build_prompt(
+    user_prompt: str,
+    context: str,
+    action: str = "",
+    response_language: str = "auto",
+) -> str:
     if not user_prompt.strip():
         raise ValueError("A prompt is required")
-    return "\n".join(
+    if response_language not in ALLOWED_RESPONSE_LANGUAGES:
+        raise ValueError("Unsupported response language")
+    lines = [
+        "You are assisting with a job-search workspace.",
+        "Return advice or draft text only. Do not modify files, run commands, or claim experience not evidenced in the supplied context.",
+    ]
+    if response_language == "russian":
+        lines.append(
+            "Response language: Russian. Write all natural-language output in Russian. "
+            "Keep required JSON keys, code, identifiers, proper names, product names, and technologies unchanged."
+        )
+    elif response_language == "english":
+        lines.append(
+            "Response language: English. Write all natural-language output in English. "
+            "Keep required JSON keys, code, identifiers, proper names, product names, and technologies unchanged."
+        )
+    lines.extend(
         [
-            "You are assisting with a job-search workspace.",
-            "Return advice or draft text only. Do not modify files, run commands, or claim experience not evidenced in the supplied context.",
             f"Requested action: {action.strip() or 'Custom request'}",
             f"User request: {user_prompt.strip()}",
             "",
@@ -172,6 +192,7 @@ def build_prompt(user_prompt: str, context: str, action: str = "") -> str:
             "--- END CONTEXT ---",
         ]
     )
+    return "\n".join(lines)
 
 
 def run_codex(

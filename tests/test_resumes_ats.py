@@ -640,9 +640,15 @@ class AtsLegacyMigrationTest(unittest.TestCase):
                         resume_version_id INTEGER, match_percent INTEGER,
                         result_json TEXT, created_at TEXT
                     );
+                    CREATE TABLE ai_runs (
+                        id INTEGER PRIMARY KEY, vacancy_id INTEGER, prompt TEXT,
+                        model TEXT, response TEXT, status TEXT, error TEXT,
+                        created_at TEXT
+                    );
                     INSERT INTO vacancies VALUES (1, 'Required Python', 'Saved', NULL, 87, '2026-09-21');
                     INSERT INTO resume_versions VALUES (1, NULL, 'master', 1, '', 'Python', 0, '2026-09-21');
                     INSERT INTO ats_analyses VALUES (1, 1, 1, 87, '{"keywords": []}', '2026-09-21');
+                    INSERT INTO ai_runs VALUES (1, 1, 'Legacy prompt', '', '', 'completed', '', '2026-09-21');
                     """
                 )
 
@@ -656,7 +662,7 @@ class AtsLegacyMigrationTest(unittest.TestCase):
             self.assertIsNone(analysis["description_snapshot"])
             self.assertEqual(
                 database.fetch_one("SELECT MAX(version) AS version FROM schema_version")["version"],
-                7,
+                8,
             )
             vacancy = database.fetch_one("SELECT * FROM vacancies WHERE id = 1")
             self.assertEqual(vacancy["raw_description"], vacancy["description"])
@@ -672,6 +678,13 @@ class AtsLegacyMigrationTest(unittest.TestCase):
             self.assertIn("action", ai_columns)
             self.assertIn("source_resume_id", ai_columns)
             self.assertIn("context_sources_json", ai_columns)
+            self.assertIn("response_language", ai_columns)
+            self.assertEqual(
+                database.fetch_one(
+                    "SELECT response_language FROM ai_runs WHERE id = 1"
+                )["response_language"],
+                "auto",
+            )
 
 
 if __name__ == "__main__":
