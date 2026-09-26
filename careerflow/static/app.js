@@ -254,12 +254,19 @@ function renderList() {
   }
     listEl.innerHTML = state.vacancies.map(item => `
     <button class="vacancy-card ${state.selected?.id === item.id ? "active" : ""}" data-id="${item.id}">
-      <strong>${escapeHtml(item.title)}</strong>
+      <strong class="vacancy-title" title="${escapeAttr(item.title)}">${escapeHtml(compactVacancyTitle(item.title))}</strong>
       <span>${escapeHtml(item.company || "Company not set")}</span>
       <span class="vacancy-meta">${escapeHtml(item.salary || "Salary not specified")} · Added ${new Date(`${item.created_at}Z`).toLocaleDateString()}</span>
       <span class="vacancy-summary">${escapeHtml(item.summary || "No summary yet")}</span>
       <span class="card-meta"><span class="badge">${escapeHtml(item.status)}</span><span class="score-group"><span title="Heuristic ATS text-match score, not a probability of getting the job">${item.match_percent == null ? "—" : `ATS ${item.match_percent}%`}</span>${item.ai_match_percent == null ? "" : `<span title="AI resume-to-vacancy score">AI ${item.ai_match_percent}%</span>`}</span></span>
     </button>`).join("");
+}
+
+function compactVacancyTitle(title) {
+  const value = String(title || "").trim();
+  const withoutPrefix = value.replace(/^(?:вакансия|ищем|нужен|требуется)\s+/i, "");
+  const beforeCompany = withoutPrefix.split(/\s+(?:в компании|в компанию|—|–|—)\s+/i)[0].trim();
+  return (beforeCompany || withoutPrefix || value).slice(0, 88);
 }
 
 function renderEmpty() {
@@ -362,7 +369,7 @@ function renderVacancy(vacancy) {
   renderList();
   workspace.innerHTML = `
     <div class="workspace-head">
-      <div><p class="eyebrow">${escapeHtml(vacancy.status)}</p><h2>${escapeHtml(vacancy.title)}</h2><p class="muted">${escapeHtml(vacancy.company || "Company not set")} · Added ${new Date(vacancy.created_at + "Z").toLocaleDateString()}</p></div>
+      <div><p class="eyebrow">${escapeHtml(vacancy.status)}</p><h2 class="vacancy-title" title="${escapeAttr(vacancy.title)}">${escapeHtml(compactVacancyTitle(vacancy.title))}</h2><p class="muted">${escapeHtml(vacancy.company || "Company not set")} · Added ${new Date(vacancy.created_at + "Z").toLocaleDateString()}</p></div>
       <div class="actions"><button id="export-report" class="secondary">Export .md</button><button id="edit-overview" class="secondary">Edit</button><button id="archive-vacancy" class="secondary">${vacancy.archived_at ? "Restore" : "Archive"}</button><button id="delete-vacancy" class="danger">Delete</button></div>
     </div>
     ${stageBar(vacancy)}
@@ -464,6 +471,7 @@ async function renderExistingDescriptionReview(vacancy) {
         const description = target.querySelector("[data-cleaned-description]").value;
         const updated = await api(`/api/vacancies/${vacancy.id}/description/apply`, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ description, method: preview.method }) });
         await loadVacancies();
+        target.innerHTML = "";
         if (isCurrentView(view)) { renderVacancy(updated); toast("Cleaned description confirmed"); }
       }, target.querySelector("#cleaning-error"), view);
     };
@@ -810,7 +818,18 @@ async function exportReport(vacancy) {
 }
 
 function aiHistoryItem(run) {
-  return `<article class="item-row"><div><strong>${escapeHtml(run.prompt)}</strong><p class="muted">${new Date(run.created_at + "Z").toLocaleString()} · ${escapeHtml(run.model || "Legacy model unknown")} · ${escapeHtml(run.reasoning_effort || "effort unknown")}</p></div><div class="actions"><span class="badge ${run.status === "completed" ? "success" : ""}">${escapeHtml(run.status)}</span><button class="secondary" type="button" data-open-ai-run="${run.id}" aria-label="View saved response ${run.id}">View response</button></div></article>`;
+  return `<article class="item-row"><div><strong class="ai-history-title">${escapeHtml(shortAiPrompt(run.prompt))}</strong><p class="muted">${new Date(run.created_at + "Z").toLocaleString()} · ${escapeHtml(run.model || "Legacy model unknown")} · ${escapeHtml(run.reasoning_effort || "effort unknown")}</p></div><div class="actions"><span class="badge ${run.status === "completed" ? "success" : ""}">${escapeHtml(run.status)}</span><button class="secondary" type="button" data-open-ai-run="${run.id}" aria-label="View saved response ${run.id}">View response</button></div></article>`;
+}
+
+function shortAiPrompt(prompt) {
+  const value = String(prompt || "").trim();
+  if (/^compare the selected resume/i.test(value)) return "Match resume to vacancy";
+  if (/^review the heuristic ats/i.test(value)) return "Review ATS analysis";
+  if (/^suggest truthful improvements/i.test(value)) return "Improve resume";
+  if (/^analyze the role/i.test(value)) return "Analyze vacancy";
+  if (/^prepare a focused interview/i.test(value)) return "Prepare for interview";
+  if (/^analyze the interview notes/i.test(value)) return "Analyze interview notes";
+  return value.length > 92 ? `${value.slice(0, 89)}…` : value;
 }
 
 function formatAiMatchResponse(response) {

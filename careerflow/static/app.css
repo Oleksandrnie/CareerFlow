@@ -179,3 +179,41 @@ dialog form { display: grid; gap: 16px; padding: 24px; }
   .cleaning-review textarea { min-height: 180px; }
   .dialog-actions > button { flex: 1 1 120px; }
 }
+
+/* Compact pipeline workspace */
+.topbar { position: sticky; top: 0; z-index: 20; height: 68px; padding: 10px 22px; }
+.topbar h1 { font-size: 20px; }
+.primary-nav { margin-left: 20px; }
+.primary-nav-item { padding: 0 11px; font-size: 13px; }
+.primary, .secondary, .danger { padding: 8px 12px; font-size: 13px; }
+.layout { min-height: calc(100vh - 68px); grid-template-columns: 310px 1fr; }
+.sidebar { padding: 16px 12px; }
+.vacancy-list { gap: 6px; }
+.vacancy-card { padding: 10px; }
+.vacancy-card .vacancy-title { display: -webkit-box; overflow: hidden; line-height: 1.2; -webkit-box-orient: vertical; -webkit-line-clamp: 2; }
+.workspace { padding: 24px; }
+.workspace-head { margin-bottom: 14px; gap: 14px; }
+.workspace-head h2 { max-width: 620px; display: -webkit-box; overflow: hidden; font-size: 26px; line-height: 1.12; -webkit-box-orient: vertical; -webkit-line-clamp: 2; }
+.stage-scroll { margin-bottom: 14px; padding-bottom: 5px; }
+.stage-bar { gap: 12px; padding-right: 4px; }
+.stage-step { flex-basis: 104px; padding: 8px 10px; font-size: 11px; text-align: center; }
+.stage-step:not(:last-child)::after { right: -8px; }
+.tabs { margin-bottom: 14px; }
+.tab { padding: 8px 10px; font-size: 13px; }
+.panel { padding: 18px; border-radius: 13px; }
+.section-head { margin-bottom: 14px; }
+.item-row { padding: 9px; }
+.item-row .actions { justify-content: center; align-items: center; flex-wrap: wrap; }
+.item-row .actions > button, .item-row .actions > a { padding: 7px 9px; font-size: 12px; text-align: center; }
+.timeline { max-height: 58vh; overflow-y: auto; padding-right: 8px; }
+.timeline article { min-height: 62px; }
+.timeline article:not(:last-child) > span::after { height: 52px; }
+.timeline p { font-size: 12px; }
+textarea { resize: vertical; max-width: 100%; }
+.ai-history-result, #ai-result { font-size: 13px; }
+.ai-history-result .ai-response, #ai-result .ai-response { font-size: 12px; }
+.ai-readable { font-size: 13px; }
+.ai-history-title { display: -webkit-box; overflow: hidden; font-size: 13px; line-height: 1.25; -webkit-box-orient: vertical; -webkit-line-clamp: 2; }
+#cleaning-review:has(.cleaning-review) { position: fixed; inset: 0; z-index: 30; display: grid; place-items: center; padding: 20px; background: #13201966; }
+#cleaning-review:has(.cleaning-review) .cleaning-review { width: min(1040px, 100%); max-height: min(88vh, 760px); overflow: auto; margin: 0; padding: 20px 20px 76px; background: var(--surface); box-shadow: 0 24px 80px #12231a4d; }
+#cleaning-review:has(.cleaning-review) .cleaning-review .dialog-actions { position: sticky; bottom: -1px; z-index: 2; padding: 10px 0 0; background: linear-gradient(transparent, var(--surface) 25%); }
