@@ -45,8 +45,10 @@ class Settings:
     codex_timeout_seconds: int
     codex_default_model: str = "gpt-5.6-luna"
     codex_reasoning_effort: str = "low"
-    codex_cleaning_model: str = "gpt-5.6-sol"
-    codex_cleaning_effort: str = "medium"
+    codex_cleaning_model: str = "gpt-5.6-luna"
+    codex_cleaning_effort: str = "low"
+    codex_cleaning_escalation_model: str = "gpt-5.6-sol"
+    codex_cleaning_escalation_effort: str = "medium"
 
     @classmethod
     def from_env(cls, project_root: Path | None = None) -> "Settings":
@@ -66,8 +68,14 @@ class Settings:
             codex_timeout_seconds=int(os.getenv("CAREERFLOW_CODEX_TIMEOUT", "180")),
             codex_default_model=os.getenv("CAREERFLOW_CODEX_MODEL", "gpt-5.6-luna"),
             codex_reasoning_effort=os.getenv("CAREERFLOW_CODEX_EFFORT", "low"),
-            codex_cleaning_model=os.getenv("CAREERFLOW_CLEANING_CODEX_MODEL", "gpt-5.6-sol"),
-            codex_cleaning_effort=os.getenv("CAREERFLOW_CLEANING_CODEX_EFFORT", "medium"),
+            codex_cleaning_model=os.getenv("CAREERFLOW_CLEANING_CODEX_MODEL", "gpt-5.6-luna"),
+            codex_cleaning_effort=os.getenv("CAREERFLOW_CLEANING_CODEX_EFFORT", "low"),
+            codex_cleaning_escalation_model=os.getenv(
+                "CAREERFLOW_CLEANING_ESCALATION_CODEX_MODEL", "gpt-5.6-sol"
+            ),
+            codex_cleaning_escalation_effort=os.getenv(
+                "CAREERFLOW_CLEANING_ESCALATION_CODEX_EFFORT", "medium"
+            ),
         )
 
     def ensure_directories(self) -> None:

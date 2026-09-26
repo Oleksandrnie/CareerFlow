@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from typing import Annotated
+from typing import Annotated, Literal
 
 from fastapi import APIRouter, File, Form, HTTPException, Request, UploadFile
 from pydantic import BaseModel
@@ -35,6 +35,7 @@ class VacancyUpdate(BaseModel):
 
 class CleaningPreviewRequest(BaseModel):
     use_codex: bool = False
+    codex_profile: Literal["primary", "escalation"] = "primary"
 
 
 class CleaningApplyRequest(BaseModel):
@@ -105,6 +106,7 @@ async def preview_import(
     request: Request,
     text: Annotated[str, Form()] = "",
     use_codex: Annotated[bool, Form()] = False,
+    codex_profile: Annotated[Literal["primary", "escalation"], Form()] = "primary",
     file: Annotated[UploadFile | None, File()] = None,
 ) -> dict:
     raw_description = normalize_text(text)
@@ -129,6 +131,7 @@ async def preview_import(
             method=method,
             settings=request.app.state.settings,
             use_codex=use_codex,
+            codex_profile=codex_profile,
         )
     except (ValueError, RuntimeError) as exc:
         raise HTTPException(status_code=422, detail=str(exc)) from exc
@@ -166,6 +169,7 @@ def preview_existing_description(
             method="stored-raw-text",
             settings=request.app.state.settings,
             use_codex=payload.use_codex,
+            codex_profile=payload.codex_profile,
         )
     except (ValueError, RuntimeError) as exc:
         raise HTTPException(status_code=422, detail=str(exc)) from exc

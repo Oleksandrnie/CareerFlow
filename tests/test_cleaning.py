@@ -3,6 +3,7 @@ from __future__ import annotations
 import tempfile
 import unittest
 from pathlib import Path
+from unittest.mock import patch
 
 from fastapi.testclient import TestClient
 
@@ -121,10 +122,11 @@ class CleaningClassificationTest(unittest.TestCase):
         )
         self.assertEqual(preview["description"], "Salary: 120000 USD\nPython 3.12")
         self.assertNotIn("INVENTED", preview["description"])
-        self.assertEqual(preview["diagnostics"]["codex_model"], "gpt-5.6-sol")
-        self.assertEqual(preview["diagnostics"]["codex_effort"], "medium")
+        self.assertEqual(preview["diagnostics"]["codex_profile"], "primary")
+        self.assertEqual(preview["diagnostics"]["codex_model"], "gpt-5.6-luna")
+        self.assertEqual(preview["diagnostics"]["codex_effort"], "low")
 
-    def test_codex_cleaning_uses_dedicated_sol_medium_profile(self) -> None:
+    def test_codex_cleaning_uses_primary_luna_low_profile_by_default(self) -> None:
         blocks = split_blocks("Navigation\nRequired Python experience")
         observed = {}
 
@@ -138,7 +140,31 @@ class CleaningClassificationTest(unittest.TestCase):
             )
 
         classify_blocks_with_codex(self.settings, blocks, runner=fake_runner)
-        self.assertEqual(observed, {"model": "gpt-5.6-sol", "effort": "medium"})
+        self.assertEqual(observed, {"model": "gpt-5.6-luna", "effort": "low"})
+
+    def test_escalation_profile_is_request_scoped_and_does_not_mutate_defaults(self) -> None:
+        blocks = split_blocks("Navigation\nRequired Python experience")
+        observed = []
+
+        def fake_runner(settings, prompt):
+            observed.append((settings.codex_default_model, settings.codex_reasoning_effort))
+            return CodexResult(
+                '[{"id":"b1","classification":"remove"},'
+                '{"id":"b2","classification":"keep"}]',
+                ["codex"],
+            )
+
+        classify_blocks_with_codex(
+            self.settings, blocks, codex_profile="escalation", runner=fake_runner
+        )
+        classify_blocks_with_codex(self.settings, blocks, runner=fake_runner)
+
+        self.assertEqual(
+            observed,
+            [("gpt-5.6-sol", "medium"), ("gpt-5.6-luna", "low")],
+        )
+        self.assertEqual(self.settings.codex_cleaning_model, "gpt-5.6-luna")
+        self.assertEqual(self.settings.codex_cleaning_effort, "low")
 
     def test_codex_unknown_or_missing_ids_are_rejected(self) -> None:
         blocks = split_blocks("Python\nSQL")
@@ -201,7 +227,43 @@ class CleaningClassificationTest(unittest.TestCase):
                 self.assertEqual(preview["method"], "local-fallback:local-blocks")
                 self.assertEqual(preview["diagnostics"]["classification_source"], "local")
                 self.assertTrue(preview["diagnostics"]["fallback_used"])
+                self.assertEqual(preview["diagnostics"]["codex_profile"], "primary")
+                self.assertTrue(preview["diagnostics"]["escalation_available"])
+                self.assertEqual(
+                    preview["diagnostics"]["escalation_model"], "gpt-5.6-sol"
+                )
+                self.assertEqual(preview["diagnostics"]["escalation_effort"], "medium")
                 self.assertIn("Review uncertain blocks", preview["warnings"][0])
+
+    def test_escalation_failure_falls_back_without_proposing_another_retry(self) -> None:
+        def cli_failure(settings, prompt):
+            raise CodexError("CLI is busy")
+
+        preview = build_preview(
+            "Required Python\nApply now\nCareers",
+            settings=self.settings,
+            use_codex=True,
+            codex_profile="escalation",
+            codex_runner=cli_failure,
+        )
+
+        diagnostics = preview["diagnostics"]
+        self.assertEqual(diagnostics["codex_profile"], "escalation")
+        self.assertEqual(diagnostics["codex_model"], "gpt-5.6-sol")
+        self.assertEqual(diagnostics["codex_effort"], "medium")
+        self.assertTrue(diagnostics["fallback_used"])
+        self.assertFalse(diagnostics["escalation_available"])
+        self.assertNotIn("escalation_model", diagnostics)
+        self.assertNotIn("can be tried", preview["warnings"][0])
+
+    def test_invalid_profile_is_rejected_before_codex_runs(self) -> None:
+        with self.assertRaisesRegex(ValueError, "Unsupported Codex cleanup profile"):
+            build_preview(
+                "Required Python",
+                settings=self.settings,
+                use_codex=True,
+                codex_profile="invalid",  # type: ignore[arg-type]
+            )
 
     def test_structural_noise_and_recommendation_sections_are_removed_conservatively(self) -> None:
         preview = build_preview(
@@ -303,6 +365,49 @@ class CleaningApiTest(unittest.TestCase):
         self.assertNotIn("Search jobs", vacancy["description"])
         self.assertIsNotNone(vacancy["description_confirmed_at"])
         self.assertTrue(Path(vacancy["original_path"]).read_bytes() == html)
+
+    def test_preview_api_validates_and_forwards_request_scoped_codex_profile(self) -> None:
+        vacancy = self.client.post(
+            "/api/vacancies", data={"text": "Required Python\nApply now"}
+        ).json()
+
+        def classification(settings, blocks, *, codex_profile, runner):
+            self.assertEqual(codex_profile, "escalation")
+            return [
+                {**block, "classification": "keep", "reason": "test"}
+                for block in blocks
+            ]
+
+        with patch(
+            "careerflow.cleaning.classify_blocks_with_codex", side_effect=classification
+        ) as mocked:
+            response = self.client.post(
+                f"/api/vacancies/{vacancy['id']}/description/preview",
+                json={"use_codex": True, "codex_profile": "escalation"},
+            )
+
+        self.assertEqual(response.status_code, 200)
+        diagnostics = response.json()["diagnostics"]
+        self.assertEqual(diagnostics["codex_profile"], "escalation")
+        self.assertEqual(diagnostics["codex_model"], "gpt-5.6-sol")
+        self.assertEqual(diagnostics["codex_effort"], "medium")
+        mocked.assert_called_once()
+
+        invalid_json = self.client.post(
+            f"/api/vacancies/{vacancy['id']}/description/preview",
+            json={"use_codex": True, "codex_profile": "automatic"},
+        )
+        self.assertEqual(invalid_json.status_code, 422)
+
+        invalid_form = self.client.post(
+            "/api/vacancies/import-preview",
+            data={
+                "text": "Required Python",
+                "use_codex": "true",
+                "codex_profile": "automatic",
+            },
+        )
+        self.assertEqual(invalid_form.status_code, 422)
 
     def test_confirmed_html_preview_keeps_real_requirements_out_of_page_noise(self) -> None:
         html = b"""
