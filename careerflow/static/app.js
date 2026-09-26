@@ -258,7 +258,7 @@ function renderList() {
       <span>${escapeHtml(item.company || "Company not set")}</span>
       <span class="vacancy-meta">${escapeHtml(item.salary || "Salary not specified")} · Added ${new Date(`${item.created_at}Z`).toLocaleDateString()}</span>
       <span class="vacancy-summary">${escapeHtml(item.summary || "No summary yet")}</span>
-      <span class="card-meta"><span class="badge">${escapeHtml(item.status)}</span><span title="Heuristic ATS text-match score, not a probability of getting the job">${item.match_percent == null ? "—" : `ATS ${item.match_percent}%`}</span>${item.ai_match_percent == null ? "" : `<span title="AI resume-to-vacancy score">AI ${item.ai_match_percent}%</span>`}</span>
+      <span class="card-meta"><span class="badge">${escapeHtml(item.status)}</span><span class="score-group"><span title="Heuristic ATS text-match score, not a probability of getting the job">${item.match_percent == null ? "—" : `ATS ${item.match_percent}%`}</span>${item.ai_match_percent == null ? "" : `<span title="AI resume-to-vacancy score">AI ${item.ai_match_percent}%</span>`}</span></span>
     </button>`).join("");
 }
 
@@ -813,6 +813,14 @@ function aiHistoryItem(run) {
   return `<article class="item-row"><div><strong>${escapeHtml(run.prompt)}</strong><p class="muted">${new Date(run.created_at + "Z").toLocaleString()} · ${escapeHtml(run.model || "Legacy model unknown")} · ${escapeHtml(run.reasoning_effort || "effort unknown")}</p></div><div class="actions"><span class="badge ${run.status === "completed" ? "success" : ""}">${escapeHtml(run.status)}</span><button class="secondary" type="button" data-open-ai-run="${run.id}" aria-label="View saved response ${run.id}">View response</button></div></article>`;
 }
 
+function formatAiMatchResponse(response) {
+  let payload;
+  try { payload = JSON.parse(response); } catch { return `<pre class="ai-response">${escapeHtml(response)}</pre>`; }
+  if (!payload || typeof payload !== "object") return `<pre class="ai-response">${escapeHtml(response)}</pre>`;
+  const list = (value) => Array.isArray(value) && value.length ? `<ul>${value.map(item => `<li>${escapeHtml(String(item))}</li>`).join("")}</ul>` : `<p class="muted">—</p>`;
+  return `<div class="ai-readable"><div class="ai-readable-score"><strong>${escapeHtml(String(payload.match_percent ?? "—"))}%</strong><span>AI resume-to-vacancy score</span></div><h4>Summary</h4><p>${escapeHtml(String(payload.summary || "—"))}</p><div class="ai-readable-columns"><div><h4>Strengths</h4>${list(payload.strengths)}</div><div><h4>Gaps</h4>${list(payload.gaps)}</div></div></div>`;
+}
+
 async function renderAi(vacancy, view = null) {
   const panel = document.querySelector("#content-panel");
   const [history, catalog] = await Promise.all([
@@ -863,7 +871,7 @@ async function renderAi(vacancy, view = null) {
         if (run.status === "failed") {
           errorEl.textContent = run.error || "Codex could not complete this request.";
         } else {
-          panel.querySelector("#ai-result").innerHTML = `<hr><h4>Codex response · ${escapeHtml(run.model || payload.model)} · ${escapeHtml(run.reasoning_effort || payload.reasoning_effort)}</h4>${run.ai_match_percent != null ? `<p class="score-inline"><strong>AI ${run.ai_match_percent}%</strong> <span class="muted">AI resume-to-vacancy score</span></p>` : payload.action === "Match resume to vacancy" ? `<p class="error">AI score is not available because the model did not return valid JSON.</p>` : ""}<pre class="ai-response">${escapeHtml(run.response)}</pre><p class="muted">Review the response, then manually decide what to save as a new resume version or note.</p>`;
+          panel.querySelector("#ai-result").innerHTML = `<hr><h4>Codex response · ${escapeHtml(run.model || payload.model)} · ${escapeHtml(run.reasoning_effort || payload.reasoning_effort)}</h4>${run.ai_match_percent != null ? (payload.action === "Match resume to vacancy" ? formatAiMatchResponse(run.response) : `<p class="score-inline"><strong>AI ${run.ai_match_percent}%</strong> <span class="muted">AI resume-to-vacancy score</span></p>`) : payload.action === "Match resume to vacancy" ? `<p class="error">AI score is not available because the model did not return valid JSON.</p>` : `<pre class="ai-response">${escapeHtml(run.response)}</pre>`}<p class="muted">Review the response, then manually decide what to save as a new resume version or note.</p>`;
           if (run.ai_match_percent != null) { await loadVacancies(); state.selected = state.vacancies.find(item => item.id === vacancy.id) || state.selected; toast("AI match score updated"); }
           toast("Codex response received");
         }
