@@ -3,6 +3,8 @@
 from __future__ import annotations
 
 import mimetypes
+import re
+from datetime import datetime
 from pathlib import Path
 from uuid import uuid4
 
@@ -14,6 +16,26 @@ from .vacancies import get_vacancy
 STATUSES = {"Saved", "Applied", "Interview", "Waiting", "Offer", "Rejected"}
 TEXT_ATTACHMENT_EXTENSIONS = {".txt", ".md", ".html", ".htm", ".json", ".csv"}
 MAX_ATTACHMENT_BYTES = 100 * 1024 * 1024
+INTERVIEW_TIMESTAMP = re.compile(
+    r"\d{4}-\d{2}-\d{2}T\d{2}:\d{2}(?::\d{2}(?:\.\d{1,6})?)?(?:Z|[+-]\d{2}:\d{2})?"
+)
+INTERVIEW_OFFSET = re.compile(r"[+-](\d{2}):(\d{2})$")
+
+
+def _validated_interview_at(value: str) -> str:
+    timestamp = value.strip()
+    if not INTERVIEW_TIMESTAMP.fullmatch(timestamp):
+        raise ValueError("Interview date must be an ISO 8601 datetime (YYYY-MM-DDTHH:MM, optionally with Z or timezone offset)")
+    offset = INTERVIEW_OFFSET.search(timestamp)
+    if offset:
+        hours, minutes = (int(part) for part in offset.groups())
+        if hours > 14 or minutes >= 60 or (hours == 14 and minutes != 0):
+            raise ValueError("Interview timezone offset must be between -14:00 and +14:00")
+    try:
+        datetime.fromisoformat(timestamp.replace("Z", "+00:00"))
+    except ValueError as exc:
+        raise ValueError("Interview date must be a valid calendar datetime") from exc
+    return timestamp
 
 
 def _ensure_vacancy(database: Database, vacancy_id: int) -> dict:
@@ -57,10 +79,13 @@ def add_interview(
     note: str,
     result: str,
 ) -> dict:
-    _ensure_vacancy(database, vacancy_id)
-    if not interview_at.strip():
-        raise ValueError("Interview date is required")
-    with database.transaction() as connection:
+    interview_at = _validated_interview_at(interview_at)
+    with database.transaction(immediate=True) as connection:
+        vacancy_exists = connection.execute(
+            "SELECT 1 FROM vacancies WHERE id = ?", (vacancy_id,)
+        ).fetchone()
+        if vacancy_exists is None:
+            raise LookupError("Vacancy not found")
         row = connection.execute(
             "SELECT COALESCE(MAX(sequence_number), 0) + 1 FROM interviews WHERE vacancy_id = ?",
             (vacancy_id,),
@@ -72,7 +97,7 @@ def add_interview(
             INSERT INTO interviews(vacancy_id, sequence_number, interview_at, interview_type, note, result)
             VALUES (?, ?, ?, ?, ?, ?)
             """,
-            (vacancy_id, sequence, interview_at.strip(), interview_type.strip() or "Interview", note.strip(), result.strip()),
+            (vacancy_id, sequence, interview_at, interview_type.strip() or "Interview", note.strip(), result.strip()),
         )
         connection.execute(
             "UPDATE vacancies SET status = 'Interview', updated_at = CURRENT_TIMESTAMP WHERE id = ?",
@@ -87,7 +112,7 @@ def add_interview(
                 vacancy_id,
                 f"Interview #{sequence} · {interview_type.strip() or 'Interview'}",
                 " · ".join(part for part in (note.strip(), result.strip()) if part),
-                interview_at.strip(),
+                interview_at,
             ),
         )
     return database.fetch_one("SELECT * FROM interviews WHERE id = ?", (interview_id,)) or {}

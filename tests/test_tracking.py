@@ -44,6 +44,32 @@ class TrackingApiTest(unittest.TestCase):
         self.assertIn("Interview #2 · Technical", titles)
         self.assertEqual(self.client.get(f"/api/vacancies/{self.vacancy['id']}").json()["status"], "Interview")
 
+    def test_interview_timestamp_requires_real_iso_datetime_and_accepts_offsets(self) -> None:
+        url = f"/api/vacancies/{self.vacancy['id']}/interviews"
+        for value in (
+            "yesterday-ish", "2026-09-21", "2026-09-21 10:00",
+            "2026-02-30T10:00", "2026-09-21T25:00",
+            "2026-09-21T10:00+25:00", "2026-09-21T10:00+02:99",
+            "2026-09-21T10:00+14:01", "   ",
+        ):
+            with self.subTest(value=value):
+                self.assertEqual(
+                    self.client.post(url, json={"interview_at": value}).status_code,
+                    422,
+                )
+        self.assertEqual(self.client.get(url).json(), [])
+        self.assertEqual(self.client.get(f"/api/vacancies/{self.vacancy['id']}").json()["status"], "Saved")
+
+        for sequence, value in enumerate(
+            ("2026-09-21T10:00", "2026-09-22T12:30Z", "2026-09-23T14:15+02:00"),
+            start=1,
+        ):
+            with self.subTest(value=value):
+                response = self.client.post(url, json={"interview_at": value})
+                self.assertEqual(response.status_code, 201)
+                self.assertEqual(response.json()["interview_at"], value)
+                self.assertEqual(response.json()["sequence_number"], sequence)
+
     def test_notes_and_attachments(self) -> None:
         note = self.client.post(
             f"/api/vacancies/{self.vacancy['id']}/notes", json={"body": "Ask about on-call rotation"}

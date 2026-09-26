@@ -6,9 +6,9 @@ from pathlib import Path
 
 from fastapi import APIRouter, HTTPException, Request
 from fastapi.responses import FileResponse
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, Field, field_validator
 
-from .codex import CodexError, build_prompt, run_codex
+from .codex import MODEL_PATTERN, CodexError, build_prompt, run_codex
 from .db import insert_and_get_id
 from .reports import build_report, get_report, save_report
 from .vacancies import get_vacancy
@@ -21,6 +21,22 @@ class AiRequest(BaseModel):
     prompt: str = Field(min_length=1, max_length=10_000)
     action: str = Field(default="", max_length=120)
     model: str = Field(default="", max_length=80)
+
+    @field_validator("prompt")
+    @classmethod
+    def require_nonempty_prompt(cls, value: str) -> str:
+        trimmed = value.strip()
+        if not trimmed:
+            raise ValueError("A prompt is required")
+        return trimmed
+
+    @field_validator("model")
+    @classmethod
+    def validate_model(cls, value: str) -> str:
+        trimmed = value.strip()
+        if trimmed and not MODEL_PATTERN.fullmatch(trimmed):
+            raise ValueError("Model name contains unsupported characters")
+        return trimmed
 
 
 @router.post("/reports", status_code=201)
@@ -51,17 +67,32 @@ def ai_history(request: Request, vacancy_id: int) -> list[dict]:
     )
 
 
+@router.get("/ai-runs/{run_id}")
+def get_ai_run(request: Request, vacancy_id: int, run_id: int) -> dict:
+    row = request.app.state.db.fetch_one(
+        "SELECT * FROM ai_runs WHERE id = ? AND vacancy_id = ?",
+        (run_id, vacancy_id),
+    )
+    if row is None:
+        raise HTTPException(status_code=404, detail="AI run not found")
+    return row
+
+
 @router.post("/ai-runs", status_code=201)
 def execute_ai(request: Request, vacancy_id: int, payload: AiRequest) -> dict:
     if get_vacancy(request.app.state.db, vacancy_id) is None:
         raise HTTPException(status_code=404, detail="Vacancy not found")
     context = build_report(request.app.state.db, vacancy_id)
-    prompt = build_prompt(payload.prompt, context, payload.action)
+    try:
+        prompt = build_prompt(payload.prompt, context, payload.action)
+    except ValueError as exc:
+        raise HTTPException(status_code=422, detail=str(exc)) from exc
+    selected_model = payload.model or request.app.state.settings.codex_default_model
     response = ""
     error = ""
     status = "completed"
     try:
-        result = run_codex(request.app.state.settings, prompt, model=payload.model)
+        result = run_codex(request.app.state.settings, prompt, model=selected_model)
         response = result.response
     except (CodexError, ValueError) as exc:
         status = "failed"
@@ -73,7 +104,7 @@ def execute_ai(request: Request, vacancy_id: int, payload: AiRequest) -> dict:
             INSERT INTO ai_runs(vacancy_id, prompt, model, response, status, error)
             VALUES (?, ?, ?, ?, ?, ?)
             """,
-            (vacancy_id, payload.prompt.strip(), payload.model, response, status, error),
+            (vacancy_id, payload.prompt, selected_model, response, status, error),
         )
         connection.execute(
             "INSERT INTO timeline_events(vacancy_id, event_type, title, details) VALUES (?, 'codex_run', ?, ?)",

@@ -107,10 +107,21 @@ def list_vacancies(database: Database, archived: bool = False) -> list[dict]:
 
 def update_vacancy(database: Database, vacancy_id: int, changes: dict[str, str]) -> dict | None:
     selected = {key: value.strip() for key, value in changes.items() if key in EDITABLE_FIELDS}
+    if "description" in selected:
+        selected["description"] = normalize_text(selected["description"])
+        if not selected["description"]:
+            raise ValueError("Vacancy description is required")
     if not selected:
         return get_vacancy(database, vacancy_id)
     assignments = ", ".join(f"{key} = ?" for key in selected)
-    with database.transaction() as connection:
+    with database.transaction(immediate=True) as connection:
+        current = connection.execute(
+            "SELECT description FROM vacancies WHERE id = ?", (vacancy_id,)
+        ).fetchone()
+        if current is None:
+            return None
+        if "description" in selected and selected["description"] != current["description"]:
+            assignments += ", description_revision = description_revision + 1, match_percent = NULL"
         cursor = connection.execute(
             f"UPDATE vacancies SET {assignments}, updated_at = CURRENT_TIMESTAMP WHERE id = ?",
             (*selected.values(), vacancy_id),
@@ -146,26 +157,35 @@ def delete_vacancy(
     vacancy_id: int,
     resume_policy: str,
 ) -> dict[str, int]:
-    vacancy = get_vacancy(database, vacancy_id)
-    if vacancy is None:
-        raise LookupError("Vacancy not found")
     if resume_policy not in {"delete_all", "preserve_resumes"}:
         raise ValueError("resume_policy must be delete_all or preserve_resumes")
-    resumes = database.fetch_all(
-        "SELECT * FROM resume_versions WHERE vacancy_id = ? ORDER BY version", (vacancy_id,)
-    )
-    paths_to_remove = [vacancy.get("original_path"), vacancy.get("extracted_text_path")]
-    paths_to_remove.extend(
-        item["stored_path"] for item in database.fetch_all(
-            "SELECT stored_path FROM attachments WHERE vacancy_id = ?", (vacancy_id,)
+    with database.transaction(immediate=True) as connection:
+        vacancy_row = connection.execute(
+            "SELECT * FROM vacancies WHERE id = ?", (vacancy_id,)
+        ).fetchone()
+        if vacancy_row is None:
+            raise LookupError("Vacancy not found")
+        vacancy = dict(vacancy_row)
+        resumes = [
+            dict(row)
+            for row in connection.execute(
+                "SELECT * FROM resume_versions WHERE vacancy_id = ? ORDER BY version",
+                (vacancy_id,),
+            ).fetchall()
+        ]
+        paths_to_remove = [vacancy.get("original_path"), vacancy.get("extracted_text_path")]
+        paths_to_remove.extend(
+            row["stored_path"]
+            for row in connection.execute(
+                "SELECT stored_path FROM attachments WHERE vacancy_id = ?", (vacancy_id,)
+            ).fetchall()
         )
-    )
-    paths_to_remove.extend(
-        item["stored_path"] for item in database.fetch_all(
-            "SELECT stored_path FROM generated_reports WHERE vacancy_id = ?", (vacancy_id,)
+        paths_to_remove.extend(
+            row["stored_path"]
+            for row in connection.execute(
+                "SELECT stored_path FROM generated_reports WHERE vacancy_id = ?", (vacancy_id,)
+            ).fetchall()
         )
-    )
-    with database.transaction() as connection:
         preserved = 0
         if resume_policy == "preserve_resumes":
             next_master = int(

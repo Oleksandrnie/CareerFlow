@@ -7,8 +7,6 @@ import re
 from collections import Counter
 
 from .db import Database, insert_and_get_id
-from .resumes import get_resume
-from .vacancies import get_vacancy
 
 
 STOP_WORDS = {
@@ -23,6 +21,18 @@ GENERIC_REQUIREMENT_WORDS = {
     "required", "requirement", "requirements", "skill", "skills",
     "знание", "знания", "навык", "навыки", "опыт", "требование", "требования",
 }
+
+NEGATION = re.compile(
+    r"(?i)\b(?:no|not|never|without|lack(?:ing|s)?|cannot|can't|don't|"
+    r"нет|без|не|отсутств\w*)\b"
+)
+YEARS = re.compile(
+    r"(?i)\b(\d+(?:[.,]\d+)?)\s*\+?\s*(?:years?|yrs?|лет|года?|год)\b"
+)
+
+
+def _years_amounts(text: str) -> list[float]:
+    return [float(match.replace(",", ".")) for match in YEARS.findall(text)]
 
 
 def _tokens(text: str) -> list[str]:
@@ -69,17 +79,30 @@ def analyze(vacancy_text: str, resume_text: str) -> dict:
             distinctive_tokens = requirement_tokens
         overlap = requirement_tokens & resume_tokens
         coverage = len(overlap) / len(requirement_tokens)
+        required_years = max(_years_amounts(requirement), default=None)
         best_evidence = ""
-        best_score = (0, 0)
+        best_score = (-1, -1, -1)
+        best_negative = False
+        best_years_ok = True
         for sentence in resume_sentences:
             sentence_tokens = set(_tokens(sentence))
+            if not (distinctive_tokens & sentence_tokens):
+                continue
+            negative = bool(NEGATION.search(sentence))
+            stated_years = _years_amounts(sentence)
+            years_ok = required_years is None or (
+                bool(stated_years) and min(stated_years) >= required_years
+            )
             score = (
+                int(not negative and years_ok),
                 len(distinctive_tokens & sentence_tokens),
                 len(requirement_tokens & sentence_tokens),
             )
             if score > best_score:
                 best_score = score
                 best_evidence = sentence
+                best_negative = negative
+                best_years_ok = years_ok
         if coverage >= 0.6:
             classification = "covered"
         elif coverage >= 0.2:
@@ -87,19 +110,25 @@ def analyze(vacancy_text: str, resume_text: str) -> dict:
         else:
             classification = "missing"
             best_evidence = ""
+        if classification == "covered" and (not best_evidence or best_negative or not best_years_ok):
+            classification = "partial"
+        if classification == "partial" and best_negative:
+            interpretation = "Negative wording is present; this does not confirm the required experience"
+        elif classification == "partial" and not best_years_ok:
+            interpretation = "The required years are not evidenced by this resume sentence"
+        elif classification == "covered":
+            interpretation = "Evidence found in this resume version"
+        elif classification == "partial":
+            interpretation = "Some related evidence is present; the requirement may be under-described"
+        else:
+            interpretation = "Not evidenced in this resume version; this does not prove the experience is absent"
         requirement_results.append(
             {
                 "requirement": requirement,
                 "classification": classification,
                 "matched_keywords": sorted(overlap),
                 "evidence": best_evidence[:420],
-                "interpretation": (
-                    "Evidence found in this resume version"
-                    if classification == "covered"
-                    else "Some related evidence is present; the requirement may be under-described"
-                    if classification == "partial"
-                    else "Not evidenced in this resume version; this does not prove the experience is absent"
-                ),
+                "interpretation": interpretation,
             }
         )
 
@@ -126,23 +155,34 @@ def analyze(vacancy_text: str, resume_text: str) -> dict:
 
 
 def run_analysis(database: Database, vacancy_id: int, resume_id: int) -> dict:
-    vacancy = get_vacancy(database, vacancy_id)
-    if vacancy is None:
-        raise LookupError("Vacancy not found")
-    resume = get_resume(database, resume_id)
-    if resume is None:
-        raise LookupError("Resume not found")
-    if resume["kind"] == "vacancy" and resume["vacancy_id"] != vacancy_id:
-        raise ValueError("This resume belongs to a different vacancy")
-    result = analyze(vacancy["description"], resume["content_text"])
-    with database.transaction() as connection:
+    with database.transaction(immediate=True) as connection:
+        vacancy = connection.execute(
+            "SELECT * FROM vacancies WHERE id = ?", (vacancy_id,)
+        ).fetchone()
+        if vacancy is None:
+            raise LookupError("Vacancy not found")
+        resume = connection.execute(
+            "SELECT * FROM resume_versions WHERE id = ?", (resume_id,)
+        ).fetchone()
+        if resume is None:
+            raise LookupError("Resume not found")
+        if resume["kind"] == "vacancy" and resume["vacancy_id"] != vacancy_id:
+            raise ValueError("This resume belongs to a different vacancy")
+        result = analyze(vacancy["description"], resume["content_text"])
         analysis_id = insert_and_get_id(
             connection,
             """
-            INSERT INTO ats_analyses(vacancy_id, resume_version_id, match_percent, result_json)
-            VALUES (?, ?, ?, ?)
+            INSERT INTO ats_analyses(
+                vacancy_id, resume_version_id, match_percent, result_json,
+                description_snapshot, description_revision,
+                resume_kind_at_analysis, resume_version_at_analysis
+            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?)
             """,
-            (vacancy_id, resume_id, result["match_percent"], json.dumps(result, ensure_ascii=False)),
+            (
+                vacancy_id, resume_id, result["match_percent"],
+                json.dumps(result, ensure_ascii=False), vacancy["description"],
+                vacancy["description_revision"], resume["kind"], resume["version"],
+            ),
         )
         connection.execute(
             "UPDATE vacancies SET match_percent = ?, updated_at = CURRENT_TIMESTAMP WHERE id = ?",
@@ -158,18 +198,41 @@ def run_analysis(database: Database, vacancy_id: int, resume_id: int) -> dict:
     return get_analysis(database, analysis_id) or {}
 
 
-def get_analysis(database: Database, analysis_id: int) -> dict | None:
-    row = database.fetch_one("SELECT * FROM ats_analyses WHERE id = ?", (analysis_id,))
+def _load_analysis(database: Database, query: str, params: tuple[int, ...]) -> dict | None:
+    row = database.fetch_one(query, params)
     if row:
+        current_revision = row.pop("current_description_revision")
+        current_description = row.pop("current_description")
+        row["is_stale"] = (
+            row["description_revision"] is None
+            or row["description_revision"] != current_revision
+            or row["description_snapshot"] != current_description
+        )
         row["result"] = json.loads(row.pop("result_json"))
     return row
+
+
+def get_analysis(database: Database, analysis_id: int) -> dict | None:
+    return _load_analysis(
+        database,
+        """
+        SELECT a.*, v.description_revision AS current_description_revision,
+               v.description AS current_description
+        FROM ats_analyses AS a JOIN vacancies AS v ON v.id = a.vacancy_id
+        WHERE a.id = ?
+        """,
+        (analysis_id,),
+    )
 
 
 def latest_analysis(database: Database, vacancy_id: int) -> dict | None:
-    row = database.fetch_one(
-        "SELECT * FROM ats_analyses WHERE vacancy_id = ? ORDER BY created_at DESC, id DESC LIMIT 1",
+    return _load_analysis(
+        database,
+        """
+        SELECT a.*, v.description_revision AS current_description_revision,
+               v.description AS current_description
+        FROM ats_analyses AS a JOIN vacancies AS v ON v.id = a.vacancy_id
+        WHERE a.vacancy_id = ? ORDER BY a.created_at DESC, a.id DESC LIMIT 1
+        """,
         (vacancy_id,),
     )
-    if row:
-        row["result"] = json.loads(row.pop("result_json"))
-    return row

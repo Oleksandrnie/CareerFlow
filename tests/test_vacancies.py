@@ -52,6 +52,21 @@ class VacancyApiTest(unittest.TestCase):
         self.assertEqual(self.client.post(f"/api/vacancies/{vacancy['id']}/restore").status_code, 200)
         self.assertEqual(len(self.client.get("/api/vacancies").json()), 1)
 
+    def test_description_patch_rejects_empty_text_without_mutation(self) -> None:
+        vacancy = self.client.post(
+            "/api/vacancies", data={"text": "Engineer\nPython required"}
+        ).json()
+        url = f"/api/vacancies/{vacancy['id']}"
+        rejected = self.client.patch(url, json={"description": "  \n  \t "})
+        self.assertEqual(rejected.status_code, 422)
+        self.assertEqual(self.client.get(url).json()["description"], vacancy["description"])
+
+        updated = self.client.patch(
+            url, json={"description": "  Required Python\n\n  SQL  "}
+        )
+        self.assertEqual(updated.status_code, 200)
+        self.assertEqual(updated.json()["description"], "Required Python\nSQL")
+
     def test_html_import_removes_scripts_and_preserves_original(self) -> None:
         content = b"<html><style>.bad{}</style><h1>Backend Engineer</h1><p>Company: Northwind</p><script>alert(1)</script><p>Python and SQL</p></html>"
         response = self.client.post(
