@@ -78,7 +78,7 @@ class ConcurrentIntegrityTest(unittest.TestCase):
         self.assertEqual(sorted(item["version"] for item in created), list(range(1, count + 1)))
         stored_files = list(
             (self.storage_dir / "resumes" / f"vacancy-{self.vacancy['id']}").glob(
-                "*/extracted.txt"
+                "*/resume.md"
             )
         )
         self.assertEqual(len(stored_files), count)
@@ -201,7 +201,7 @@ class MasterVersionMigrationTest(unittest.TestCase):
             self.assertEqual([row["version"] for row in rows], [1, 4, 3])
             self.assertEqual(
                 database.fetch_one("SELECT MAX(version) AS version FROM schema_version")["version"],
-                3,
+                4,
             )
             with self.assertRaises(sqlite3.IntegrityError):
                 with database.transaction() as connection:

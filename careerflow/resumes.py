@@ -10,8 +10,18 @@ from .db import Database, insert_and_get_id
 from .files import normalize_text, safe_filename, write_bytes, write_text
 
 
+RESUME_WITH_SOURCE = """
+SELECT child.*, source.kind AS source_kind, source.version AS source_version,
+       source.label AS source_label, source.vacancy_id AS source_vacancy_id
+FROM resume_versions AS child
+LEFT JOIN resume_versions AS source ON source.id = child.source_resume_id
+"""
+
+
 def get_resume(database: Database, resume_id: int) -> dict | None:
-    return database.fetch_one("SELECT * FROM resume_versions WHERE id = ?", (resume_id,))
+    return database.fetch_one(
+        f"{RESUME_WITH_SOURCE} WHERE child.id = ?", (resume_id,)
+    )
 
 
 def get_original_resume(database: Database, storage_dir: Path, resume_id: int) -> tuple[Path, str]:
@@ -33,12 +43,31 @@ def get_original_resume(database: Database, storage_dir: Path, resume_id: int) -
 def list_resumes(database: Database, kind: str, vacancy_id: int | None = None) -> list[dict]:
     if kind == "master":
         return database.fetch_all(
-            "SELECT * FROM resume_versions WHERE kind = 'master' AND vacancy_id IS NULL ORDER BY version DESC"
+            f"{RESUME_WITH_SOURCE} WHERE child.kind = 'master' AND child.vacancy_id IS NULL ORDER BY child.version DESC"
         )
     return database.fetch_all(
-        "SELECT * FROM resume_versions WHERE kind = 'vacancy' AND vacancy_id = ? ORDER BY version DESC",
+        f"{RESUME_WITH_SOURCE} WHERE child.kind = 'vacancy' AND child.vacancy_id = ? ORDER BY child.version DESC",
         (vacancy_id,),
     )
+
+
+def _validate_source(
+    connection, *, kind: str, vacancy_id: int | None, source_resume_id: int | None
+) -> dict | None:
+    if source_resume_id is None:
+        return None
+    row = connection.execute(
+        "SELECT id, kind, vacancy_id, version FROM resume_versions WHERE id = ?",
+        (source_resume_id,),
+    ).fetchone()
+    if row is None:
+        raise LookupError("Source resume not found")
+    source = dict(row)
+    if kind == "master" and source["kind"] != "master":
+        raise ValueError("A Master Resume version can only be based on another Master Resume")
+    if kind == "vacancy" and source["kind"] == "vacancy" and source["vacancy_id"] != vacancy_id:
+        raise ValueError("A vacancy resume can only use a source from the same vacancy")
+    return source
 
 
 def create_resume(
@@ -51,6 +80,7 @@ def create_resume(
     label: str = "",
     original_filename: str | None = None,
     original_content: bytes | None = None,
+    source_resume_id: int | None = None,
 ) -> dict:
     if kind not in {"master", "vacancy"}:
         raise ValueError("Resume kind must be master or vacancy")
@@ -65,7 +95,7 @@ def create_resume(
     scope = "master" if kind == "master" else f"vacancy-{vacancy_id}"
     folder = storage_dir / "resumes" / scope / uuid4().hex
     try:
-        extracted_path = folder / "extracted.txt"
+        extracted_path = folder / "resume.md"
         write_text(extracted_path, normalized)
         stored_filename: str | None = None
         original_path: Path | None = None
@@ -75,6 +105,12 @@ def create_resume(
             write_bytes(original_path, original_content)
 
         with database.transaction(immediate=True) as connection:
+            source = _validate_source(
+                connection,
+                kind=kind,
+                vacancy_id=vacancy_id,
+                source_resume_id=source_resume_id,
+            )
             if vacancy_id is None:
                 row = connection.execute(
                     "SELECT COALESCE(MAX(version), 0) + 1 FROM resume_versions WHERE kind = 'master' AND vacancy_id IS NULL"
@@ -95,21 +131,32 @@ def create_resume(
                 """
                 INSERT INTO resume_versions(
                     vacancy_id, kind, version, label, original_filename, original_path,
-                    extracted_text_path, content_text
-                ) VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+                    extracted_text_path, content_text, source_resume_id
+                ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
                 """,
                 (
                     vacancy_id, kind, version, label.strip(), stored_filename,
                     str(original_path) if original_path else None, str(extracted_path), normalized,
+                    source_resume_id,
                 ),
             )
             if vacancy_id is not None:
+                source_detail = ""
+                if source:
+                    source_detail = (
+                        f"Based on {'Master Resume' if source['kind'] == 'master' else 'Vacancy Resume'} "
+                        f"v{source['version']} (ID {source['id']})"
+                    )
                 connection.execute(
                     """
                     INSERT INTO timeline_events(vacancy_id, event_type, title, details)
                     VALUES (?, 'resume_created', ?, ?)
                     """,
-                    (vacancy_id, f"Resume v{version} created", label.strip()),
+                    (
+                        vacancy_id,
+                        f"Resume v{version} created",
+                        " · ".join(part for part in (label.strip(), source_detail) if part),
+                    ),
                 )
     except Exception:
         shutil.rmtree(folder, ignore_errors=True)
