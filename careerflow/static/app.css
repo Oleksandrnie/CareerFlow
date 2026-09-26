@@ -200,7 +200,7 @@ dialog form { display: grid; gap: 16px; padding: 24px; }
 .stage-step:not(:last-child)::after { right: -8px; }
 .tabs { margin-bottom: 14px; }
 .tab { padding: 8px 10px; font-size: 13px; }
-.panel { padding: 18px; border-radius: 13px; }
+.panel { width: 100%; max-width: none; padding: 18px; border-radius: 13px; }
 .section-head { margin-bottom: 14px; }
 .item-row { padding: 9px; }
 .item-row .actions { justify-content: center; align-items: center; flex-wrap: wrap; }
