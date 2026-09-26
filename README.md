@@ -83,7 +83,11 @@ CAREERFLOW_CODEX_BINARY=/path/to/codex
 CAREERFLOW_CODEX_MODEL=gpt-5.6-luna
 CAREERFLOW_CODEX_EFFORT=low
 CAREERFLOW_CODEX_TIMEOUT=180
+CAREERFLOW_CLEANING_CODEX_MODEL=gpt-5.6-sol
+CAREERFLOW_CLEANING_CODEX_EFFORT=medium
 ```
+
+При запуске приложение автоматически читает локальный `.env` в корне проекта; уже заданные переменные shell имеют приоритет. Пример доступен в `.env.example`. Очистка вакансий использует отдельный профиль `gpt-5.6-sol / medium`, чтобы длинные HTML-страницы с каталогами и рекламными блоками успевали классифицироваться; его можно переопределить двумя переменными выше. После изменения `.env` перезапустите сервер.
 
 ## Данные и резервное копирование
 

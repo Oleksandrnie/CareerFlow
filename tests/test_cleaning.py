@@ -121,6 +121,24 @@ class CleaningClassificationTest(unittest.TestCase):
         )
         self.assertEqual(preview["description"], "Salary: 120000 USD\nPython 3.12")
         self.assertNotIn("INVENTED", preview["description"])
+        self.assertEqual(preview["diagnostics"]["codex_model"], "gpt-5.6-sol")
+        self.assertEqual(preview["diagnostics"]["codex_effort"], "medium")
+
+    def test_codex_cleaning_uses_dedicated_sol_medium_profile(self) -> None:
+        blocks = split_blocks("Navigation\nRequired Python experience")
+        observed = {}
+
+        def fake_runner(settings, prompt):
+            observed["model"] = settings.codex_default_model
+            observed["effort"] = settings.codex_reasoning_effort
+            return CodexResult(
+                '[{"id":"b1","classification":"remove"},'
+                '{"id":"b2","classification":"keep"}]',
+                ["codex"],
+            )
+
+        classify_blocks_with_codex(self.settings, blocks, runner=fake_runner)
+        self.assertEqual(observed, {"model": "gpt-5.6-sol", "effort": "medium"})
 
     def test_codex_unknown_or_missing_ids_are_rejected(self) -> None:
         blocks = split_blocks("Python\nSQL")
@@ -135,7 +153,7 @@ class CleaningClassificationTest(unittest.TestCase):
                     runner=lambda settings, prompt, value=response: CodexResult(value, ["codex"]),
                 )
 
-    def test_codex_cannot_restore_clear_noise_or_remove_reviewable_uncertainty(self) -> None:
+    def test_codex_cannot_restore_clear_noise_but_can_resolve_uncertainty(self) -> None:
         def fake_runner(settings, prompt):
             return CodexResult(
                 '[{"id":"b1","classification":"keep"},'
@@ -150,14 +168,14 @@ class CleaningClassificationTest(unittest.TestCase):
             use_codex=True,
             codex_runner=fake_runner,
         )
-        self.assertEqual(preview["description"], "Required Python\nCareers")
+        self.assertEqual(preview["description"], "Required Python")
         self.assertEqual(preview["method"], "codex:local-blocks")
         self.assertEqual(
             [(item["text"], item["classification"]) for item in preview["blocks"]],
             [
                 ("Required Python", "keep"),
                 ("Apply now", "remove"),
-                ("Careers", "uncertain"),
+                ("Careers", "remove"),
             ],
         )
 
