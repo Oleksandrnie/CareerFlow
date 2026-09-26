@@ -103,6 +103,38 @@ class ReportsAndCodexTest(unittest.TestCase):
         self.assertIn(f"Vacancy Resume v{latest['version']}: Draft", report)
         self.assertNotIn("LATEST_UNSUBMITTED_CV_DETAIL", report)
 
+    def test_deleted_resume_is_redacted_from_new_and_existing_reports(self) -> None:
+        vacancy = self.client.post(
+            "/api/vacancies", data={"text": "Python Engineer\nRequired Python experience."}
+        ).json()
+        secret = "PRIVATE_RESUME_TEXT Python experience in a confidential project."
+        resume = self.client.post(
+            "/api/resumes", data={"kind": "master", "text": secret}
+        ).json()
+        self.client.post(
+            f"/api/vacancies/{vacancy['id']}/ats",
+            json={"resume_version_id": resume["id"]},
+        )
+        existing = self.client.post(f"/api/vacancies/{vacancy['id']}/reports").json()
+        self.assertIn("PRIVATE_RESUME_TEXT", existing["markdown"])
+
+        deleted = self.client.delete(f"/api/resumes/{resume['id']}").json()
+        self.assertEqual(deleted["reports_redacted"], 1)
+        self.assertTrue(Path(existing["stored_path"]).is_file())
+        downloaded = self.client.get(
+            f"/api/vacancies/{vacancy['id']}/reports/{existing['id']}/download"
+        )
+        self.assertEqual(downloaded.status_code, 200)
+        self.assertNotIn(b"PRIVATE_RESUME_TEXT", downloaded.content)
+
+        fresh = self.client.post(
+            f"/api/vacancies/{vacancy['id']}/reports"
+        ).json()["markdown"]
+        self.assertNotIn("PRIVATE_RESUME_TEXT", fresh)
+        self.assertIn("resume version was deleted", fresh)
+        self.assertIn("Resume-derived evidence is omitted", fresh)
+        self.assertIn("Historical match (not current)", fresh)
+
     def test_codex_command_is_noninteractive_read_only_and_no_shell(self) -> None:
         calls = {}
 

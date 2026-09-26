@@ -185,6 +185,134 @@ class ResumeAndAtsTest(unittest.TestCase):
         original_path.unlink()
         self.assertEqual(self.client.get(download_url).status_code, 404)
 
+    def test_delete_resume_redacts_tombstone_removes_files_and_hides_access(self) -> None:
+        response = self.client.post(
+            "/api/resumes",
+            data={
+                "kind": "vacancy",
+                "vacancy_id": self.vacancy["id"],
+                "label": "Private final",
+            },
+            files={"file": ("private.txt", b"SECRET RESUME CONTENT", "text/plain")},
+        )
+        self.assertEqual(response.status_code, 201)
+        resume = response.json()
+        version_folder = Path(resume["extracted_text_path"]).parent
+        self.assertTrue(version_folder.is_dir())
+        self.client.post(f"/api/resumes/{resume['id']}/submit")
+
+        deleted = self.client.delete(f"/api/resumes/{resume['id']}")
+        self.assertEqual(deleted.status_code, 200)
+        summary = deleted.json()
+        self.assertFalse(summary["already_deleted"])
+        self.assertTrue(summary["files_removed"])
+        self.assertFalse(version_folder.exists())
+
+        row = self.context.app.state.db.fetch_one(
+            "SELECT * FROM resume_versions WHERE id = ?", (resume["id"],)
+        )
+        self.assertEqual(row["id"], resume["id"])
+        self.assertEqual(row["version"], resume["version"])
+        self.assertEqual(row["content_text"], "")
+        self.assertEqual(row["label"], "")
+        self.assertIsNone(row["original_path"])
+        self.assertIsNone(row["extracted_text_path"])
+        self.assertEqual(row["is_submitted"], 0)
+        self.assertIsNotNone(row["deleted_at"])
+
+        for method, url in (
+            (self.client.get, f"/api/resumes/{resume['id']}"),
+            (self.client.get, f"/api/resumes/{resume['id']}/download"),
+            (self.client.get, f"/api/resumes/{resume['id']}/markdown"),
+            (self.client.post, f"/api/resumes/{resume['id']}/submit"),
+        ):
+            with self.subTest(url=url):
+                self.assertEqual(method(url).status_code, 404)
+        self.assertEqual(
+            self.client.get(
+                f"/api/resumes?kind=vacancy&vacancy_id={self.vacancy['id']}"
+            ).json(),
+            [],
+        )
+
+        again = self.client.delete(f"/api/resumes/{resume['id']}")
+        self.assertEqual(again.status_code, 200)
+        self.assertTrue(again.json()["already_deleted"])
+        replacement = self.client.post(
+            "/api/resumes",
+            data={
+                "kind": "vacancy",
+                "vacancy_id": self.vacancy["id"],
+                "text": "Replacement",
+            },
+        ).json()
+        self.assertEqual(replacement["version"], resume["version"] + 1)
+
+    def test_deleted_source_keeps_child_provenance_but_cannot_be_reused(self) -> None:
+        master = self.client.post(
+            "/api/resumes", data={"kind": "master", "text": "PRIVATE MASTER"}
+        ).json()
+        child = self.client.post(
+            "/api/resumes",
+            data={
+                "kind": "vacancy",
+                "vacancy_id": self.vacancy["id"],
+                "source_resume_id": master["id"],
+                "text": "Independent child content",
+            },
+        ).json()
+
+        self.assertEqual(self.client.delete(f"/api/resumes/{master['id']}").status_code, 200)
+        preserved = self.client.get(f"/api/resumes/{child['id']}").json()
+        self.assertEqual(preserved["source_resume_id"], master["id"])
+        self.assertEqual(preserved["source_kind"], "master")
+        self.assertEqual(preserved["source_version"], master["version"])
+        self.assertIsNotNone(preserved["source_deleted_at"])
+        self.assertEqual(preserved["content_text"], "Independent child content")
+
+        for data in (
+            {
+                "kind": "vacancy",
+                "vacancy_id": self.vacancy["id"],
+                "source_resume_id": master["id"],
+            },
+            {
+                "kind": "vacancy",
+                "vacancy_id": self.vacancy["id"],
+                "source_resume_id": master["id"],
+                "text": "Do not accept deleted provenance",
+            },
+        ):
+            with self.subTest(data=data):
+                self.assertEqual(self.client.post("/api/resumes", data=data).status_code, 404)
+
+    def test_delete_rejects_unsafe_or_shared_storage_folder(self) -> None:
+        first = self.client.post(
+            "/api/resumes", data={"kind": "master", "text": "First"}
+        ).json()
+        second = self.client.post(
+            "/api/resumes", data={"kind": "master", "text": "Second"}
+        ).json()
+        database = self.context.app.state.db
+        with database.transaction() as connection:
+            connection.execute(
+                "UPDATE resume_versions SET extracted_text_path = ? WHERE id = ?",
+                (first["extracted_text_path"], second["id"]),
+            )
+        self.assertEqual(self.client.delete(f"/api/resumes/{first['id']}").status_code, 409)
+        self.assertTrue(Path(first["extracted_text_path"]).exists())
+        self.assertEqual(self.client.get(f"/api/resumes/{first['id']}").status_code, 200)
+
+        outside = Path(self.temp_dir.name) / "outside-resume.md"
+        outside.write_text("outside", encoding="utf-8")
+        with database.transaction() as connection:
+            connection.execute(
+                "UPDATE resume_versions SET extracted_text_path = ? WHERE id = ?",
+                (str(outside), first["id"]),
+            )
+        self.assertEqual(self.client.delete(f"/api/resumes/{first['id']}").status_code, 409)
+        self.assertEqual(outside.read_text(encoding="utf-8"), "outside")
+
     def test_ats_analysis_persists_evidence_and_updates_match(self) -> None:
         resume = self.client.post(
             "/api/resumes",
@@ -246,6 +374,56 @@ class ResumeAndAtsTest(unittest.TestCase):
         self.assertEqual(
             self.client.get(url).json()["match_percent"], fresh["match_percent"]
         )
+
+    def test_delete_preserves_ats_history_scrubs_evidence_and_only_clears_current_match(self) -> None:
+        older_resume = self.client.post(
+            "/api/resumes",
+            data={"kind": "master", "text": "Five years Python and SQL experience."},
+        ).json()
+        older_analysis = self.client.post(
+            f"/api/vacancies/{self.vacancy['id']}/ats",
+            json={"resume_version_id": older_resume["id"]},
+        ).json()
+        current_resume = self.client.post(
+            "/api/resumes",
+            data={"kind": "master", "text": "Three years Python, SQL, and Docker."},
+        ).json()
+        current_analysis = self.client.post(
+            f"/api/vacancies/{self.vacancy['id']}/ats",
+            json={"resume_version_id": current_resume["id"]},
+        ).json()
+
+        older_delete = self.client.delete(f"/api/resumes/{older_resume['id']}").json()
+        self.assertEqual(older_delete["ats_analyses_preserved"], 1)
+        self.assertEqual(older_delete["current_matches_cleared"], 0)
+        self.assertEqual(
+            self.client.get(f"/api/vacancies/{self.vacancy['id']}").json()["match_percent"],
+            current_analysis["match_percent"],
+        )
+        stored_older = self.context.app.state.db.fetch_one(
+            "SELECT result_json FROM ats_analyses WHERE id = ?", (older_analysis["id"],)
+        )
+        self.assertNotIn("Five years Python", stored_older["result_json"])
+
+        current_delete = self.client.delete(f"/api/resumes/{current_resume['id']}").json()
+        self.assertEqual(current_delete["ats_analyses_preserved"], 1)
+        self.assertEqual(current_delete["current_matches_cleared"], 1)
+        self.assertIsNone(
+            self.client.get(f"/api/vacancies/{self.vacancy['id']}").json()["match_percent"]
+        )
+        historical = self.client.get(
+            f"/api/vacancies/{self.vacancy['id']}/ats"
+        ).json()
+        self.assertTrue(historical["resume_deleted"])
+        self.assertTrue(historical["is_stale"])
+        self.assertTrue(
+            all(not item["evidence"] for item in historical["result"]["requirements"])
+        )
+        blocked = self.client.post(
+            f"/api/vacancies/{self.vacancy['id']}/ats",
+            json={"resume_version_id": current_resume["id"]},
+        )
+        self.assertEqual(blocked.status_code, 404)
 
     def test_ats_does_not_invent_evidence(self) -> None:
         result = analyze("Must have COBOL mainframe experience.", "Python web developer.")
@@ -346,13 +524,14 @@ class AtsLegacyMigrationTest(unittest.TestCase):
             self.assertIsNone(analysis["description_snapshot"])
             self.assertEqual(
                 database.fetch_one("SELECT MAX(version) AS version FROM schema_version")["version"],
-                4,
+                5,
             )
             vacancy = database.fetch_one("SELECT * FROM vacancies WHERE id = 1")
             self.assertEqual(vacancy["raw_description"], vacancy["description"])
             self.assertEqual(vacancy["description_confirmed_at"], "2026-09-21")
             resume = database.fetch_one("SELECT * FROM resume_versions WHERE id = 1")
             self.assertIsNone(resume["source_resume_id"])
+            self.assertIsNone(resume["deleted_at"])
             ai_columns = {
                 row["name"]
                 for row in database.fetch_all("PRAGMA table_info(ai_runs)")

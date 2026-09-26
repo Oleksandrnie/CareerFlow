@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import json
 import shutil
 from pathlib import Path
 from uuid import uuid4
@@ -12,7 +13,8 @@ from .files import normalize_text, safe_filename, write_bytes, write_text
 
 RESUME_WITH_SOURCE = """
 SELECT child.*, source.kind AS source_kind, source.version AS source_version,
-       source.label AS source_label, source.vacancy_id AS source_vacancy_id
+       source.label AS source_label, source.vacancy_id AS source_vacancy_id,
+       source.deleted_at AS source_deleted_at
 FROM resume_versions AS child
 LEFT JOIN resume_versions AS source ON source.id = child.source_resume_id
 """
@@ -20,7 +22,8 @@ LEFT JOIN resume_versions AS source ON source.id = child.source_resume_id
 
 def get_resume(database: Database, resume_id: int) -> dict | None:
     return database.fetch_one(
-        f"{RESUME_WITH_SOURCE} WHERE child.id = ?", (resume_id,)
+        f"{RESUME_WITH_SOURCE} WHERE child.id = ? AND child.deleted_at IS NULL",
+        (resume_id,),
     )
 
 
@@ -43,10 +46,10 @@ def get_original_resume(database: Database, storage_dir: Path, resume_id: int) -
 def list_resumes(database: Database, kind: str, vacancy_id: int | None = None) -> list[dict]:
     if kind == "master":
         return database.fetch_all(
-            f"{RESUME_WITH_SOURCE} WHERE child.kind = 'master' AND child.vacancy_id IS NULL ORDER BY child.version DESC"
+            f"{RESUME_WITH_SOURCE} WHERE child.kind = 'master' AND child.vacancy_id IS NULL AND child.deleted_at IS NULL ORDER BY child.version DESC"
         )
     return database.fetch_all(
-        f"{RESUME_WITH_SOURCE} WHERE child.kind = 'vacancy' AND child.vacancy_id = ? ORDER BY child.version DESC",
+        f"{RESUME_WITH_SOURCE} WHERE child.kind = 'vacancy' AND child.vacancy_id = ? AND child.deleted_at IS NULL ORDER BY child.version DESC",
         (vacancy_id,),
     )
 
@@ -57,7 +60,7 @@ def _validate_source(
     if source_resume_id is None:
         return None
     row = connection.execute(
-        "SELECT id, kind, vacancy_id, version FROM resume_versions WHERE id = ?",
+        "SELECT id, kind, vacancy_id, version FROM resume_versions WHERE id = ? AND deleted_at IS NULL",
         (source_resume_id,),
     ).fetchone()
     if row is None:
@@ -165,6 +168,220 @@ def create_resume(
     if result is None:
         raise RuntimeError("Created resume could not be loaded")
     return result
+
+
+def _storage_folder_for_deletion(connection, storage_dir: Path, resume: dict) -> Path | None:
+    allowed_root = (storage_dir / "resumes").resolve()
+    raw_paths = [
+        ("extracted_text_path", resume.get("extracted_text_path")),
+        ("original_path", resume.get("original_path")),
+    ]
+    stored_paths = [(name, Path(value)) for name, value in raw_paths if value]
+    if not stored_paths:
+        return None
+
+    resolved_paths = [(name, path.resolve()) for name, path in stored_paths]
+    if any(not path.is_relative_to(allowed_root) for _, path in resolved_paths):
+        raise ValueError("Resume storage path is outside storage/resumes")
+    if any(name == "extracted_text_path" and path.name != "resume.md" for name, path in resolved_paths):
+        raise ValueError("Resume Markdown storage path is invalid")
+    if resume.get("original_path"):
+        filename = resume.get("original_filename")
+        if not filename or Path(resume["original_path"]).resolve().name != f"original-{safe_filename(filename)}":
+            raise ValueError("Resume original storage path is invalid")
+
+    folders = {path.parent for _, path in resolved_paths}
+    if len(folders) != 1:
+        raise ValueError("Resume files do not share one version storage folder")
+    folder = folders.pop()
+    expected_scope = allowed_root / (
+        "master" if resume["kind"] == "master" else f"vacancy-{resume['vacancy_id']}"
+    )
+    if folder == allowed_root or folder.parent != expected_scope.resolve():
+        raise ValueError("Resume version storage folder is invalid")
+
+    other_rows = connection.execute(
+        "SELECT id, original_path, extracted_text_path FROM resume_versions WHERE id != ?",
+        (resume["id"],),
+    ).fetchall()
+    for other in other_rows:
+        for value in (other["original_path"], other["extracted_text_path"]):
+            if value and Path(value).resolve().parent == folder:
+                raise ValueError("Resume version storage folder is shared by another resume")
+    return folder
+
+
+def _redact_stored_reports(
+    connection,
+    storage_dir: Path,
+    resume: dict,
+    evidence_excerpts: list[str],
+) -> int:
+    vacancy_ids = {
+        int(row["vacancy_id"])
+        for row in connection.execute(
+            "SELECT DISTINCT vacancy_id FROM ats_analyses WHERE resume_version_id = ?",
+            (resume["id"],),
+        ).fetchall()
+    }
+    if resume["vacancy_id"] is not None:
+        vacancy_ids.add(int(resume["vacancy_id"]))
+    if not vacancy_ids:
+        return 0
+
+    resume_text = resume["content_text"]
+    evidence_excerpts = sorted(set(filter(None, evidence_excerpts)), key=len, reverse=True)
+    if not resume_text and not evidence_excerpts:
+        return 0
+    report_root = (storage_dir / "reports").resolve()
+    placeholders_sql = ",".join("?" for _ in vacancy_ids)
+    report_rows = connection.execute(
+        f"SELECT stored_path FROM generated_reports WHERE vacancy_id IN ({placeholders_sql})",
+        tuple(sorted(vacancy_ids)),
+    ).fetchall()
+    redacted_count = 0
+    for report in report_rows:
+        path = Path(report["stored_path"]).resolve()
+        if not path.is_relative_to(report_root):
+            raise ValueError("Generated report path is outside storage/reports")
+        if not path.is_file():
+            continue
+        markdown = path.read_text(encoding="utf-8", errors="replace")
+        redacted = markdown
+        if resume_text:
+            redacted = redacted.replace(
+                resume_text, "Resume content was deleted and redacted."
+            )
+        for value in evidence_excerpts:
+            redacted = redacted.replace(
+                f"  - Evidence: “{value}”",
+                "  - Evidence: [deleted resume evidence redacted]",
+            )
+        if redacted != markdown:
+            path.write_text(redacted, encoding="utf-8")
+            redacted_count += 1
+    return redacted_count
+
+
+def delete_resume(database: Database, storage_dir: Path, resume_id: int) -> dict:
+    """Redact one resume version while retaining its historical identity and links."""
+    with database.transaction(immediate=True) as connection:
+        row = connection.execute(
+            "SELECT * FROM resume_versions WHERE id = ?", (resume_id,)
+        ).fetchone()
+        if row is None:
+            raise LookupError("Resume not found")
+        resume = dict(row)
+        analysis_count = int(
+            connection.execute(
+                "SELECT COUNT(*) FROM ats_analyses WHERE resume_version_id = ?",
+                (resume_id,),
+            ).fetchone()[0]
+        )
+        if resume["deleted_at"] is not None:
+            return {
+                "id": resume_id,
+                "kind": resume["kind"],
+                "version": resume["version"],
+                "vacancy_id": resume["vacancy_id"],
+                "deleted_at": resume["deleted_at"],
+                "already_deleted": True,
+                "files_removed": False,
+                "ats_analyses_preserved": analysis_count,
+                "current_matches_cleared": 0,
+                "reports_redacted": 0,
+            }
+
+        folder = _storage_folder_for_deletion(connection, storage_dir, resume)
+        analysis_rows = connection.execute(
+            "SELECT id, result_json FROM ats_analyses WHERE resume_version_id = ?",
+            (resume_id,),
+        ).fetchall()
+        evidence_excerpts: list[str] = []
+        scrubbed_results: list[tuple[str, int]] = []
+        for analysis in analysis_rows:
+            result = json.loads(analysis["result_json"])
+            for requirement in result.get("requirements", []):
+                evidence = requirement.get("evidence", "")
+                if evidence:
+                    evidence_excerpts.append(evidence)
+                    requirement["evidence"] = ""
+            scrubbed_results.append(
+                (json.dumps(result, ensure_ascii=False), int(analysis["id"]))
+            )
+        reports_redacted = _redact_stored_reports(
+            connection, storage_dir, resume, evidence_excerpts
+        )
+        current_vacancy_rows = connection.execute(
+            """
+            SELECT DISTINCT analysis.vacancy_id
+            FROM ats_analyses AS analysis
+            JOIN vacancies AS vacancy ON vacancy.id = analysis.vacancy_id
+            WHERE analysis.resume_version_id = ?
+              AND analysis.id = (
+                  SELECT latest.id FROM ats_analyses AS latest
+                  WHERE latest.vacancy_id = analysis.vacancy_id
+                  ORDER BY latest.created_at DESC, latest.id DESC LIMIT 1
+              )
+              AND analysis.description_revision IS NOT NULL
+              AND analysis.description_revision = vacancy.description_revision
+              AND analysis.description_snapshot = vacancy.description
+              AND vacancy.match_percent IS NOT NULL
+            """,
+            (resume_id,),
+        ).fetchall()
+        current_vacancy_ids = [int(item["vacancy_id"]) for item in current_vacancy_rows]
+
+        connection.execute(
+            """
+            UPDATE resume_versions
+            SET label = '', original_filename = NULL, original_path = NULL,
+                extracted_text_path = NULL, content_text = '', is_submitted = 0,
+                deleted_at = CURRENT_TIMESTAMP
+            WHERE id = ?
+            """,
+            (resume_id,),
+        )
+        if scrubbed_results:
+            connection.executemany(
+                "UPDATE ats_analyses SET result_json = ? WHERE id = ?",
+                scrubbed_results,
+            )
+        if current_vacancy_ids:
+            connection.executemany(
+                "UPDATE vacancies SET match_percent = NULL, updated_at = CURRENT_TIMESTAMP WHERE id = ?",
+                ((vacancy_id,) for vacancy_id in current_vacancy_ids),
+            )
+        if resume["vacancy_id"] is not None:
+            connection.execute(
+                """
+                INSERT INTO timeline_events(vacancy_id, event_type, title, details)
+                VALUES (?, 'resume_deleted', ?, 'Resume content and stored files redacted')
+                """,
+                (
+                    resume["vacancy_id"],
+                    f"Resume v{resume['version']} deleted",
+                ),
+            )
+
+        files_removed = bool(folder and (folder.exists() or folder.is_symlink()))
+        if files_removed:
+            shutil.rmtree(folder)
+        deleted_at = connection.execute(
+            "SELECT deleted_at FROM resume_versions WHERE id = ?", (resume_id,)
+        ).fetchone()[0]
+        return {
+            "id": resume_id,
+            "kind": resume["kind"],
+            "version": resume["version"],
+            "vacancy_id": resume["vacancy_id"],
+            "deleted_at": deleted_at,
+            "already_deleted": False,
+            "files_removed": files_removed,
+            "ats_analyses_preserved": analysis_count,
+            "current_matches_cleared": len(current_vacancy_ids),
+            "reports_redacted": reports_redacted,
+        }
 
 
 def mark_submitted(database: Database, resume_id: int) -> dict:

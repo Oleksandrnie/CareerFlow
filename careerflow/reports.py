@@ -97,21 +97,31 @@ def build_report(database: Database, vacancy_id: int, *, include_raw: bool = Fal
     else:
         lines.append("No vacancy-specific resume version has been added.")
 
-    if analyzed_resume and analysis:
-        analyzed_kind = analysis["resume_kind_at_analysis"] or analyzed_resume["kind"]
-        analyzed_version = analysis["resume_version_at_analysis"] or analyzed_resume["version"]
+    if analysis:
+        analyzed_kind = analysis["resume_kind_at_analysis"] or (
+            analyzed_resume["kind"] if analyzed_resume else "unknown"
+        )
+        analyzed_version = analysis["resume_version_at_analysis"] or (
+            analyzed_resume["version"] if analyzed_resume else "unknown"
+        )
         lines.extend(
             [
                 "",
                 "### Resume used for ATS analysis",
                 "",
-                f"{analyzed_kind.title()} Resume v{analyzed_version} (ID {analyzed_resume['id']}; {analyzed_resume['label'] or 'No label'}).",
+                f"{str(analyzed_kind).title()} Resume v{analyzed_version} (ID {analysis['resume_version_id']}).",
                 "",
             ]
         )
-        if selected and selected["id"] == analyzed_resume["id"]:
+        if analysis["resume_deleted"]:
+            lines.extend(
+                [
+                    "This resume version was deleted and its content was redacted.",
+                ]
+            )
+        elif analyzed_resume and selected and selected["id"] == analyzed_resume["id"]:
             lines.append("Same resume as the workflow version shown above.")
-        else:
+        elif analyzed_resume:
             lines.extend(
                 [
                     "This differs from the workflow resume shown above.",
@@ -155,6 +165,13 @@ def build_report(database: Database, vacancy_id: int, *, include_raw: bool = Fal
                         "",
                     ]
                 )
+        if analysis["resume_deleted"]:
+            lines.extend(
+                [
+                    "Resume-derived evidence is omitted because the analyzed resume was deleted.",
+                    "",
+                ]
+            )
         for classification in ("covered", "partial", "missing"):
             lines.extend([f"### {classification.title()}", ""])
             matching = [item for item in result["requirements"] if item["classification"] == classification]
@@ -163,7 +180,7 @@ def build_report(database: Database, vacancy_id: int, *, include_raw: bool = Fal
             for item in matching:
                 lines.append(f"- {item['requirement']}")
                 lines.append(f"  - Interpretation: {item['interpretation']}")
-                if item["evidence"]:
+                if item["evidence"] and not analysis["resume_deleted"]:
                     lines.append(f"  - Evidence: “{item['evidence']}”")
             lines.append("")
     else:

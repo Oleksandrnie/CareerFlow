@@ -82,7 +82,8 @@ function harness() {
     return root.get(selector);
   }
   function list(selector) {
-    const owner = ["[data-tab]", "[data-stage]", "[data-section]"].includes(selector) ? workspace : panel;
+    const owner = ["[data-tab]", "[data-stage]", "[data-section]"].includes(selector)
+      || (selector === "[data-delete-resume]" && workspace.innerHTML.includes("master-panel")) ? workspace : panel;
     if (owner.lists.has(selector)) return owner.lists.get(selector);
     const attributes = {
       "[data-tab]": ["data-tab", "tab"],
@@ -93,6 +94,7 @@ function harness() {
       "[data-use-resume]": ["data-use-resume", "useResume"],
       "[data-clone-resume]": ["data-clone-resume", "cloneResume"],
       "[data-submit-resume]": ["data-submit-resume", "submitResume"],
+      "[data-delete-resume]": ["data-delete-resume", "deleteResume"],
       "[data-open-ai-run]": ["data-open-ai-run", "openAiRun"],
       "[data-delete-file]": ["data-delete-file", "deleteFile"],
       ".note-card": ["data-note-id", "noteId"],
@@ -145,12 +147,14 @@ function harness() {
   };
   routes.set("GET /api/vacancies?archived=false", []);
   routes.set("GET /api/codex/models", { models: [{ id: "gpt-5.6-luna", name: "Luna", efforts: ["low", "medium"] }], default_model: "gpt-5.6-luna", default_effort: "low", source: "codex-cli", warning: "" });
-  const context = vm.createContext({ document, fetch, FormData: MockFormData, window: { confirm: () => true, prompt: () => "DELETE" }, setTimeout: () => 0 });
+  const window = { confirm: () => true, prompt: () => "DELETE" };
+  const context = vm.createContext({ document, fetch, FormData: MockFormData, window, setTimeout: () => 0 });
   vm.runInContext(source, context);
   return {
     context, document, routes, calls, listeners,
     get panel() { return panel; },
     run(code) { return vm.runInContext(code, context); },
+    window,
   };
 }
 
@@ -185,6 +189,7 @@ async function testStaleNotesAndCardSelection() {
 
 async function testEditAndInterviewSubmitControls() {
   const app = harness();
+  app.routes.set("GET /api/vacancies/1/interviews", []);
   app.run(`renderVacancy(${JSON.stringify({ ...first, description_confirmed_at: "2026-09-21" })})`);
   app.run('renderEdit(state.selected)');
   const editForm = app.panel.querySelector("#edit-form");
@@ -200,6 +205,102 @@ async function testEditAndInterviewSubmitControls() {
   app.routes.set("GET /api/vacancies/1/interviews", []);
   await app.run('openTab("Timeline", state.selected)');
   assert.match(app.panel.innerHTML, /type="submit">Add interview/);
+}
+
+async function testInterviewCounterLifecycleAndStaleReads() {
+  const app = harness();
+  const initialInterviews = deferred();
+  const interviews = [];
+  app.routes.set("GET /api/vacancies/1/interviews", initialInterviews.promise);
+  app.routes.set("GET /api/vacancies/1/timeline", []);
+  app.run(`renderVacancy(${JSON.stringify(first)})`);
+  const timeline = app.run('openTab("Timeline", state.selected)');
+  assert.equal(
+    app.calls.filter(call => call === "GET /api/vacancies/1/interviews").length,
+    1,
+    "the stage bar and Timeline must share an in-flight interview request",
+  );
+  initialInterviews.resolve([]);
+  await timeline;
+  assert.equal(app.document.querySelector("[data-interview-count]").textContent, "0");
+  assert.match(app.panel.innerHTML, /Add interview #1/);
+
+  const staleBeforeAdd = deferred();
+  let serveStaleRead = true;
+  app.routes.set("GET /api/vacancies/1/interviews", () => {
+    if (serveStaleRead) {
+      serveStaleRead = false;
+      return staleBeforeAdd.promise;
+    }
+    return interviews.slice();
+  });
+  const staleRefresh = app.run("refreshInterviewCount(state.selected)");
+  const pendingPost = deferred();
+  app.routes.set("POST /api/vacancies/1/interviews", pendingPost.promise);
+  app.routes.set("GET /api/vacancies/1", first);
+  app.routes.set("GET /api/vacancies?archived=false", [first]);
+  const firstForm = app.panel.querySelector("#interview-form");
+  firstForm.fields = { interview_at: "2026-09-27T10:00", interview_type: "HR", note: "", result: "" };
+  const firstButton = firstForm.querySelector("button[type=submit]");
+  const firstSubmission = firstForm.onsubmit({ preventDefault() {}, currentTarget: firstForm });
+  await firstForm.onsubmit({ preventDefault() {}, currentTarget: firstForm });
+  assert.equal(firstButton.disabled, true);
+  assert.equal(
+    app.calls.filter(call => call === "POST /api/vacancies/1/interviews").length,
+    1,
+    "an interview form cannot be submitted twice while its request is pending",
+  );
+  interviews.push({ id: 1 });
+  pendingPost.resolve(interviews[0]);
+  await firstSubmission;
+  assert.match(app.document.querySelector("#workspace").innerHTML, /data-interview-count>1<\/span>/);
+  assert.match(app.panel.innerHTML, /Add interview #2/);
+
+  staleBeforeAdd.resolve([]);
+  await staleRefresh;
+  assert.equal(
+    app.document.querySelector("[data-interview-count]").textContent,
+    "1",
+    "a pre-mutation response must not overwrite the successful add",
+  );
+
+  app.routes.set("POST /api/vacancies/1/interviews", () => {
+    const interview = { id: interviews.length + 1 };
+    interviews.push(interview);
+    return interview;
+  });
+  const secondForm = app.panel.querySelector("#interview-form");
+  secondForm.fields = { interview_at: "2026-09-28T10:00", interview_type: "Technical", note: "", result: "" };
+  await secondForm.onsubmit({ preventDefault() {}, currentTarget: secondForm });
+  assert.match(app.document.querySelector("#workspace").innerHTML, /data-interview-count>2<\/span>/);
+  assert.match(app.panel.innerHTML, /Add interview #3/);
+
+  await app.run('openTab("Overview", state.selected)');
+  assert.match(app.document.querySelector("#workspace").innerHTML, /data-interview-count>2<\/span>/);
+  app.run(`renderVacancy(${JSON.stringify(first)})`);
+  assert.match(
+    app.document.querySelector("#workspace").innerHTML,
+    /data-interview-count>2<\/span>/,
+    "reopening a vacancy should render its last authoritative count immediately",
+  );
+  await app.run("refreshInterviewCount(state.selected)");
+  await app.run('openTab("Timeline", state.selected)');
+  assert.equal(app.document.querySelector("[data-interview-count]").textContent, "2");
+
+  const lateFirstVacancy = deferred();
+  app.routes.set("GET /api/vacancies/1/interviews", lateFirstVacancy.promise);
+  const oldSelectionRefresh = app.run("refreshInterviewCount(state.selected)");
+  app.routes.set("GET /api/vacancies/2/interviews", []);
+  app.run(`renderVacancy(${JSON.stringify(second)})`);
+  await app.run("refreshInterviewCount(state.selected)");
+  lateFirstVacancy.resolve([{ id: 1 }, { id: 2 }, { id: 3 }]);
+  await oldSelectionRefresh;
+  assert.equal(app.run("state.selected.id"), 2);
+  assert.equal(
+    app.document.querySelector("[data-interview-count]").textContent,
+    "0",
+    "a late count for the old vacancy must not overwrite the newer selection",
+  );
 }
 
 async function testResumePreviewAndEditableCopy() {
@@ -230,9 +331,39 @@ async function testResumePreviewAndEditableCopy() {
   assert.equal(app.calls.filter(call => call === "POST /api/resumes").length, 0);
 }
 
+async function testResumeDeleteInBothLists() {
+  const app = harness();
+  const master = { id: 51, kind: "master", version: 3, label: "Master", created_at: "2026-09-21 10:00:00" };
+  app.routes.set("GET /api/resumes?kind=master", [master]);
+  await app.run("renderMasterResume()");
+  assert.match(app.document.querySelector("#workspace").innerHTML, /data-delete-resume="51"/);
+  app.window.confirm = () => false;
+  await app.document.querySelectorAll("[data-delete-resume]")[0].onclick();
+  assert.equal(app.calls.filter(call => call === "DELETE /api/resumes/51").length, 0);
+  app.window.confirm = () => true;
+  app.routes.set("DELETE /api/resumes/51", { deleted_resume_id: 51, kind: "master", version: 3, history_retained: true });
+  app.routes.set("GET /api/resumes?kind=master", []);
+  await app.document.querySelectorAll("[data-delete-resume]")[0].onclick();
+  assert.equal(app.calls.filter(call => call === "DELETE /api/resumes/51").length, 1);
+  assert.doesNotMatch(app.document.querySelector("#workspace").innerHTML, /data-delete-resume="51"/);
+
+  app.run(`renderVacancy(${JSON.stringify(first)})`);
+  app.routes.set("GET /api/resumes?kind=master", []);
+  app.routes.set("GET /api/resumes?kind=vacancy&vacancy_id=1", [{ id: 61, kind: "vacancy", version: 1, label: "Tailored", created_at: "2026-09-21 10:00:00", source_resume_id: 51, source_kind: "master", source_version: 3, source_deleted_at: "2026-09-22" }]);
+  await app.run('openTab("Resume", state.selected)');
+  assert.match(app.panel.innerHTML, /Source version deleted/);
+  app.routes.set("DELETE /api/resumes/61", { deleted_resume_id: 61, kind: "vacancy", version: 1, history_retained: true });
+  app.routes.set("GET /api/resumes?kind=vacancy&vacancy_id=1", []);
+  await app.document.querySelectorAll("[data-delete-resume]")[0].onclick();
+  assert.equal(app.calls.filter(call => call === "DELETE /api/resumes/61").length, 1);
+  assert.doesNotMatch(app.panel.innerHTML, /data-delete-resume="61"/);
+}
+
 async function testStageFourMasterCrmAndAtsAcceptance() {
   const app = harness();
+  app.routes.set("GET /api/vacancies/1/interviews", []);
   app.run(`renderVacancy(${JSON.stringify(first)})`);
+  await app.run("refreshInterviewCount(state.selected)");
   const workspace = app.document.querySelector("#workspace");
   assert.match(fs.readFileSync(path.join(__dirname, "../careerflow/static/index.html"), "utf8"), /data-section="master-resume"/);
   assert.match(workspace.innerHTML, /data-stage="Interview"/);
@@ -491,6 +622,7 @@ async function testMutationFailuresAndDuplicateRecovery() {
 (async () => {
   await testStaleNotesAndCardSelection();
   await testEditAndInterviewSubmitControls();
+  await testInterviewCounterLifecycleAndStaleReads();
   await testResumePreviewAndEditableCopy();
   await testStageFourMasterCrmAndAtsAcceptance();
   await testMasterResumeWorkspaceAndSave();

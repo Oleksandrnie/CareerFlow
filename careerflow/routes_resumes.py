@@ -9,7 +9,14 @@ from fastapi.responses import FileResponse, Response
 
 from .files import ImportError as DocumentImportError
 from .files import extract_text, normalize_text
-from .resumes import create_resume, get_original_resume, get_resume, list_resumes, mark_submitted
+from .resumes import (
+    create_resume,
+    delete_resume,
+    get_original_resume,
+    get_resume,
+    list_resumes,
+    mark_submitted,
+)
 
 
 router = APIRouter(prefix="/api/resumes", tags=["resumes"])
@@ -78,6 +85,20 @@ def resume(request: Request, resume_id: int) -> dict:
     if result is None:
         raise HTTPException(status_code=404, detail="Resume not found")
     return result
+
+
+@router.delete("/{resume_id}")
+def remove_resume(request: Request, resume_id: int) -> dict:
+    try:
+        return delete_resume(
+            request.app.state.db,
+            request.app.state.settings.storage_dir,
+            resume_id,
+        )
+    except LookupError as exc:
+        raise HTTPException(status_code=404, detail=str(exc)) from exc
+    except ValueError as exc:
+        raise HTTPException(status_code=409, detail=str(exc)) from exc
 
 
 @router.get("/{resume_id}/download")
