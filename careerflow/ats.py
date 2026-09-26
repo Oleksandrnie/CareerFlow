@@ -161,6 +161,8 @@ def run_analysis(database: Database, vacancy_id: int, resume_id: int) -> dict:
         ).fetchone()
         if vacancy is None:
             raise LookupError("Vacancy not found")
+        if not vacancy["description_confirmed_at"]:
+            raise ValueError("Review and confirm the cleaned vacancy description before running ATS")
         resume = connection.execute(
             "SELECT * FROM resume_versions WHERE id = ?", (resume_id,)
         ).fetchone()

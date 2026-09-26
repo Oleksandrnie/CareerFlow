@@ -40,9 +40,14 @@ class AiRequest(BaseModel):
 
 
 @router.post("/reports", status_code=201)
-def generate_report(request: Request, vacancy_id: int) -> dict:
+def generate_report(request: Request, vacancy_id: int, include_raw: bool = False) -> dict:
     try:
-        return save_report(request.app.state.db, request.app.state.settings.storage_dir, vacancy_id)
+        return save_report(
+            request.app.state.db,
+            request.app.state.settings.storage_dir,
+            vacancy_id,
+            include_raw=include_raw,
+        )
     except LookupError as exc:
         raise HTTPException(status_code=404, detail=str(exc)) from exc
 
