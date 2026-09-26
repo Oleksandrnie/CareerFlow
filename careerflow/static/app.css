@@ -44,7 +44,8 @@ button:focus-visible, input:focus-visible, textarea:focus-visible, select:focus-
 .vacancy-card span { color: var(--muted); margin-top: 4px; font-size: 13px; }
 .vacancy-card .vacancy-meta { font-size: 11px; }
 .vacancy-card .vacancy-summary { display: -webkit-box; overflow: hidden; margin-top: 7px; font-size: 12px; line-height: 1.4; -webkit-box-orient: vertical; -webkit-line-clamp: 2; }
-.card-meta { display: flex !important; justify-content: space-between; align-items: center; }
+.card-meta { display: flex !important; justify-content: flex-start; align-items: center; gap: 18px; }
+.score-group { display: inline-flex !important; align-items: center; gap: 14px; margin-top: 0 !important; }
 .badge { display: inline-block !important; width: max-content; border-radius: 999px; background: #eef1ed; color: #4d5851 !important; padding: 4px 8px; font-size: 11px !important; font-weight: 800; }
 .workspace { padding: 32px; min-width: 0; }
 .empty-state { min-height: 65vh; max-width: 560px; margin: auto; display: grid; place-content: center; text-align: center; gap: 14px; color: var(--muted); }
@@ -118,6 +119,12 @@ hr { border: 0; border-top: 1px solid var(--line); margin: 24px 0; }
 .link-button { display: inline-block; text-decoration: none; }
 .callout { margin-bottom: 18px; padding: 12px 14px; border-left: 3px solid var(--brand); background: var(--soft); color: #385144; font-size: 13px; line-height: 1.5; }
 .ai-response { max-height: 52vh; overflow: auto; white-space: pre-wrap; border: 1px solid var(--line); border-radius: 10px; background: #f8faf8; padding: 16px; font: 13px/1.55 ui-monospace, SFMono-Regular, Menlo, monospace; }
+.ai-readable { border: 1px solid var(--line); border-radius: 10px; background: #f8faf8; padding: 16px; }
+.ai-readable-score { display: flex; align-items: baseline; gap: 10px; margin-bottom: 14px; }
+.ai-readable-score strong { font-size: 28px; color: var(--accent); }
+.ai-readable-columns { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 24px; }
+.ai-readable ul { margin: 8px 0 0; padding-left: 20px; }
+@media (max-width: 700px) { .ai-readable-columns { grid-template-columns: 1fr; gap: 10px; } }
 dialog { width: min(760px, calc(100vw - 28px)); border: 0; border-radius: 18px; padding: 0; box-shadow: 0 24px 80px #12231a4d; }
 dialog::backdrop { background: #13201999; backdrop-filter: blur(2px); }
 dialog form { display: grid; gap: 16px; padding: 24px; }
