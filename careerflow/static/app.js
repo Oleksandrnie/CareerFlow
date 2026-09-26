@@ -7,6 +7,7 @@ const state = {
   selectionEpoch: 0,
   listEpoch: 0,
   importPreview: null,
+  pendingResumeDraft: null,
   interviewCounts: new Map(),
   interviewCountEpochs: new Map(),
   interviewRequests: new Map(),
@@ -60,7 +61,7 @@ const RU = {
   "EVENT LOG": "ЖУРНАЛ СОБЫТИЙ", "Add interview": "Добавить собеседование", "Date and time": "Дата и время", "Type": "Тип", "Notes": "Заметки", "Result": "Результат", "Scheduled, passed, follow-up…": "Назначено, пройдено, дальнейшие шаги…", "Add interview": "Добавить собеседование", "Interview added": "Собеседование добавлено",
   "DATED NOTES": "ЗАМЕТКИ ПО ДАТАМ", "New note": "Новая заметка", "Interview preparation, company research, impressions…": "Подготовка к собеседованию, исследование компании, впечатления…", "Add note": "Добавить заметку", "No notes yet.": "Заметок пока нет.", "Save": "Сохранить", "Note added": "Заметка добавлена", "Note saved": "Заметка сохранена", "Delete this note?": "Удалить эту заметку?", "Note deleted": "Заметка удалена",
   "LOCAL STORAGE": "ЛОКАЛЬНОЕ ХРАНИЛИЩЕ", "Attach file": "Прикрепить файл", "Up to 100 MB. Audio is stored as-is; automatic transcription is outside the MVP.": "До 100 МБ. Аудио хранится как есть; автоматическая расшифровка не входит в MVP.", "No attachments yet.": "Вложений пока нет.", "Download": "Скачать", "Remove this attachment?": "Удалить это вложение?", "File attached": "Файл прикреплён", "File removed": "Файл удалён", "Building…": "Формирование…", "Markdown report generated": "Markdown-отчёт создан",
-  "READ-ONLY CLI ASSISTANT": "CLI-АССИСТЕНТ ТОЛЬКО ДЛЯ ЧТЕНИЯ", "CareerFlow sends the generated vacancy Markdown context to": "CareerFlow отправляет сгенерированный Markdown-контекст вакансии в", "Action": "Действие", "Analyze vacancy": "Анализ вакансии", "Improve resume": "Улучшить резюме", "Review ATS analysis": "Проверить анализ ATS", "Match resume to vacancy": "Сопоставить резюме с вакансией", "Prepare for interview": "Подготовиться к собеседованию", "Analyze interview notes": "Проанализировать заметки собеседования", "Custom request": "Свой запрос", "Model": "Модель", "Reasoning effort": "Уровень рассуждений", "Request": "Запрос", "Run Codex": "Запустить Codex", "Saved responses": "Сохранённые ответы", "No saved responses yet.": "Сохранённых ответов пока нет.", "Filter saved responses…": "Фильтр сохранённых ответов…", "Codex response saved below. Open it when you are ready to review.": "Ответ Codex сохранён ниже. Откройте его, когда будете готовы к просмотру.", "View response": "Открыть ответ", "Hide response": "Скрыть ответ", "Codex is working…": "Codex работает…", "Codex response received": "Ответ Codex получен", "AI match score updated": "AI-оценка совпадения обновлена", "AI match score": "AI-оценка совпадения", "AI score is not available because the model did not return valid JSON.": "AI-оценка недоступна: модель не вернула корректный JSON.", "Review the response, then manually decide what to save as a new resume version or note.": "Проверьте ответ и вручную решите, что сохранить как новую версию резюме или заметку.", "Legacy model unknown": "Старая модель неизвестна", "effort unknown": "уровень неизвестен",
+  "READ-ONLY CLI ASSISTANT": "CLI-АССИСТЕНТ ТОЛЬКО ДЛЯ ЧТЕНИЯ", "CareerFlow sends the generated vacancy Markdown context to": "CareerFlow отправляет сгенерированный Markdown-контекст вакансии в", "Action": "Действие", "Analyze vacancy": "Анализ вакансии", "Improve resume": "Улучшить резюме", "Review ATS analysis": "Проверить анализ ATS", "Match resume to vacancy": "Сопоставить резюме с вакансией", "Create tailored resume": "Создать резюме под вакансию", "Prepare for interview": "Подготовиться к собеседованию", "Analyze interview notes": "Проанализировать заметки собеседования", "Custom request": "Свой запрос", "Model": "Модель", "Reasoning effort": "Уровень рассуждений", "Request": "Запрос", "Run Codex": "Запустить Codex", "Saved responses": "Сохранённые ответы", "No saved responses yet.": "Сохранённых ответов пока нет.", "Filter saved responses…": "Фильтр сохранённых ответов…", "Codex response saved below. Open it when you are ready to review.": "Ответ Codex сохранён ниже. Откройте его, когда будете готовы к просмотру.", "View response": "Открыть ответ", "Hide response": "Скрыть ответ", "Create editable resume draft": "Создать редактируемый черновик резюме", "Tailored resume copied into an editable draft. Review it before saving a new version.": "Резюме под вакансию скопировано в редактируемый черновик. Проверьте его перед сохранением новой версии.", "Codex is working…": "Codex работает…", "Codex response received": "Ответ Codex получен", "AI match score updated": "AI-оценка совпадения обновлена", "AI match score": "AI-оценка совпадения", "AI score is not available because the model did not return valid JSON.": "AI-оценка недоступна: модель не вернула корректный JSON.", "Review the response, then manually decide what to save as a new resume version or note.": "Проверьте ответ и вручную решите, что сохранить как новую версию резюме или заметку.", "Legacy model unknown": "Старая модель неизвестна", "effort unknown": "уровень неизвестен",
   "Review description": "Проверить описание", "Preparing preview…": "Подготовка предпросмотра…", "Vacancy imported": "Вакансия импортирована", "Deletion cancelled": "Удаление отменено", "Vacancy deleted": "Вакансия удалена", "Vacancy archived": "Вакансия отправлена в архив", "Vacancy restored": "Вакансия восстановлена", "Vacancy updated": "Вакансия обновлена", "Status changed to": "Статус изменён на", "Invalid value": "Недопустимое значение", "Request failed": "Запрос не выполнен", "Error": "Ошибка"
 };
 
@@ -629,6 +630,15 @@ async function renderResumes(vacancy, view = null) {
         if (isCurrent()) { toast("Vacancy resume version created"); await renderResumes(vacancy, view); }
       }, panel.querySelector("#resume-error"), view);
     };
+    const pendingDraft = state.pendingResumeDraft;
+    if (pendingDraft?.vacancyId === vacancy.id) {
+      fillResumeDraft(panel, {
+        id: pendingDraft.sourceResumeId,
+        content_text: pendingDraft.contentText,
+      }, "AI tailored resume draft");
+      state.pendingResumeDraft = null;
+      toast("Tailored resume copied into an editable draft. Review it before saving a new version.");
+    }
     document.querySelectorAll("[data-submit-resume]").forEach(button => button.onclick = () => runAction(button, async () => {
       await api(`/api/resumes/${button.dataset.submitResume}/submit`, { method: "POST" });
       if (isCurrent()) { toast("Submitted version recorded"); await renderResumes(vacancy, view); }
@@ -818,7 +828,7 @@ async function exportReport(vacancy) {
 }
 
 function aiHistoryItem(run) {
-  return `<article class="item-row ai-history-row"><div><strong class="ai-history-title">${escapeHtml(shortAiPrompt(run.prompt))}</strong><p class="muted">${new Date(run.created_at + "Z").toLocaleString()} · ${escapeHtml(run.model || "Legacy model unknown")} · ${escapeHtml(run.reasoning_effort || "effort unknown")}</p></div><div class="actions"><span class="badge ${run.status === "completed" ? "success" : ""}">${escapeHtml(run.status)}</span><button class="secondary" type="button" data-open-ai-run="${run.id}" data-vacancy-id="${run.vacancy_id || ""}" aria-expanded="false" aria-controls="ai-inline-${run.id}" aria-label="View saved response ${run.id}">View response</button></div><div id="ai-inline-${run.id}" class="ai-inline-result" hidden></div></article>`;
+  return `<article class="item-row ai-history-row"><div><strong class="ai-history-title">${escapeHtml(run.action || shortAiPrompt(run.prompt))}</strong><p class="muted">${new Date(run.created_at + "Z").toLocaleString()} · ${escapeHtml(run.model || "Legacy model unknown")} · ${escapeHtml(run.reasoning_effort || "effort unknown")}</p></div><div class="actions"><span class="badge ${run.status === "completed" ? "success" : ""}">${escapeHtml(run.status)}</span><button class="secondary" type="button" data-open-ai-run="${run.id}" data-vacancy-id="${run.vacancy_id || ""}" aria-expanded="false" aria-controls="ai-inline-${run.id}" aria-label="View saved response ${run.id}">View response</button></div><div id="ai-inline-${run.id}" class="ai-inline-result" hidden></div></article>`;
 }
 
 async function openSavedAiRun(button, vacancy, view, panel) {
@@ -835,7 +845,6 @@ async function openSavedAiRun(button, vacancy, view, panel) {
     if (!isCurrentView(view)) return;
     const result = aiResponseBlock(run, `Saved ${run.status === "completed" ? "response" : "error"}`);
     if (inline) { inline.innerHTML = result; inline.dataset.loaded = "true"; inline.hidden = false; button.setAttribute("aria-expanded", "true"); }
-    panel.querySelector("#ai-history-result").innerHTML = `<hr>${result}`;
   }, null, view);
   if (inline?.dataset.loaded === "true") { button.setAttribute("aria-expanded", String(!inline.hidden)); button.textContent = inline.hidden ? "View response" : "Hide response"; }
 }
@@ -889,7 +898,10 @@ function formatAiResponse(response, prompt = "") {
 
 function aiResponseBlock(run, title = "Saved response") {
   const response = run.status === "completed" ? run.response : run.error;
-  return `<h4>${title} · ${escapeHtml(run.model || "Legacy model unknown")} · ${escapeHtml(run.reasoning_effort || "effort unknown")}</h4><p class="muted">${escapeHtml(run.prompt || "")}</p>${run.status === "completed" ? formatAiResponse(response, run.prompt) : `<p class="error">${escapeHtml(response || "Codex request failed")}</p>`}`;
+  const draftAction = run.status === "completed" && run.action === "Create tailored resume"
+    ? `<div class="actions"><button class="primary" type="button" data-create-ai-draft="${run.id}">Create editable resume draft</button></div>`
+    : "";
+  return `<h4>${title} · ${escapeHtml(run.model || "Legacy model unknown")} · ${escapeHtml(run.reasoning_effort || "effort unknown")}</h4><p class="muted">${escapeHtml(run.prompt || "")}</p>${run.status === "completed" ? formatAiResponse(response, run.prompt) : `<p class="error">${escapeHtml(response || "Codex request failed")}</p>`}${draftAction}`;
 }
 
 async function renderAi(vacancy, view = null) {
@@ -904,6 +916,7 @@ async function renderAi(vacancy, view = null) {
     "Improve resume": "Suggest truthful improvements to the selected resume using only evidence already present in the context.",
     "Review ATS analysis": "Review the heuristic ATS analysis, point out false positives or weak evidence, and suggest truthful wording improvements.",
     "Match resume to vacancy": "Compare the selected resume with the vacancy requirements and return JSON with an integer match_percent from 0 to 100, a short summary, strengths, and gaps. Ignore navigation, company marketing, salary, and generic wording.",
+    "Create tailored resume": "Create a complete vacancy-tailored Markdown resume. Use only candidate facts present in the source resume; use the vacancy, ATS analysis, and saved AI recommendations only for prioritization and truthful rewording. Do not invent claims, metrics, skills, dates, or experience.",
     "Prepare for interview": "Create a focused interview preparation plan with likely questions and evidence-backed talking points.",
     "Analyze interview notes": "Analyze the interview notes, extract follow-ups, risks, and suggested next actions.",
     "Custom request": "",
@@ -912,8 +925,17 @@ async function renderAi(vacancy, view = null) {
   panel.innerHTML = `<div class="section-head"><div><p class="eyebrow">READ-ONLY CLI ASSISTANT</p><h3>AI / Codex</h3></div></div>
     <p class="callout">CareerFlow sends the generated vacancy Markdown context to <code>codex exec</code> in a read-only, ephemeral session. The response is shown here and never changes your CV or vacancy automatically.</p>
     <form id="ai-form" class="stack"><div class="form-grid"><label>Action<select name="action" id="ai-action">${Object.keys(actions).map(action => `<option value="${escapeAttr(action)}">${action}</option>`).join("")}</select></label><label>Model<select name="model" id="ai-model">${catalog.models.map(model => `<option value="${escapeAttr(model.id)}" ${model.id === catalog.default_model ? "selected" : ""}>${escapeHtml(model.name)} (${escapeHtml(model.id)})</option>`).join("")}</select></label><label>Reasoning effort<select name="reasoning_effort" id="ai-effort"></select></label></div>${catalog.source !== "codex-cli" ? `<p class="callout">${escapeHtml(catalog.warning || "Codex CLI catalog unavailable; using configured fallback.")}</p>` : ""}<label>Request<textarea name="prompt" id="ai-prompt" rows="6" required>${escapeHtml(prompts["Analyze vacancy"])}</textarea></label><p class="muted">Model and effort are validated against the local Codex CLI catalog.</p><p class="error" id="ai-error"></p><button class="primary" type="submit">Run Codex</button></form>
-    <div id="ai-result" aria-live="polite"></div><hr><div class="section-head ai-history-head"><h4>Saved responses</h4><input id="ai-history-filter" type="search" placeholder="Filter saved responses…" aria-label="Filter saved responses"></div><div id="ai-history-list" class="item-list">${history.length ? history.map(aiHistoryItem).join("") : `<p class="muted">No saved responses yet.</p>`}</div><div id="ai-history-result" aria-live="polite"></div>`;
-  document.querySelector("#ai-action").onchange = event => { document.querySelector("#ai-prompt").value = prompts[event.target.value] || ""; };
+    <div id="ai-result" aria-live="polite"></div><hr><div class="section-head ai-history-head"><h4>Saved responses</h4><input id="ai-history-filter" type="search" placeholder="Filter saved responses…" aria-label="Filter saved responses"></div><div id="ai-history-list" class="item-list">${history.length ? history.map(aiHistoryItem).join("") : `<p class="muted">No saved responses yet.</p>`}</div>`;
+  document.querySelector("#ai-action").onchange = event => {
+    document.querySelector("#ai-prompt").value = prompts[event.target.value] || "";
+    if (event.target.value === "Create tailored resume") {
+      const preferredModel = catalog.models.find(model => model.id === "gpt-5.6-sol" && model.efforts.includes("medium"));
+      if (preferredModel) {
+        modelSelect.value = preferredModel.id;
+        updateEfforts("medium");
+      }
+    }
+  };
   const modelSelect = panel.querySelector("#ai-model");
   const effortSelect = panel.querySelector("#ai-effort");
   const updateEfforts = preferred => {
@@ -946,7 +968,7 @@ async function renderAi(vacancy, view = null) {
           const historyList = panel.querySelector("#ai-history-list");
           if (historyList) {
             historyList.querySelector(".muted")?.remove();
-            historyList.insertAdjacentHTML("afterbegin", aiHistoryItem({ ...run, prompt: payload.prompt, model: run.model || payload.model, reasoning_effort: run.reasoning_effort || payload.reasoning_effort }));
+            historyList.insertAdjacentHTML("afterbegin", aiHistoryItem({ ...run, action: run.action || payload.action, prompt: payload.prompt, model: run.model || payload.model, reasoning_effort: run.reasoning_effort || payload.reasoning_effort }));
             const savedButton = historyList.querySelector(`[data-open-ai-run="${run.id}"]`);
             if (savedButton) savedButton.onclick = () => openSavedAiRun(savedButton, vacancy, view, panel);
           }
@@ -993,6 +1015,24 @@ document.addEventListener("click", async event => {
   }
   if (event.target.closest("[data-open-import]")) openDialog();
   if (event.target.closest("[data-close-dialog]")) closeDialog();
+  const draftButton = event.target.closest("[data-create-ai-draft]");
+  if (draftButton) {
+    const vacancy = state.selected;
+    if (!vacancy || state.activeTab !== "AI / Codex") return;
+    await runAction(draftButton, async () => {
+      const run = await api(`/api/vacancies/${vacancy.id}/ai-runs/${draftButton.dataset.createAiDraft}`);
+      if (run.status !== "completed" || run.action !== "Create tailored resume" || !run.source_resume_id) {
+        throw new Error("This saved response cannot be used as a tailored resume draft.");
+      }
+      state.pendingResumeDraft = {
+        vacancyId: vacancy.id,
+        sourceResumeId: run.source_resume_id,
+        contentText: run.response,
+      };
+      await openTab("Resume", vacancy);
+    });
+    return;
+  }
   const savedAiButton = event.target.closest("[data-open-ai-run]");
   if (savedAiButton && typeof savedAiButton.onclick !== "function") {
     const vacancy = state.selected;

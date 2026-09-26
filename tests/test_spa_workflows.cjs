@@ -26,6 +26,8 @@ function fakeElement(tagName = "DIV") {
     textContent: "",
     classList: { add() {}, remove() {}, toggle(name, force) { this[name] = force ?? !this[name]; } },
     addEventListener() {},
+    setAttribute(name, value) { this[name] = String(value); },
+    getAttribute(name) { return this[name] ?? null; },
     showModal() { this.open = true; },
     close() { this.open = false; },
     reset() { this.fields = {}; },
@@ -106,6 +108,11 @@ function harness() {
     const items = matches.map(([, value]) => {
       const item = fakeElement(selector === ".note-card" ? "FORM" : "BUTTON");
       item.dataset[dataKey] = value;
+      if (selector === "[data-open-ai-run]") {
+        const row = fakeElement("ARTICLE");
+        item.closest = target => target === ".ai-history-row" ? row : null;
+        item.aiRow = row;
+      }
       return item;
     });
     owner.lists.set(selector, items);
@@ -627,15 +634,18 @@ async function testSavedAiDetailAndLateRun() {
   app.panel.querySelector("#ai-model").value = "gpt-6-sol";
   app.panel.querySelector("#ai-model").onchange();
   assert.equal(app.panel.querySelector("#ai-effort").value, "high");
-  await app.document.querySelectorAll("[data-open-ai-run]")[0].onclick();
-  assert.match(app.panel.querySelector("#ai-history-result").innerHTML, /FULL_SAVED_ANSWER/);
-  assert.match(app.panel.querySelector("#ai-history-result").innerHTML, /gpt-5\.6-luna · low/);
-  await app.document.querySelectorAll("[data-open-ai-run]")[1].onclick();
-  assert.match(app.panel.querySelector("#ai-history-result").innerHTML, /SAVED_FAILURE_DETAIL/);
+  const savedButtons = app.document.querySelectorAll("[data-open-ai-run]");
+  await savedButtons[0].onclick();
+  assert.match(savedButtons[0].aiRow.querySelector(".ai-inline-result").innerHTML, /FULL_SAVED_ANSWER/);
+  assert.match(savedButtons[0].aiRow.querySelector(".ai-inline-result").innerHTML, /gpt-5\.6-luna · low/);
+  await savedButtons[1].onclick();
+  assert.match(savedButtons[1].aiRow.querySelector(".ai-inline-result").innerHTML, /SAVED_FAILURE_DETAIL/);
+  assert.doesNotMatch(app.panel.innerHTML, /id="ai-history-result"/);
   await app.run('openTab("Overview", state.selected)');
   await app.run('openTab("AI / Codex", state.selected)');
-  await app.document.querySelectorAll("[data-open-ai-run]")[0].onclick();
-  assert.match(app.panel.querySelector("#ai-history-result").innerHTML, /FULL_SAVED_ANSWER/);
+  const reopenedButton = app.document.querySelectorAll("[data-open-ai-run]")[0];
+  await reopenedButton.onclick();
+  assert.match(reopenedButton.aiRow.querySelector(".ai-inline-result").innerHTML, /FULL_SAVED_ANSWER/);
 
   app.routes.set("POST /api/vacancies/1/ai-runs", { ...failed, id: 11, error: "CODEX_EXECUTION_FAILED" });
   const failedForm = app.panel.querySelector("#ai-form");
@@ -657,6 +667,51 @@ async function testSavedAiDetailAndLateRun() {
   assert.equal(button.disabled, false);
   assert.match(app.panel.innerHTML, /SECOND_DESCRIPTION/);
   assert.doesNotMatch(app.panel.innerHTML, /LATE_FIRST_VACANCY_ANSWER/);
+}
+
+async function testTailoredResumeActionAndExplicitDraftHandoff() {
+  const app = harness();
+  app.run(`renderVacancy(${JSON.stringify(first)})`);
+  const run = {
+    id: 15, vacancy_id: 1, action: "Create tailored resume",
+    prompt: "Create a complete vacancy-tailored Markdown resume.",
+    model: "gpt-5.6-sol", reasoning_effort: "medium", status: "completed",
+    source_resume_id: 61, response: "# Tailored\n\nEvidence-based content",
+    created_at: "2026-09-21 10:00:00",
+  };
+  const catalog = {
+    models: [
+      { id: "gpt-5.6-luna", name: "Luna", efforts: ["low"] },
+      { id: "gpt-5.6-sol", name: "Sol", efforts: ["medium", "high"] },
+    ],
+    default_model: "gpt-5.6-luna", default_effort: "low", source: "codex-cli", warning: "",
+  };
+  app.routes.set("GET /api/vacancies/1/ai-runs", [run]);
+  app.routes.set("GET /api/codex/models", catalog);
+  app.routes.set("GET /api/vacancies/1/ai-runs/15", run);
+  await app.run('openTab("AI / Codex", state.selected)');
+  assert.match(app.panel.innerHTML, /Create tailored resume/);
+  app.panel.querySelector("#ai-action").value = "Create tailored resume";
+  app.panel.querySelector("#ai-action").onchange({ target: app.panel.querySelector("#ai-action") });
+  assert.equal(app.panel.querySelector("#ai-model").value, "gpt-5.6-sol");
+  assert.equal(app.panel.querySelector("#ai-effort").value, "medium");
+  assert.match(app.panel.querySelector("#ai-prompt").value, /only candidate facts/i);
+
+  const openedRow = app.document.querySelectorAll("[data-open-ai-run]")[0];
+  await openedRow.onclick();
+  assert.match(openedRow.aiRow.querySelector(".ai-inline-result").innerHTML, /data-create-ai-draft="15"/);
+  assert.match(openedRow.aiRow.querySelector(".ai-inline-result").innerHTML, /Create editable resume draft/);
+  assert.equal(openedRow.textContent, "Hide response");
+  assert.equal(app.calls.filter(call => call.startsWith("POST /api/resumes")).length, 0);
+
+  app.routes.set("GET /api/resumes?kind=master", []);
+  app.routes.set("GET /api/resumes?kind=vacancy&vacancy_id=1", []);
+  const draftButton = { dataset: { createAiDraft: "15" }, disabled: false, tagName: "BUTTON", textContent: "Create editable resume draft" };
+  await app.listeners.get("click")({ target: { closest: selector => selector === "[data-create-ai-draft]" ? draftButton : null } });
+  const resumeForm = app.panel.querySelector("#resume-form");
+  assert.equal(resumeForm.querySelector("textarea[name=text]").value, run.response);
+  assert.equal(resumeForm.querySelector("input[name=source_resume_id]").value, 61);
+  assert.equal(app.calls.filter(call => call.startsWith("POST /api/resumes")).length, 0, "draft handoff must not save a resume version");
 }
 
 async function testMutationFailuresAndDuplicateRecovery() {
@@ -709,6 +764,7 @@ async function testMutationFailuresAndDuplicateRecovery() {
   await testImportPreviewEditConfirmAndRecovery();
   await testExistingDescriptionReviewAndCodexOptIn();
   await testSavedAiDetailAndLateRun();
+  await testTailoredResumeActionAndExplicitDraftHandoff();
   await testMutationFailuresAndDuplicateRecovery();
   process.stdout.write("SPA workflow regressions passed\n");
 })().catch(error => {
