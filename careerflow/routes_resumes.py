@@ -5,7 +5,7 @@ from __future__ import annotations
 from typing import Annotated
 
 from fastapi import APIRouter, File, Form, HTTPException, Query, Request, UploadFile
-from fastapi.responses import FileResponse
+from fastapi.responses import FileResponse, Response
 
 from .files import ImportError as DocumentImportError
 from .files import extract_text, normalize_text
@@ -39,7 +39,7 @@ async def add_resume(
     original_content: bytes | None = None
     original_filename: str | None = None
     content_text = normalize_text(text)
-    if source_resume_id is not None:
+    if source_resume_id is not None and not content_text and not (file and file.filename):
         source = get_resume(request.app.state.db, source_resume_id)
         if source is None:
             raise HTTPException(status_code=404, detail="Source resume not found")
@@ -64,7 +64,10 @@ async def add_resume(
             label=label,
             original_filename=original_filename,
             original_content=original_content,
+            source_resume_id=source_resume_id,
         )
+    except LookupError as exc:
+        raise HTTPException(status_code=404, detail=str(exc)) from exc
     except ValueError as exc:
         raise HTTPException(status_code=422, detail=str(exc)) from exc
 
@@ -86,6 +89,20 @@ def download_original_resume(request: Request, resume_id: int) -> FileResponse:
     except LookupError as exc:
         raise HTTPException(status_code=404, detail=str(exc)) from exc
     return FileResponse(path, media_type="application/octet-stream", filename=filename)
+
+
+@router.get("/{resume_id}/markdown")
+def download_markdown_resume(request: Request, resume_id: int) -> Response:
+    resume = get_resume(request.app.state.db, resume_id)
+    if resume is None:
+        raise HTTPException(status_code=404, detail="Resume not found")
+    scope = "master" if resume["kind"] == "master" else "vacancy"
+    filename = f"{scope}-resume-v{resume['version']}.md"
+    return Response(
+        content=resume["content_text"],
+        media_type="text/markdown; charset=utf-8",
+        headers={"Content-Disposition": f'attachment; filename="{filename}"'},
+    )
 
 
 @router.post("/{resume_id}/submit")

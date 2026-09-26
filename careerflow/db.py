@@ -23,6 +23,10 @@ CREATE TABLE IF NOT EXISTS vacancies (
     salary TEXT NOT NULL DEFAULT '',
     summary TEXT NOT NULL DEFAULT '',
     description TEXT NOT NULL,
+    raw_description TEXT NOT NULL DEFAULT '',
+    description_cleaning_method TEXT,
+    description_cleaned_at TEXT,
+    description_confirmed_at TEXT,
     source TEXT NOT NULL DEFAULT '',
     source_type TEXT NOT NULL DEFAULT 'text',
     original_filename TEXT,
@@ -48,6 +52,7 @@ CREATE TABLE IF NOT EXISTS resume_versions (
     original_path TEXT,
     extracted_text_path TEXT,
     content_text TEXT NOT NULL,
+    source_resume_id INTEGER REFERENCES resume_versions(id) ON DELETE SET NULL,
     is_submitted INTEGER NOT NULL DEFAULT 0 CHECK (is_submitted IN (0, 1)),
     created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
     UNIQUE(kind, vacancy_id, version)
@@ -122,6 +127,7 @@ CREATE TABLE IF NOT EXISTS ai_runs (
     vacancy_id INTEGER NOT NULL REFERENCES vacancies(id) ON DELETE CASCADE,
     prompt TEXT NOT NULL,
     model TEXT NOT NULL DEFAULT '',
+    reasoning_effort TEXT,
     response TEXT NOT NULL DEFAULT '',
     status TEXT NOT NULL,
     error TEXT NOT NULL DEFAULT '',
@@ -183,6 +189,79 @@ class Database:
             connection.execute(
                 "INSERT OR IGNORE INTO schema_version(version) VALUES (3)"
             )
+            self._ensure_track_two_columns(connection)
+            self._ensure_resume_source_guards(connection)
+            connection.execute(
+                "INSERT OR IGNORE INTO schema_version(version) VALUES (4)"
+            )
+
+    @staticmethod
+    def _ensure_track_two_columns(connection: sqlite3.Connection) -> None:
+        vacancy_columns = {
+            row["name"] for row in connection.execute("PRAGMA table_info(vacancies)")
+        }
+        for name, definition in (
+            ("raw_description", "TEXT"),
+            ("description_cleaning_method", "TEXT"),
+            ("description_cleaned_at", "TEXT"),
+            ("description_confirmed_at", "TEXT"),
+        ):
+            if name not in vacancy_columns:
+                connection.execute(f"ALTER TABLE vacancies ADD COLUMN {name} {definition}")
+        connection.execute(
+            "UPDATE vacancies SET raw_description = description WHERE raw_description IS NULL OR raw_description = ''"
+        )
+        if "created_at" in vacancy_columns:
+            confirmed_fallback = "created_at"
+        elif "updated_at" in vacancy_columns:
+            confirmed_fallback = "updated_at"
+        else:
+            confirmed_fallback = "CURRENT_TIMESTAMP"
+        connection.execute(
+            f"UPDATE vacancies SET description_confirmed_at = COALESCE(description_confirmed_at, {confirmed_fallback})"
+        )
+
+        resume_columns = {
+            row["name"] for row in connection.execute("PRAGMA table_info(resume_versions)")
+        }
+        if "source_resume_id" not in resume_columns:
+            connection.execute(
+                "ALTER TABLE resume_versions ADD COLUMN source_resume_id INTEGER REFERENCES resume_versions(id) ON DELETE SET NULL"
+            )
+
+        ai_columns = {
+            row["name"] for row in connection.execute("PRAGMA table_info(ai_runs)")
+        }
+        if "reasoning_effort" not in ai_columns:
+            connection.execute("ALTER TABLE ai_runs ADD COLUMN reasoning_effort TEXT")
+
+    @staticmethod
+    def _ensure_resume_source_guards(connection: sqlite3.Connection) -> None:
+        connection.executescript(
+            """
+            CREATE TRIGGER IF NOT EXISTS prevent_resume_source_cycle_insert
+            BEFORE INSERT ON resume_versions
+            WHEN NEW.source_resume_id IS NOT NULL AND NEW.id = NEW.source_resume_id
+            BEGIN
+                SELECT RAISE(ABORT, 'Resume source cycle is not allowed');
+            END;
+
+            CREATE TRIGGER IF NOT EXISTS prevent_resume_source_cycle_update
+            BEFORE UPDATE OF source_resume_id ON resume_versions
+            WHEN NEW.source_resume_id IS NOT NULL
+            BEGIN
+                WITH RECURSIVE ancestors(id, source_resume_id) AS (
+                    SELECT id, source_resume_id FROM resume_versions WHERE id = NEW.source_resume_id
+                    UNION ALL
+                    SELECT parent.id, parent.source_resume_id
+                    FROM resume_versions AS parent
+                    JOIN ancestors ON parent.id = ancestors.source_resume_id
+                )
+                SELECT RAISE(ABORT, 'Resume source cycle is not allowed')
+                FROM ancestors WHERE id = NEW.id;
+            END;
+            """
+        )
 
     @staticmethod
     def _ensure_ats_provenance_columns(connection: sqlite3.Connection) -> None:

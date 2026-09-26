@@ -48,6 +48,10 @@ class ResumeAndAtsTest(unittest.TestCase):
             data={"kind": "vacancy", "vacancy_id": self.vacancy["id"], "text": "Python SQL Docker Kubernetes", "label": "Final"},
         )
         self.assertEqual(first.json()["version"], 1)
+        self.assertEqual(first.json()["source_resume_id"], master.json()["id"])
+        self.assertEqual(first.json()["source_kind"], "master")
+        self.assertEqual(first.json()["source_version"], 1)
+        self.assertEqual(first.json()["content_text"], master.json()["content_text"])
         self.assertEqual(second.json()["version"], 2)
         self.assertEqual(self.client.post(f"/api/resumes/{first.json()['id']}/submit").status_code, 200)
         submitted = self.client.post(f"/api/resumes/{second.json()['id']}/submit").json()
@@ -55,6 +59,86 @@ class ResumeAndAtsTest(unittest.TestCase):
         versions = self.client.get(f"/api/resumes?kind=vacancy&vacancy_id={self.vacancy['id']}").json()
         self.assertEqual([item["version"] for item in versions], [2, 1])
         self.assertEqual(sum(item["is_submitted"] for item in versions), 1)
+
+    def test_resume_source_rules_copy_edited_markdown_and_prevent_cycles(self) -> None:
+        master = self.client.post(
+            "/api/resumes",
+            data={"kind": "master", "label": "Base", "text": "# Base\n\nPython"},
+        ).json()
+        tailored = self.client.post(
+            "/api/resumes",
+            data={
+                "kind": "vacancy",
+                "vacancy_id": self.vacancy["id"],
+                "source_resume_id": master["id"],
+                "label": "Edited copy",
+                "text": "# Tailored\n\nPython and SQL",
+            },
+        )
+        self.assertEqual(tailored.status_code, 201)
+        self.assertEqual(tailored.json()["content_text"], "# Tailored\nPython and SQL")
+        self.assertEqual(tailored.json()["source_resume_id"], master["id"])
+
+        derived = self.client.post(
+            "/api/resumes",
+            data={
+                "kind": "vacancy",
+                "vacancy_id": self.vacancy["id"],
+                "source_resume_id": tailored.json()["id"],
+                "text": "Second tailored version",
+            },
+        )
+        self.assertEqual(derived.status_code, 201)
+        self.assertEqual(derived.json()["source_kind"], "vacancy")
+        self.assertEqual(derived.json()["source_version"], tailored.json()["version"])
+
+        other_vacancy = self.client.post(
+            "/api/vacancies", data={"text": "Other role\nRequired Go"}
+        ).json()
+        cross_vacancy = self.client.post(
+            "/api/resumes",
+            data={
+                "kind": "vacancy",
+                "vacancy_id": other_vacancy["id"],
+                "source_resume_id": tailored.json()["id"],
+                "text": "Invalid cross-vacancy child",
+            },
+        )
+        self.assertEqual(cross_vacancy.status_code, 422)
+        invalid_master = self.client.post(
+            "/api/resumes",
+            data={
+                "kind": "master",
+                "source_resume_id": tailored.json()["id"],
+                "text": "Invalid master child",
+            },
+        )
+        self.assertEqual(invalid_master.status_code, 422)
+
+        database = self.context.app.state.db
+        with self.assertRaises(sqlite3.IntegrityError):
+            with database.transaction() as connection:
+                connection.execute(
+                    "UPDATE resume_versions SET source_resume_id = ? WHERE id = ?",
+                    (derived.json()["id"], tailored.json()["id"]),
+                )
+
+        with database.transaction() as connection:
+            connection.execute("DELETE FROM resume_versions WHERE id = ?", (master["id"],))
+        preserved_child = self.client.get(f"/api/resumes/{tailored.json()['id']}").json()
+        self.assertIsNone(preserved_child["source_resume_id"])
+        self.assertEqual(preserved_child["content_text"], "# Tailored\nPython and SQL")
+
+    def test_canonical_markdown_download(self) -> None:
+        resume = self.client.post(
+            "/api/resumes",
+            data={"kind": "master", "text": "# Profile\n\n- Python\n- SQL"},
+        ).json()
+        response = self.client.get(f"/api/resumes/{resume['id']}/markdown")
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(response.text, resume["content_text"])
+        self.assertIn("text/markdown", response.headers["content-type"])
+        self.assertIn("master-resume-v1.md", response.headers["content-disposition"])
 
     def test_original_resume_download_is_byte_identical_and_scoped_to_storage(self) -> None:
         original = b"Python engineer\nSQL and Docker\n"
@@ -262,8 +346,13 @@ class AtsLegacyMigrationTest(unittest.TestCase):
             self.assertIsNone(analysis["description_snapshot"])
             self.assertEqual(
                 database.fetch_one("SELECT MAX(version) AS version FROM schema_version")["version"],
-                3,
+                4,
             )
+            vacancy = database.fetch_one("SELECT * FROM vacancies WHERE id = 1")
+            self.assertEqual(vacancy["raw_description"], vacancy["description"])
+            self.assertEqual(vacancy["description_confirmed_at"], "2026-09-21")
+            resume = database.fetch_one("SELECT * FROM resume_versions WHERE id = 1")
+            self.assertIsNone(resume["source_resume_id"])
 
 
 if __name__ == "__main__":
