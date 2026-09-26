@@ -15,6 +15,9 @@ STOP_WORDS = {
     "into", "its", "job", "our", "role", "that", "the", "their", "this", "using",
     "with", "will", "work", "you", "your", "для", "или", "как", "команда", "на",
     "не", "опыт", "от", "по", "работа", "с", "со", "требования", "что", "это",
+    "мы", "наш", "наша", "наши", "нашего", "компания", "компании", "вакансия",
+    "вакансии", "будет", "будут", "который", "которая", "которые", "вас", "вам",
+    "ищем", "перед", "вами", "следующие", "задачи", "также", "этот", "эта", "эти",
 }
 
 GENERIC_REQUIREMENT_WORDS = {
@@ -56,11 +59,66 @@ def _sentences(text: str) -> list[str]:
 def _requirements(text: str) -> list[str]:
     lines = _sentences(text)
     signals = re.compile(
-        r"(?i)\b(required|requirements?|must|need|experience|knowledge|skills?|proficien|обязанност|требован|опыт|знани|навык)\b"
+        r"(?i)\b(required|requirements?|must|need|experience|knowledge|skills?|proficien|"
+        r"обязанност|требован|опыт|знани|навык|умени|владени|необходим|требуется|"
+        r"желательно|будет преимуществом|от\s+\d+\s+(?:лет|года?))\b"
     )
-    selected = [line for line in lines if signals.search(line) and len(_tokens(line)) >= 2]
-    if len(selected) < 3:
-        selected.extend(line for line in lines if line not in selected and len(_tokens(line)) >= 3)
+    # A requirement is eligible only when the sentence expresses an explicit
+    # qualification or starts with a heading that introduces a requirements list.
+    # Do not pad short requirement sections with arbitrary company/marketing text.
+    selected: list[str] = []
+    in_requirements_section = False
+    in_excluded_section = False
+    section_heading = re.compile(
+        r"(?i)^\s*(?:требования|что\s+мы\s+ожидаем|вам\s+необходимо|"
+        r"requirements|qualifications|what\s+we(?:'re|\s+are)\s+looking\s+for)\s*:?\s*$"
+    )
+    duty_intro = re.compile(
+        r"(?i)^\s*(?:перед\s+вами\s+будут\s+стоять\s+следующие\s+задачи|"
+        r"следующие\s+задачи|основные\s+задачи|ваши\s+задачи|"
+        r"что\s+будете\s+делать|обязанности)\s*:?\s*$"
+    )
+    task_heading = re.compile(
+        r"(?i)^\s*(?:what\s+you(?:'ll|\s+will)\s+do)\s*:?\s*$"
+    )
+    excluded_heading = re.compile(
+        r"(?i)^\s*(?:о\s+компании|company|about\s+us|мы\s+предлагаем|"
+        r"условия|benefits|what\s+we\s+offer|мы\s+гарантируем)\s*:?\s*$"
+    )
+    for line in lines:
+        if section_heading.fullmatch(line):
+            in_requirements_section = True
+            in_excluded_section = False
+            continue
+        if duty_intro.fullmatch(line):
+            in_requirements_section = True
+            in_excluded_section = False
+            continue
+        if task_heading.fullmatch(line):
+            in_requirements_section = False
+            continue
+        if excluded_heading.fullmatch(line):
+            in_requirements_section = False
+            in_excluded_section = True
+            continue
+        if re.match(r"(?i)^\s*(?:в свою очередь мы гарантируем|мы предлагаем)\b", line):
+            in_requirements_section = False
+            in_excluded_section = True
+            continue
+        if in_excluded_section:
+            continue
+        if not in_requirements_section and not signals.search(line):
+            continue
+        if len(_tokens(line)) < 2:
+            continue
+        # Headings and narrative about the employer are not qualifications.
+        if re.match(
+            r"(?i)^\s*(?:перед\s+вами\s+будут|ищем\s+.{0,80},?\s+котор\w+|"
+            r"мы\s+специализируемся|компания\s+.{0,80}\s+работает\s+с\s+\d{4})",
+            line,
+        ):
+            continue
+        selected.append(line)
     return selected[:12]
 
 
@@ -70,12 +128,13 @@ def analyze(vacancy_text: str, resume_text: str) -> dict:
     # and requirement scoring; reviewable/uncertain blocks remain untouched.
     vacancy_text = retain_reviewable_text(vacancy_text)
     resume_tokens = set(_tokens(resume_text))
-    vacancy_counts = Counter(_tokens(vacancy_text))
+    requirement_lines = _requirements(vacancy_text)
+    vacancy_counts = Counter(_tokens("\n".join(requirement_lines)))
     keywords = [word for word, _ in vacancy_counts.most_common(24)]
     resume_sentences = _sentences(resume_text)
     requirement_results: list[dict] = []
 
-    for requirement in _requirements(vacancy_text):
+    for requirement in requirement_lines:
         requirement_tokens = set(_tokens(requirement))
         if not requirement_tokens:
             continue

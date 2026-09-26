@@ -432,6 +432,46 @@ class ResumeAndAtsTest(unittest.TestCase):
         self.assertEqual(item["evidence"], "")
         self.assertIn("Not evidenced", item["interpretation"])
 
+    def test_ats_does_not_score_job_intro_or_company_marketing_as_requirements(self) -> None:
+        vacancy = """Менеджер по работе с клиентами
+Компания HARDKOD работает с 2010 года.
+Мы специализируемся на SEO, техподдержке и создании сайтов.
+Ищем аккаунт менеджера, который будет помогать нашей команде и заказчикам лучше понимать друг друга.
+Перед Вами будут стоять следующие задачи:
+Увеличивать LTV действующих клиентов и сокращать отток клиентов.
+Что будете делать:
+Активно взаимодействовать с клиентами по телефону, CRM, вести деловую переписку.
+Требования:
+Опыт работы аккаунт менеджером от 1 года.
+Опыт в продажах B2B.
+Умение доносить суть простыми словами.
+В свою очередь мы гарантируем:
+Высокий уровень дохода: оклад + проценты.
+Удаленная работа по графику 5/2."""
+
+        result = analyze(
+            vacancy,
+            "Project manager with React, JavaScript, HTML, CSS, and API experience. "
+            "Worked with clients on retention and contract renewals.",
+        )
+
+        requirement_text = "\n".join(item["requirement"] for item in result["requirements"])
+        self.assertIn("Опыт работы аккаунт менеджером от 1 года", requirement_text)
+        self.assertIn("Опыт в продажах B2B", requirement_text)
+        self.assertIn("Умение доносить суть простыми словами", requirement_text)
+        self.assertIn("Активно взаимодействовать с клиентами", requirement_text)
+        self.assertNotIn("Перед Вами будут стоять", requirement_text)
+        self.assertNotIn("Мы специализируемся на SEO", requirement_text)
+        self.assertNotIn("Компания HARDKOD работает", requirement_text)
+        self.assertNotIn("Высокий уровень дохода", requirement_text)
+        self.assertNotIn("Удаленная работа", requirement_text)
+        self.assertNotIn("мы", result["keywords"])
+        self.assertNotIn("вакансия", result["keywords"])
+        self.assertNotIn("hardkod", result["keywords"])
+        self.assertNotIn("seo", result["keywords"])
+        self.assertNotIn("дохода", result["keywords"])
+        self.assertLess(result["match_percent"], 20)
+
     def test_ats_ignores_sentence_punctuation_when_matching_skills(self) -> None:
         result = analyze(
             "Required: Kubernetes and Node.js experience.",
