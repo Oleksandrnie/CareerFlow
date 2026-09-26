@@ -30,7 +30,9 @@ AI_MATCH_ACTION = "Match resume to vacancy"
 
 def parse_ai_match_response(response: str) -> int | None:
     """Read a valid JSON score, tolerating harmless CLI prose/fences around it."""
-    text = response.strip()
+    # Codex/terminal wrappers may add a BOM, ANSI color codes, or harmless
+    # control characters before the JSON payload.
+    text = re.sub(r"\x1b\[[0-?]*[ -/]*[@-~]", "", response).lstrip("\ufeff").strip()
     if text.startswith("```"):
         text = re.sub(r"^```(?:json)?\s*|\s*```$", "", text, flags=re.I | re.S).strip()
     try:
