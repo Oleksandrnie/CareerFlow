@@ -19,6 +19,11 @@ from .codex import (
     run_codex,
     validate_model_effort,
 )
+from .ai_resume import (
+    TAILORED_RESUME_ACTION,
+    build_tailored_resume_context,
+    tailored_resume_instructions,
+)
 from .db import insert_and_get_id
 from .reports import build_report, get_report, save_report
 from .vacancies import get_vacancy
@@ -26,6 +31,8 @@ from .vacancies import get_vacancy
 
 router = APIRouter(prefix="/api/vacancies/{vacancy_id}", tags=["reports", "ai"])
 AI_MATCH_ACTION = "Match resume to vacancy"
+TAILORED_RESUME_MODEL = "gpt-5.6-sol"
+TAILORED_RESUME_EFFORT = "medium"
 
 
 def parse_ai_match_response(response: str) -> int | None:
@@ -139,7 +146,18 @@ def get_ai_run(request: Request, vacancy_id: int, run_id: int) -> dict:
 def execute_ai(request: Request, vacancy_id: int, payload: AiRequest) -> dict:
     if get_vacancy(request.app.state.db, vacancy_id) is None:
         raise HTTPException(status_code=404, detail="Vacancy not found")
-    context = build_report(request.app.state.db, vacancy_id)
+    context_sources: dict = {}
+    source_resume_id: int | None = None
+    try:
+        if payload.action == TAILORED_RESUME_ACTION:
+            context, context_sources = build_tailored_resume_context(
+                request.app.state.db, vacancy_id
+            )
+            source_resume_id = context_sources["resume_version_id"]
+        else:
+            context = build_report(request.app.state.db, vacancy_id)
+    except (LookupError, ValueError) as exc:
+        raise HTTPException(status_code=422, detail=str(exc)) from exc
     try:
         prompt = build_prompt(payload.prompt, context, payload.action)
     except ValueError as exc:
@@ -153,11 +171,23 @@ def execute_ai(request: Request, vacancy_id: int, payload: AiRequest) -> dict:
             "Compare only the vacancy requirements with the selected resume evidence; "
             "ignore page navigation, company marketing, salary and generic wording."
         )
+    elif payload.action == TAILORED_RESUME_ACTION:
+        prompt += f"\n\n{tailored_resume_instructions()}"
     try:
+        requested_model = (
+            TAILORED_RESUME_MODEL
+            if payload.action == TAILORED_RESUME_ACTION
+            else payload.model
+        )
+        requested_effort = (
+            TAILORED_RESUME_EFFORT
+            if payload.action == TAILORED_RESUME_ACTION
+            else payload.reasoning_effort
+        )
         selected_model, selected_effort = validate_model_effort(
             load_model_catalog(request.app.state.settings),
-            payload.model,
-            payload.reasoning_effort,
+            requested_model,
+            requested_effort,
         )
     except ValueError as exc:
         raise HTTPException(status_code=422, detail=str(exc)) from exc
@@ -183,14 +213,18 @@ def execute_ai(request: Request, vacancy_id: int, payload: AiRequest) -> dict:
             connection,
             """
             INSERT INTO ai_runs(
-                vacancy_id, prompt, model, reasoning_effort, response, status, error
-            ) VALUES (?, ?, ?, ?, ?, ?, ?)
+                vacancy_id, prompt, action, model, reasoning_effort, source_resume_id,
+                context_sources_json, response, status, error
+            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
             """,
             (
                 vacancy_id,
                 payload.prompt,
+                payload.action,
                 selected_model,
                 selected_effort,
+                source_resume_id,
+                json.dumps(context_sources, ensure_ascii=False),
                 response,
                 status,
                 error,

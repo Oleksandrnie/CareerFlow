@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import json
 import subprocess
 import tempfile
 import unittest
@@ -270,6 +271,154 @@ class ReportsAndCodexTest(unittest.TestCase):
         after = self.client.get(f"/api/vacancies/{self.vacancy['id']}").json()
         self.assertEqual(after["ai_match_percent"], 74)
         self.assertEqual(after["match_percent"], before["match_percent"])
+
+    @patch("careerflow.routes_ai_reports.run_codex")
+    @patch("careerflow.routes_ai_reports.load_model_catalog")
+    def test_tailored_resume_uses_curated_latest_context_and_remains_read_only(
+        self, mocked_catalog, mocked_run
+    ) -> None:
+        from careerflow.codex import CodexResult
+
+        mocked_catalog.return_value = {
+            "models": [
+                {"id": "gpt-5.6-luna", "name": "Luna", "efforts": ["low"]},
+                {"id": "gpt-5.6-sol", "name": "Sol", "efforts": ["medium", "high"]},
+            ],
+            "default_model": "gpt-5.6-luna",
+            "default_effort": "low",
+            "source": "codex-cli",
+        }
+        later_draft = self.client.post(
+            "/api/resumes",
+            data={
+                "kind": "vacancy",
+                "vacancy_id": self.vacancy["id"],
+                "text": "LATEST_UNSUBMITTED_SHOULD_NOT_REPLACE_SUBMITTED",
+            },
+        ).json()
+        self.assertNotEqual(later_draft["id"], self.resume["id"])
+        self.client.post(f"/api/resumes/{self.resume['id']}/submit")
+        mocked_run.side_effect = [
+            CodexResult("OLD_IMPROVEMENT", ["codex"]),
+            CodexResult("LATEST_IMPROVEMENT", ["codex"]),
+            CodexResult("LATEST_MATCH", ["codex"]),
+            CodexResult("LATEST_ATS_REVIEW", ["codex"]),
+            CodexResult("# Tailored resume\n\nPython and SQL", ["codex"]),
+        ]
+        url = f"/api/vacancies/{self.vacancy['id']}/ai-runs"
+        for action, prompt in (
+            ("Improve resume", "Suggest truthful improvements: old"),
+            ("Improve resume", "Suggest truthful improvements: latest"),
+            ("Match resume to vacancy", "Compare the selected resume now"),
+            ("Review ATS analysis", "Review the heuristic ATS evidence"),
+        ):
+            created = self.client.post(
+                url,
+                json={
+                    "action": action,
+                    "prompt": prompt,
+                    "model": "gpt-5.6-luna",
+                    "reasoning_effort": "low",
+                },
+            )
+            self.assertEqual(created.status_code, 201)
+
+        before = self.client.get(
+            f"/api/resumes?kind=vacancy&vacancy_id={self.vacancy['id']}"
+        ).json()
+        tailored = self.client.post(
+            url,
+            json={
+                "action": "Create tailored resume",
+                "prompt": "Create the complete resume.",
+                "model": "gpt-5.6-luna",
+                "reasoning_effort": "low",
+            },
+        )
+        self.assertEqual(tailored.status_code, 201)
+        run = tailored.json()
+        self.assertEqual(run["action"], "Create tailored resume")
+        self.assertEqual(run["model"], "gpt-5.6-sol")
+        self.assertEqual(run["reasoning_effort"], "medium")
+        self.assertEqual(run["source_resume_id"], self.resume["id"])
+        sources = json.loads(run["context_sources_json"])
+        self.assertEqual(sources["resume_version_id"], self.resume["id"])
+        self.assertIsNotNone(sources["ats_analysis_id"])
+        self.assertEqual(set(sources["ai_run_ids"]), {
+            "Improve resume", "Match resume to vacancy", "Review ATS analysis"
+        })
+        generated_prompt = mocked_run.call_args.args[1]
+        self.assertIn("LATEST_IMPROVEMENT", generated_prompt)
+        self.assertNotIn("OLD_IMPROVEMENT", generated_prompt)
+        self.assertIn("LATEST_MATCH", generated_prompt)
+        self.assertIn("LATEST_ATS_REVIEW", generated_prompt)
+        self.assertNotIn("LATEST_UNSUBMITTED_SHOULD_NOT_REPLACE_SUBMITTED", generated_prompt)
+        self.assertIn("sole authority for candidate facts", generated_prompt)
+        self.assertIn("Do not invent or infer", generated_prompt)
+        self.assertIn("return Markdown only", generated_prompt)
+        self.assertEqual(
+            self.client.get(
+                f"/api/resumes?kind=vacancy&vacancy_id={self.vacancy['id']}"
+            ).json(),
+            before,
+        )
+
+    @patch("careerflow.routes_ai_reports.run_codex")
+    @patch("careerflow.routes_ai_reports.load_model_catalog")
+    def test_tailored_resume_falls_back_to_latest_master_source(
+        self, mocked_catalog, mocked_run
+    ) -> None:
+        from careerflow.codex import CodexResult
+
+        mocked_catalog.return_value = {
+            "models": [
+                {"id": "gpt-5.6-sol", "name": "Sol", "efforts": ["medium", "high"]}
+            ],
+            "default_model": "gpt-5.6-sol",
+            "default_effort": "medium",
+            "source": "codex-cli",
+        }
+        vacancy = self.client.post(
+            "/api/vacancies", data={"text": "Platform Engineer\nRequired Kubernetes"}
+        ).json()
+        older = self.client.post(
+            "/api/resumes", data={"kind": "master", "text": "OLDER_MASTER_CONTENT"}
+        ).json()
+        master = self.client.post(
+            "/api/resumes",
+            data={
+                "kind": "master",
+                "source_resume_id": older["id"],
+                "text": "LATEST_MASTER_CONTENT with Kubernetes",
+            },
+        ).json()
+        mocked_run.return_value = CodexResult("# Tailored from master", ["codex"])
+        response = self.client.post(
+            f"/api/vacancies/{vacancy['id']}/ai-runs",
+            json={"action": "Create tailored resume", "prompt": "Create it"},
+        )
+        self.assertEqual(response.status_code, 201)
+        run = response.json()
+        self.assertEqual(run["source_resume_id"], master["id"])
+        sources = json.loads(run["context_sources_json"])
+        self.assertEqual(sources["resume_kind"], "master")
+        self.assertEqual(sources["resume_selection"], "latest_master")
+        generated_prompt = mocked_run.call_args.args[1]
+        self.assertIn("LATEST_MASTER_CONTENT", generated_prompt)
+        self.assertNotIn("OLDER_MASTER_CONTENT", generated_prompt)
+
+    @patch("careerflow.routes_ai_reports.run_codex")
+    def test_tailored_resume_requires_any_resume_source(self, mocked_run) -> None:
+        vacancy = self.client.post(
+            "/api/vacancies", data={"text": "Platform Engineer\nRequired Kubernetes"}
+        ).json()
+        response = self.client.post(
+            f"/api/vacancies/{vacancy['id']}/ai-runs",
+            json={"action": "Create tailored resume", "prompt": "Create it"},
+        )
+        self.assertEqual(response.status_code, 422)
+        self.assertIn("Master Resume", response.json()["detail"])
+        mocked_run.assert_not_called()
 
 
 if __name__ == "__main__":

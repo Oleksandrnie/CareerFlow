@@ -564,7 +564,7 @@ class AtsLegacyMigrationTest(unittest.TestCase):
             self.assertIsNone(analysis["description_snapshot"])
             self.assertEqual(
                 database.fetch_one("SELECT MAX(version) AS version FROM schema_version")["version"],
-                6,
+                7,
             )
             vacancy = database.fetch_one("SELECT * FROM vacancies WHERE id = 1")
             self.assertEqual(vacancy["raw_description"], vacancy["description"])
@@ -577,6 +577,9 @@ class AtsLegacyMigrationTest(unittest.TestCase):
                 for row in database.fetch_all("PRAGMA table_info(ai_runs)")
             }
             self.assertIn("reasoning_effort", ai_columns)
+            self.assertIn("action", ai_columns)
+            self.assertIn("source_resume_id", ai_columns)
+            self.assertIn("context_sources_json", ai_columns)
 
 
 if __name__ == "__main__":

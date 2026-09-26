@@ -129,8 +129,11 @@ CREATE TABLE IF NOT EXISTS ai_runs (
     id INTEGER PRIMARY KEY AUTOINCREMENT,
     vacancy_id INTEGER NOT NULL REFERENCES vacancies(id) ON DELETE CASCADE,
     prompt TEXT NOT NULL,
+    action TEXT NOT NULL DEFAULT '',
     model TEXT NOT NULL DEFAULT '',
     reasoning_effort TEXT,
+    source_resume_id INTEGER REFERENCES resume_versions(id) ON DELETE SET NULL,
+    context_sources_json TEXT NOT NULL DEFAULT '{}',
     response TEXT NOT NULL DEFAULT '',
     status TEXT NOT NULL,
     error TEXT NOT NULL DEFAULT '',
@@ -205,6 +208,21 @@ class Database:
             connection.execute(
                 "INSERT OR IGNORE INTO schema_version(version) VALUES (6)"
             )
+            self._ensure_ai_run_context_columns(connection)
+            connection.execute(
+                "INSERT OR IGNORE INTO schema_version(version) VALUES (7)"
+            )
+
+    @staticmethod
+    def _ensure_ai_run_context_columns(connection: sqlite3.Connection) -> None:
+        columns = {row["name"] for row in connection.execute("PRAGMA table_info(ai_runs)")}
+        for name, definition in (
+            ("action", "TEXT NOT NULL DEFAULT ''"),
+            ("source_resume_id", "INTEGER REFERENCES resume_versions(id) ON DELETE SET NULL"),
+            ("context_sources_json", "TEXT NOT NULL DEFAULT '{}'"),
+        ):
+            if name not in columns:
+                connection.execute(f"ALTER TABLE ai_runs ADD COLUMN {name} {definition}")
 
     @staticmethod
     def _ensure_ai_match_columns(connection: sqlite3.Connection) -> None:
