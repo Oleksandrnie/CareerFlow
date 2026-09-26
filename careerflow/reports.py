@@ -38,7 +38,7 @@ def _resume_changes(versions: list[dict]) -> list[str]:
     return lines
 
 
-def build_report(database: Database, vacancy_id: int) -> str:
+def build_report(database: Database, vacancy_id: int, *, include_raw: bool = False) -> str:
     vacancy = get_vacancy(database, vacancy_id)
     if vacancy is None:
         raise LookupError("Vacancy not found")
@@ -71,9 +71,17 @@ def build_report(database: Database, vacancy_id: int) -> str:
         "",
         vacancy["description"],
         "",
-        "## Resume context",
-        "",
     ]
+    if include_raw:
+        lines.extend(
+            [
+                "## Diagnostic raw vacancy description",
+                "",
+                vacancy["raw_description"] or vacancy["description"],
+                "",
+            ]
+        )
+    lines.extend(["## Resume context", ""])
     if selected:
         lines.extend(
             [
@@ -196,8 +204,10 @@ def build_report(database: Database, vacancy_id: int) -> str:
     return "\n".join(lines).strip() + "\n"
 
 
-def save_report(database: Database, storage_dir: Path, vacancy_id: int) -> dict:
-    markdown = build_report(database, vacancy_id)
+def save_report(
+    database: Database, storage_dir: Path, vacancy_id: int, *, include_raw: bool = False
+) -> dict:
+    markdown = build_report(database, vacancy_id, include_raw=include_raw)
     timestamp = datetime.now(timezone.utc).strftime("%Y%m%d-%H%M%S-%f")
     path = storage_dir / "reports" / str(vacancy_id) / f"careerflow-{vacancy_id}-{timestamp}.md"
     path.parent.mkdir(parents=True, exist_ok=True)

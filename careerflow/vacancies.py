@@ -46,18 +46,24 @@ def create_vacancy(
     original_filename: str | None = None,
     original_content: bytes | None = None,
     overrides: dict[str, str] | None = None,
+    raw_description: str | None = None,
+    cleaning_method: str | None = None,
+    description_confirmed: bool = True,
 ) -> dict:
     normalized = normalize_text(text)
     if not normalized:
         raise ValueError("Vacancy text is required")
+    normalized_raw = normalize_text(raw_description if raw_description is not None else text)
+    if not normalized_raw:
+        raise ValueError("Raw vacancy description is required")
     inferred = infer_vacancy_fields(normalized)
     for key, value in (overrides or {}).items():
         if key in inferred and value.strip():
             inferred[key] = value.strip()
 
     folder = storage_dir / "vacancies" / uuid4().hex
-    extracted_path = folder / "extracted.txt"
-    write_text(extracted_path, normalized)
+    extracted_path = folder / "raw-description.txt"
+    write_text(extracted_path, normalized_raw)
     original_path: Path | None = None
     stored_filename: str | None = None
     if original_filename and original_content is not None:
@@ -70,13 +76,18 @@ def create_vacancy(
             connection,
             """
             INSERT INTO vacancies(
-                title, company, salary, summary, description, source, source_type,
-                original_filename, original_path, extracted_text_path
-            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                title, company, salary, summary, description, raw_description,
+                description_cleaning_method, description_cleaned_at, description_confirmed_at,
+                source, source_type, original_filename, original_path, extracted_text_path
+            ) VALUES (?, ?, ?, ?, ?, ?, ?,
+                CASE WHEN ? IS NULL THEN NULL ELSE CURRENT_TIMESTAMP END,
+                CASE WHEN ? THEN CURRENT_TIMESTAMP ELSE NULL END,
+                ?, ?, ?, ?, ?)
             """,
             (
                 inferred["title"], inferred["company"], inferred["salary"],
-                inferred["summary"], normalized, (overrides or {}).get("source", ""),
+                inferred["summary"], normalized, normalized_raw, cleaning_method,
+                cleaning_method, int(description_confirmed), (overrides or {}).get("source", ""),
                 source_type, stored_filename, str(original_path) if original_path else None,
                 str(extracted_path),
             ),
@@ -88,6 +99,14 @@ def create_vacancy(
             """,
             (vacancy_id, f"Imported from {source_type}"),
         )
+        if cleaning_method and description_confirmed:
+            connection.execute(
+                """
+                INSERT INTO timeline_events(vacancy_id, event_type, title, details)
+                VALUES (?, 'description_cleaned', 'Cleaned description confirmed', ?)
+                """,
+                (vacancy_id, f"Method: {cleaning_method[:80]}"),
+            )
     result = get_vacancy(database, vacancy_id)
     if result is None:
         raise RuntimeError("Created vacancy could not be loaded")
@@ -121,7 +140,7 @@ def update_vacancy(database: Database, vacancy_id: int, changes: dict[str, str])
         if current is None:
             return None
         if "description" in selected and selected["description"] != current["description"]:
-            assignments += ", description_revision = description_revision + 1, match_percent = NULL"
+            assignments += ", description_revision = description_revision + 1, match_percent = NULL, description_confirmed_at = CURRENT_TIMESTAMP, description_cleaning_method = 'manual-edit', description_cleaned_at = CURRENT_TIMESTAMP"
         cursor = connection.execute(
             f"UPDATE vacancies SET {assignments}, updated_at = CURRENT_TIMESTAMP WHERE id = ?",
             (*selected.values(), vacancy_id),
@@ -133,6 +152,54 @@ def update_vacancy(database: Database, vacancy_id: int, changes: dict[str, str])
             (vacancy_id,),
         )
     return get_vacancy(database, vacancy_id)
+
+
+def apply_clean_description(
+    database: Database,
+    vacancy_id: int,
+    description: str,
+    method: str,
+) -> dict:
+    normalized = normalize_text(description)
+    if not normalized:
+        raise ValueError("Cleaned vacancy description is required")
+    safe_method = method.strip()[:80] or "manual-review"
+    with database.transaction(immediate=True) as connection:
+        current = connection.execute(
+            "SELECT description, description_cleaned_at FROM vacancies WHERE id = ?",
+            (vacancy_id,),
+        ).fetchone()
+        if current is None:
+            raise LookupError("Vacancy not found")
+        changed = normalized != current["description"]
+        connection.execute(
+            """
+            UPDATE vacancies
+            SET description = ?, description_cleaning_method = ?,
+                description_cleaned_at = CURRENT_TIMESTAMP,
+                description_confirmed_at = CURRENT_TIMESTAMP,
+                description_revision = description_revision + ?,
+                match_percent = CASE WHEN ? THEN NULL ELSE match_percent END,
+                updated_at = CURRENT_TIMESTAMP
+            WHERE id = ?
+            """,
+            (normalized, safe_method, int(changed), int(changed), vacancy_id),
+        )
+        connection.execute(
+            """
+            INSERT INTO timeline_events(vacancy_id, event_type, title, details)
+            VALUES (?, 'description_cleaned', ?, ?)
+            """,
+            (
+                vacancy_id,
+                "Cleaned description confirmed" if current["description_cleaned_at"] is None else "Description cleaned again",
+                f"Method: {safe_method}" + (" · ATS requires rerun" if changed else ""),
+            ),
+        )
+    result = get_vacancy(database, vacancy_id)
+    if result is None:
+        raise RuntimeError("Updated vacancy could not be loaded")
+    return result
 
 
 def set_archived(database: Database, vacancy_id: int, archived: bool) -> dict | None:
