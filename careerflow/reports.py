@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import difflib
+import hashlib
 from datetime import datetime, timezone
 from pathlib import Path
 
@@ -38,7 +39,9 @@ def _resume_changes(versions: list[dict]) -> list[str]:
     return lines
 
 
-def build_report(database: Database, vacancy_id: int, *, include_raw: bool = False) -> str:
+def _build_report_context(
+    database: Database, vacancy_id: int, *, include_raw: bool = False
+) -> tuple[str, dict]:
     vacancy = get_vacancy(database, vacancy_id)
     if vacancy is None:
         raise LookupError("Vacancy not found")
@@ -218,7 +221,29 @@ def build_report(database: Database, vacancy_id: int, *, include_raw: bool = Fal
                 lines.extend(["", f"### Text: {attachment['filename']}", "", content[:MAX_TEXT_ATTACHMENT_CHARS], ""])
             except OSError:
                 lines.append("  - Text content is unavailable on disk.")
-    return "\n".join(lines).strip() + "\n"
+    included_resumes = [item for item in (selected, analyzed_resume) if item]
+    source_resume = selected or analyzed_resume
+    sources = {
+        "vacancy_description_revision": vacancy["description_revision"],
+        "vacancy_description_sha256": hashlib.sha256(
+            vacancy["description"].encode("utf-8")
+        ).hexdigest(),
+        "resume_version_id": source_resume["id"] if source_resume else None,
+        "workflow_resume_id": selected["id"] if selected else None,
+        "ats_analysis_id": analysis["id"] if analysis else None,
+        "ats_resume_id": analysis["resume_version_id"] if analysis else None,
+        "included_resume_ids": sorted({item["id"] for item in included_resumes}),
+    }
+    return "\n".join(lines).strip() + "\n", sources
+
+
+def build_report(database: Database, vacancy_id: int, *, include_raw: bool = False) -> str:
+    return _build_report_context(database, vacancy_id, include_raw=include_raw)[0]
+
+
+def build_report_with_sources(database: Database, vacancy_id: int) -> tuple[str, dict]:
+    """Return AI report text and provenance from the same assembled inputs."""
+    return _build_report_context(database, vacancy_id)
 
 
 def save_report(

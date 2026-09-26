@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+from hashlib import sha256
 import json
 import subprocess
 import tempfile
@@ -10,6 +11,10 @@ from unittest.mock import patch
 from fastapi.testclient import TestClient
 
 from careerflow.api import create_app
+from careerflow.ai_resume import (
+    build_tailored_resume_context,
+    tailored_resume_instructions,
+)
 from careerflow.codex import build_prompt, run_codex
 from careerflow.routes_ai_reports import parse_ai_match_response
 from careerflow.config import Settings
@@ -205,6 +210,80 @@ class ReportsAndCodexTest(unittest.TestCase):
         )
 
     @patch("careerflow.routes_ai_reports.run_codex")
+    def test_ordinary_ai_runs_record_the_exact_report_sources(self, mocked_run) -> None:
+        from careerflow.codex import CodexResult
+
+        mocked_run.return_value = CodexResult("Report-based response", ["codex"])
+        analyzed = self.client.post(
+            "/api/resumes",
+            data={
+                "kind": "vacancy",
+                "vacancy_id": self.vacancy["id"],
+                "text": "A different analyzed resume with Python.",
+            },
+        ).json()
+        self.client.post(
+            f"/api/vacancies/{self.vacancy['id']}/ats",
+            json={"resume_version_id": analyzed["id"]},
+        )
+        self.client.post(f"/api/resumes/{self.resume['id']}/submit")
+
+        response = self.client.post(
+            f"/api/vacancies/{self.vacancy['id']}/ai-runs",
+            json={"action": "Improve resume", "prompt": "Suggest truthful improvements"},
+        )
+        self.assertEqual(response.status_code, 201)
+        run = response.json()
+        sources = json.loads(run["context_sources_json"])
+        vacancy = self.client.get(f"/api/vacancies/{self.vacancy['id']}").json()
+        self.assertEqual(run["source_resume_id"], self.resume["id"])
+        self.assertEqual(sources["resume_version_id"], self.resume["id"])
+        self.assertEqual(sources["workflow_resume_id"], self.resume["id"])
+        self.assertEqual(sources["ats_resume_id"], analyzed["id"])
+        self.assertEqual(
+            sources["included_resume_ids"], sorted([self.resume["id"], analyzed["id"]])
+        )
+        self.assertEqual(
+            sources["vacancy_description_revision"], vacancy["description_revision"]
+        )
+        self.assertEqual(
+            sources["vacancy_description_sha256"],
+            sha256(vacancy["description"].encode("utf-8")).hexdigest(),
+        )
+
+        master_vacancy = self.client.post(
+            "/api/vacancies", data={"text": "Backend Engineer\nRequired Python"}
+        ).json()
+        master = self.client.post(
+            "/api/resumes", data={"kind": "master", "text": "Python backend work"}
+        ).json()
+        self.client.post(
+            f"/api/vacancies/{master_vacancy['id']}/ats",
+            json={"resume_version_id": master["id"]},
+        )
+        master_run = self.client.post(
+            f"/api/vacancies/{master_vacancy['id']}/ai-runs",
+            json={"action": "Analyze vacancy", "prompt": "Analyze the role"},
+        ).json()
+        master_sources = json.loads(master_run["context_sources_json"])
+        self.assertEqual(master_run["source_resume_id"], master["id"])
+        self.assertIsNone(master_sources["workflow_resume_id"])
+        self.assertEqual(master_sources["ats_resume_id"], master["id"])
+        self.assertEqual(master_sources["included_resume_ids"], [master["id"]])
+
+        empty_vacancy = self.client.post(
+            "/api/vacancies", data={"text": "Writer\nExcellent writing required"}
+        ).json()
+        empty_run = self.client.post(
+            f"/api/vacancies/{empty_vacancy['id']}/ai-runs",
+            json={"action": "Analyze vacancy", "prompt": "Analyze the role"},
+        ).json()
+        empty_sources = json.loads(empty_run["context_sources_json"])
+        self.assertIsNone(empty_run["source_resume_id"])
+        self.assertIsNone(empty_sources["resume_version_id"])
+        self.assertEqual(empty_sources["included_resume_ids"], [])
+
+    @patch("careerflow.routes_ai_reports.run_codex")
     def test_ai_prompt_and_model_validation_return_422_without_run(self, mocked_run) -> None:
         url = f"/api/vacancies/{self.vacancy['id']}/ai-runs"
         for payload in (
@@ -301,6 +380,7 @@ class ReportsAndCodexTest(unittest.TestCase):
         mocked_run.side_effect = [
             CodexResult("OLD_IMPROVEMENT", ["codex"]),
             CodexResult("LATEST_IMPROVEMENT", ["codex"]),
+            CodexResult("LATEST_VACANCY_ANALYSIS", ["codex"]),
             CodexResult("LATEST_MATCH", ["codex"]),
             CodexResult("LATEST_ATS_REVIEW", ["codex"]),
             CodexResult("# Tailored resume\n\nPython and SQL", ["codex"]),
@@ -309,6 +389,7 @@ class ReportsAndCodexTest(unittest.TestCase):
         for action, prompt in (
             ("Improve resume", "Suggest truthful improvements: old"),
             ("Improve resume", "Suggest truthful improvements: latest"),
+            ("Analyze vacancy", "Analyze the role and prioritize requirements"),
             ("Match resume to vacancy", "Compare the selected resume now"),
             ("Review ATS analysis", "Review the heuristic ATS evidence"),
         ):
@@ -345,13 +426,20 @@ class ReportsAndCodexTest(unittest.TestCase):
         self.assertEqual(sources["resume_version_id"], self.resume["id"])
         self.assertIsNotNone(sources["ats_analysis_id"])
         self.assertEqual(set(sources["ai_run_ids"]), {
-            "Improve resume", "Match resume to vacancy", "Review ATS analysis"
+            "Analyze vacancy", "Improve resume", "Match resume to vacancy",
+            "Review ATS analysis"
         })
+        self.assertEqual(sources["ats_inclusion_status"], "included")
         generated_prompt = mocked_run.call_args.args[1]
         self.assertIn("LATEST_IMPROVEMENT", generated_prompt)
         self.assertNotIn("OLD_IMPROVEMENT", generated_prompt)
+        self.assertIn("LATEST_VACANCY_ANALYSIS", generated_prompt)
         self.assertIn("LATEST_MATCH", generated_prompt)
         self.assertIn("LATEST_ATS_REVIEW", generated_prompt)
+        self.assertIn("- Title: Data Engineer", generated_prompt)
+        self.assertIn("- Company: Northwind", generated_prompt)
+        self.assertIn("## Full confirmed vacancy description", generated_prompt)
+        self.assertIn("Must know Python and SQL.", generated_prompt)
         self.assertNotIn("LATEST_UNSUBMITTED_SHOULD_NOT_REPLACE_SUBMITTED", generated_prompt)
         self.assertIn("sole authority for candidate facts", generated_prompt)
         self.assertIn("Do not invent or infer", generated_prompt)
@@ -406,6 +494,189 @@ class ReportsAndCodexTest(unittest.TestCase):
         generated_prompt = mocked_run.call_args.args[1]
         self.assertIn("LATEST_MASTER_CONTENT", generated_prompt)
         self.assertNotIn("OLDER_MASTER_CONTENT", generated_prompt)
+
+    @patch("careerflow.routes_ai_reports.run_codex")
+    def test_tailored_context_gates_ats_and_prior_ai_by_provenance(
+        self, mocked_run
+    ) -> None:
+        from careerflow.codex import CodexResult
+
+        analyzed = self.client.post(
+            "/api/resumes",
+            data={
+                "kind": "vacancy",
+                "vacancy_id": self.vacancy["id"],
+                "text": "DIFFERENT_ANALYZED_RESUME Python",
+            },
+        ).json()
+        latest_ats = self.client.post(
+            f"/api/vacancies/{self.vacancy['id']}/ats",
+            json={"resume_version_id": analyzed["id"]},
+        ).json()
+        self.client.post(f"/api/resumes/{self.resume['id']}/submit")
+        mocked_run.side_effect = [
+            CodexResult("MULTI_RESUME_IMPROVEMENT", ["codex"]),
+            CodexResult("VACANCY_ONLY_ANALYSIS", ["codex"]),
+        ]
+        url = f"/api/vacancies/{self.vacancy['id']}/ai-runs"
+        self.client.post(
+            url,
+            json={"action": "Improve resume", "prompt": "Suggest truthful improvements"},
+        )
+        self.client.post(
+            url,
+            json={"action": "Analyze vacancy", "prompt": "Analyze the role"},
+        )
+
+        deleted = self.client.post(
+            "/api/resumes", data={"kind": "master", "text": "DELETED_SOURCE_TEXT"}
+        ).json()
+        vacancy = self.client.get(f"/api/vacancies/{self.vacancy['id']}").json()
+        known_sources = {
+            "vacancy_description_revision": vacancy["description_revision"],
+            "vacancy_description_sha256": sha256(
+                vacancy["description"].encode("utf-8")
+            ).hexdigest(),
+            "resume_version_id": self.resume["id"],
+            "workflow_resume_id": self.resume["id"],
+            "ats_analysis_id": latest_ats["id"],
+            "ats_resume_id": analyzed["id"],
+            "included_resume_ids": [self.resume["id"], deleted["id"]],
+        }
+        database = self.client.app.state.db
+        with database.transaction() as connection:
+            connection.execute(
+                """
+                INSERT INTO ai_runs(
+                    vacancy_id, prompt, action, source_resume_id,
+                    context_sources_json, response, status
+                ) VALUES (?, ?, ?, ?, ?, ?, 'completed')
+                """,
+                (
+                    self.vacancy["id"],
+                    "Review the heuristic ATS",
+                    "Review ATS analysis",
+                    self.resume["id"],
+                    json.dumps(known_sources),
+                    "DELETED_SOURCE_REVIEW",
+                ),
+            )
+            connection.execute(
+                """
+                INSERT INTO ai_runs(
+                    vacancy_id, prompt, action, context_sources_json, response, status
+                ) VALUES (?, ?, '', '{}', ?, 'completed')
+                """,
+                (
+                    self.vacancy["id"],
+                    "Compare the selected resume with the vacancy requirements",
+                    "LEGACY_MATCH_ADVICE",
+                ),
+            )
+        self.client.delete(f"/api/resumes/{deleted['id']}")
+
+        context, sources = build_tailored_resume_context(
+            database, self.vacancy["id"]
+        )
+        self.assertIsNone(sources["ats_analysis_id"])
+        self.assertEqual(sources["ats_candidate_analysis_id"], latest_ats["id"])
+        self.assertEqual(sources["ats_inclusion_status"], "omitted")
+        self.assertIn("not selected source resume", sources["ats_omission_reason"])
+        self.assertNotIn(f"Analysis ID: {latest_ats['id']}", context)
+
+        self.assertNotIn("MULTI_RESUME_IMPROVEMENT", context)
+        self.assertEqual(
+            sources["ai_run_sources"]["Improve resume"]["provenance_status"],
+            "omitted_extra_resume_material",
+        )
+        self.assertIn("VACANCY_ONLY_ANALYSIS", context)
+        self.assertIn("LEGACY_MATCH_ADVICE", context)
+        self.assertIn("Legacy run", context)
+        self.assertNotIn("DELETED_SOURCE_REVIEW", context)
+        self.assertEqual(
+            sources["ai_run_sources"]["Review ATS analysis"]["provenance_status"],
+            "omitted_deleted_source",
+        )
+
+    @patch("careerflow.routes_ai_reports.run_codex")
+    def test_tailored_context_omits_runs_and_ats_after_vacancy_change(
+        self, mocked_run
+    ) -> None:
+        from careerflow.codex import CodexResult
+
+        mocked_run.return_value = CodexResult("OLD_VACANCY_ADVICE", ["codex"])
+        self.client.post(
+            f"/api/vacancies/{self.vacancy['id']}/ai-runs",
+            json={"action": "Improve resume", "prompt": "Suggest truthful improvements"},
+        )
+        updated_description = (
+            "Data Engineer\nCompany: Northwind\nMust know Python, SQL, and Kafka."
+        )
+        updated = self.client.patch(
+            f"/api/vacancies/{self.vacancy['id']}",
+            json={"description": updated_description},
+        )
+        self.assertEqual(updated.status_code, 200)
+
+        context, sources = build_tailored_resume_context(
+            self.client.app.state.db, self.vacancy["id"]
+        )
+        self.assertIn(updated_description, context)
+        self.assertNotIn("OLD_VACANCY_ADVICE", context)
+        self.assertEqual(sources["ats_inclusion_status"], "omitted")
+        self.assertIn("stale", sources["ats_omission_reason"])
+        self.assertEqual(
+            sources["ai_run_sources"]["Improve resume"]["provenance_status"],
+            "omitted_vacancy_mismatch",
+        )
+
+    def test_tailored_context_includes_legacy_vacancy_analysis_with_warning(self) -> None:
+        database = self.client.app.state.db
+        with database.transaction() as connection:
+            connection.execute(
+                """
+                INSERT INTO ai_runs(
+                    vacancy_id, prompt, action, context_sources_json, response, status
+                ) VALUES (?, ?, '', '{}', ?, 'completed')
+                """,
+                (
+                    self.vacancy["id"],
+                    "Analyze the role and prioritize its requirements.",
+                    "LEGACY_VACANCY_ANALYSIS",
+                ),
+            )
+
+        context, sources = build_tailored_resume_context(
+            database, self.vacancy["id"]
+        )
+        self.assertIn("LEGACY_VACANCY_ANALYSIS", context)
+        self.assertIn("Legacy run", context)
+        self.assertIn("Analyze vacancy", sources["ai_run_ids"])
+        self.assertEqual(
+            sources["ai_run_sources"]["Analyze vacancy"]["provenance_status"],
+            "legacy_unknown",
+        )
+
+    def test_tailored_resume_requires_confirmed_description(self) -> None:
+        with self.client.app.state.db.transaction() as connection:
+            connection.execute(
+                "UPDATE vacancies SET description_confirmed_at = NULL WHERE id = ?",
+                (self.vacancy["id"],),
+            )
+        with self.assertRaisesRegex(ValueError, "Review and confirm"):
+            build_tailored_resume_context(
+                self.client.app.state.db, self.vacancy["id"]
+            )
+
+    def test_tailored_resume_instructions_require_direct_analysis_and_safe_ats_use(self) -> None:
+        instructions = tailored_resume_instructions()
+        self.assertIn("analyze the full confirmed vacancy", instructions)
+        self.assertIn("directly compare it with the source resume", instructions)
+        self.assertIn("without asking for or launching another run", instructions)
+        self.assertIn("sole authority for candidate facts", instructions)
+        self.assertIn("optional, unreliable lexical hint", instructions)
+        self.assertIn("never use its score as a gate or quality target", instructions)
+        self.assertIn("never force a keyword", instructions)
 
     @patch("careerflow.routes_ai_reports.run_codex")
     def test_tailored_resume_requires_any_resume_source(self, mocked_run) -> None:
