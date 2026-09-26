@@ -215,6 +215,9 @@ textarea { resize: vertical; max-width: 100%; }
 .ai-history-result .ai-response, #ai-result .ai-response { font-size: 12px; }
 .ai-readable { font-size: 13px; }
 .ai-history-title { display: -webkit-box; overflow: hidden; font-size: 13px; line-height: 1.25; -webkit-box-orient: vertical; -webkit-line-clamp: 2; }
+.ai-history-row { display: grid; grid-template-columns: minmax(0, 1fr) auto; }
+.ai-inline-result { grid-column: 1 / -1; min-width: 0; margin-top: 10px; padding-top: 10px; border-top: 1px solid var(--line); }
+.ai-inline-result .ai-response { max-height: 34vh; margin-top: 8px; font-size: 12px; }
 #cleaning-review:has(.cleaning-review) { position: fixed; inset: 0; z-index: 30; display: grid; place-items: center; padding: 20px; background: #13201966; }
 #cleaning-review:has(.cleaning-review) .cleaning-review { display: flex; flex-direction: column; width: min(1040px, 100%); height: min(88vh, 760px); overflow: hidden; margin: 0; padding: 20px; background: var(--surface); box-shadow: 0 24px 80px #12231a4d; }
 #cleaning-review:has(.cleaning-review) .cleaning-review > .form-grid { flex: 0 0 auto; grid-template-columns: repeat(2, minmax(0, 1fr)); }
