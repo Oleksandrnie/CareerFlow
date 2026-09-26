@@ -922,7 +922,7 @@ async function renderAi(vacancy, view = null) {
     "Improve resume": "Suggest truthful improvements to the selected resume using only evidence already present in the context.",
     "Review ATS analysis": "Review the heuristic ATS analysis, point out false positives or weak evidence, and suggest truthful wording improvements.",
     "Match resume to vacancy": "Compare the selected resume with the vacancy requirements and return JSON with an integer match_percent from 0 to 100, a short summary, strengths, and gaps. Ignore navigation, company marketing, salary, and generic wording.",
-    "Create tailored resume": "Create a complete vacancy-tailored Markdown resume. Use only candidate facts present in the source resume; use the vacancy, ATS analysis, and saved AI recommendations only for prioritization and truthful rewording. Do not invent claims, metrics, skills, dates, or experience.",
+    "Create tailored resume": "Create a complete vacancy-tailored Markdown resume using the source resume, vacancy fields and full description, and the latest available vacancy analysis, AI match, and resume improvements. Use only candidate facts present in the source resume. Analyze the role and match the source resume directly if saved analyses are missing. Use ATS only as an optional lexical hint; verify it against the source texts. Prioritize relevant experience and supported keywords. Do not invent claims, metrics, skills, dates, or experience.",
     "Prepare for interview": "Create a focused interview preparation plan with likely questions and evidence-backed talking points.",
     "Analyze interview notes": "Analyze the interview notes, extract follow-ups, risks, and suggested next actions.",
     "Custom request": "",

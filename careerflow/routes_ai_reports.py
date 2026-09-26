@@ -25,7 +25,7 @@ from .ai_resume import (
     tailored_resume_instructions,
 )
 from .db import insert_and_get_id
-from .reports import build_report, get_report, save_report
+from .reports import build_report_with_sources, get_report, save_report
 from .vacancies import get_vacancy
 
 
@@ -155,7 +155,10 @@ def execute_ai(request: Request, vacancy_id: int, payload: AiRequest) -> dict:
             )
             source_resume_id = context_sources["resume_version_id"]
         else:
-            context = build_report(request.app.state.db, vacancy_id)
+            context, context_sources = build_report_with_sources(
+                request.app.state.db, vacancy_id
+            )
+            source_resume_id = context_sources["resume_version_id"]
     except (LookupError, ValueError) as exc:
         raise HTTPException(status_code=422, detail=str(exc)) from exc
     try:
