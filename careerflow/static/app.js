@@ -433,13 +433,15 @@ function compactVacancyTitle(title) {
   return (beforeCompany || withoutPrefix || value).slice(0, 88);
 }
 
-function renderEmpty() {
+function renderEmpty({ preserveSidebar = false } = {}) {
+  const keepSidebarOpen = preserveSidebar && state.sidebarOpen;
   setSection("vacancies");
   state.selected = null;
   state.activeTab = null;
   state.viewEpoch++;
   state.selectionEpoch++;
   workspace.innerHTML = `<div class="empty-state"><span class="empty-icon">↗</span><h2>Build your job-search workspace</h2><p>Add a vacancy by pasting its text or dropping a TXT, HTML, PDF, or DOCX file.</p><button class="primary" data-open-import>Add your first vacancy</button></div>`;
+  if (keepSidebarOpen) setSidebarOpen(true);
 }
 
 const STAGES = ["Saved", "Applied", "Interview", "Waiting", "Offer", "Rejected"];
@@ -1257,7 +1259,10 @@ document.addEventListener("keydown", event => {
   }
 });
 newVacancyButton.onclick = openDialog;
-archivedToggle.onchange = () => { renderEmpty(); loadVacancies().catch(error => showError(error)); };
+archivedToggle.onchange = async () => {
+  renderEmpty({ preserveSidebar: true });
+  try { await loadVacancies(); } catch (error) { showError(error); }
+};
 fileInput.onchange = () => { selectedFile.textContent = fileInput.files[0]?.name || ""; };
 for (const eventName of ["dragenter", "dragover"]) dropZone.addEventListener(eventName, event => { event.preventDefault(); dropZone.classList.add("dragging"); });
 for (const eventName of ["dragleave", "drop"]) dropZone.addEventListener(eventName, event => { event.preventDefault(); dropZone.classList.remove("dragging"); });

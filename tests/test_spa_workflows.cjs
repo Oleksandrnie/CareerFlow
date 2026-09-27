@@ -780,6 +780,16 @@ async function testResponsiveSidebarToggleClosesAfterSelection() {
   assert.equal(app.run("state.sidebarOpen"), false);
 }
 
+async function testResponsiveSidebarStaysOpenWhenArchiveFilterChanges() {
+  const app = harness();
+  app.routes.set("GET /api/vacancies?archived=true", []);
+  app.run("state.sidebarOpen = true");
+  const archived = app.document.querySelector("#show-archived");
+  archived.checked = true;
+  await archived.onchange();
+  assert.equal(app.run("state.sidebarOpen"), true);
+}
+
 async function testMutationFailuresAndDuplicateRecovery() {
   const app = harness();
   app.run(`renderVacancy(${JSON.stringify(first)})`);
@@ -834,6 +844,7 @@ async function testMutationFailuresAndDuplicateRecovery() {
   await testTailoredResumeActionAndExplicitDraftHandoff();
   await testAiResponseLanguageSubmission();
   await testResponsiveSidebarToggleClosesAfterSelection();
+  await testResponsiveSidebarStaysOpenWhenArchiveFilterChanges();
   await testMutationFailuresAndDuplicateRecovery();
   process.stdout.write("SPA workflow regressions passed\n");
 })().catch(error => {
