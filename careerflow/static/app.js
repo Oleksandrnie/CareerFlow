@@ -42,7 +42,7 @@ let lastWorkspaceScrollTop = 0;
 const RU = {
   "LOCAL CAREER WORKSPACE": "ЛОКАЛЬНОЕ ПРОСТРАНСТВО ПОИСКА РАБОТЫ",
   "Primary navigation": "Основная навигация",
-  "Vacancies": "Вакансии", "Master Resume": "Главное резюме", "+ Add vacancy": "+ Добавить вакансию",
+  "Vacancies": "Вакансии", "Master Resume": "Главное резюме", "Analytics": "Аналитика", "+ Add vacancy": "+ Добавить вакансию",
   "Archived": "Архив", "Build your job-search workspace": "Создайте рабочее пространство для поиска работы",
   "Add a vacancy by pasting its text or dropping a TXT, HTML, PDF, or DOCX file.": "Добавьте вакансию: вставьте текст или перетащите файл TXT, HTML, PDF или DOCX.",
   "Add your first vacancy": "Добавить первую вакансию", "NEW RECORD": "НОВАЯ ЗАПИСЬ", "Add vacancy": "Добавить вакансию",
@@ -207,9 +207,9 @@ function setSection(section) {
   lastWorkspaceScrollTop = 0;
   topbar?.classList?.remove?.("header-nav-hidden");
   document.querySelectorAll("[data-section]").forEach(button => button.classList.toggle("active", button.dataset.section === section));
-  appLayout.classList.toggle("master-mode", section === "master-resume");
+  appLayout.classList.toggle("master-mode", section !== "vacancies");
   setSidebarOpen(false);
-  newVacancyButton.hidden = section !== "vacancies";
+  newVacancyButton.hidden = section === "master-resume";
 }
 
 function updateHeaderOnScroll() {
@@ -242,6 +242,34 @@ function showVacancies() {
   state.viewEpoch++;
   if (state.selected) renderVacancy(state.selected);
   else renderEmpty();
+}
+
+async function renderAnalytics() {
+  setSection("analytics");
+  state.viewEpoch++;
+  const epoch = state.viewEpoch;
+  workspace.innerHTML = `<div class="workspace-head analytics-head"><div><p class="eyebrow">LOCAL PROCESS ANALYTICS</p><h2>Analytics</h2><p class="muted">Activity uses event dates; funnel uses vacancies added in the selected period.</p></div><button class="icon-button help-button" type="button" aria-label="How analytics works" title="How analytics works">?</button></div><section class="analytics-filters panel"><label>Period<select id="analytics-period"><option value="">All time</option><option value="month">Current month</option><option value="3months">Last 3 months</option><option value="year">Current year</option></select></label><label>Grouping<select id="analytics-bucket"><option value="month">By month</option><option value="week">By week</option></select></label></section><div id="analytics-content"><p class="muted">Loading analytics…</p></div>`;
+  const period = workspace.querySelector("#analytics-period");
+  const bucket = workspace.querySelector("#analytics-bucket");
+  const load = async () => {
+    const params = new URLSearchParams({ bucket: bucket.value });
+    const now = new Date();
+    if (period.value === "month") { params.set("from", new Date(now.getFullYear(), now.getMonth(), 1).toISOString().slice(0, 10)); params.set("to", now.toISOString().slice(0, 10)); }
+    if (period.value === "3months") { params.set("from", new Date(now.getFullYear(), now.getMonth() - 2, 1).toISOString().slice(0, 10)); params.set("to", now.toISOString().slice(0, 10)); }
+    if (period.value === "year") { params.set("from", `${now.getFullYear()}-01-01`); params.set("to", now.toISOString().slice(0, 10)); }
+    try { const data = await api(`/api/analytics?${params}`); if (epoch === state.viewEpoch) renderAnalyticsData(data); }
+    catch (error) { if (epoch === state.viewEpoch) workspace.querySelector("#analytics-content").innerHTML = `<p class="error">${escapeHtml(error.message)}</p>`; }
+  };
+  period.onchange = load; bucket.onchange = load; await load();
+}
+
+function renderAnalyticsData(data) {
+  const labels = { vacancies_added: "Vacancies added", applications_submitted: "Applications sent", vacancies_with_interview: "Vacancies with interview", interviews_completed: "Interviews completed", offers_received: "Offers received", rejections_received: "Rejections received", active_processes: "Active processes", completed_successfully: "Successfully completed" };
+  const cards = Object.entries(labels).map(([key, label]) => `<article class="analytics-card"><span>${label}</span><strong>${data.activity_metrics[key] ?? 0}</strong></article>`).join("");
+  const funnel = data.funnel.map(item => `<div class="funnel-row"><span>${item.stage}</span><strong>${item.count}</strong></div>`).join("");
+  const conversions = data.conversions.map(item => `<tr><td>${item.transition}</td><td>${item.base}</td><td>${item.reached}</td><td>${item.percent == null ? "—" : `${item.percent}%`}</td></tr>`).join("");
+  const outcomes = Object.entries(data.outcomes).map(([key, value]) => `<div class="result-row"><span>${key}</span><strong>${value}</strong></div>`).join("");
+  document.querySelector("#analytics-content").innerHTML = `<section class="analytics-cards">${cards}</section><div class="analytics-grid"><section class="panel"><h3>Job-search funnel</h3>${funnel}</section><section class="panel"><h3>Conversions</h3><div class="table-scroll"><table><thead><tr><th>Transition</th><th>Base</th><th>Reached</th><th>Conversion</th></tr></thead><tbody>${conversions}</tbody></table></div></section><section class="panel"><h3>Final outcomes</h3>${outcomes}</section><section class="panel"><h3>Activity trend</h3>${data.series.map(item => `<div class="result-row"><span>${item.period}</span><strong>${item.vacancies_added} / ${item.applications_submitted} / ${item.interviews_completed}</strong></div>`).join("") || `<p class="muted">No activity in this period.</p>`}</section></div>`;
 }
 
 function isCurrentMasterView(epoch, panel = workspace) {
@@ -1083,6 +1111,7 @@ document.addEventListener("click", async event => {
   const sectionButton = event.target.closest("[data-section]");
   if (sectionButton) {
     if (sectionButton.dataset.section === "master-resume") await renderMasterResume();
+    else if (sectionButton.dataset.section === "analytics") await renderAnalytics();
     else showVacancies();
     return;
   }
@@ -1202,4 +1231,5 @@ if (state.locale === "ru") {
   applyLocale();
 }
 setSection("vacancies");
+document.querySelector('[data-section="analytics"]')?.addEventListener("click", () => { renderAnalytics().catch(error => showError(error)); });
 loadVacancies().catch(error => { workspace.innerHTML = `<p class="error">${escapeHtml(error.message)}</p>`; });
