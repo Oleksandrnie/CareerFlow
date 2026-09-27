@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from datetime import date, datetime, timedelta
+from datetime import UTC, date, datetime, timedelta
 from typing import Any
 
 from .db import Database
@@ -163,5 +163,5 @@ def calculate(database: Database, from_value: str | None, to_value: str | None, 
         "series": _series(database, start, end, bucket),
         "outcomes": outcomes,
         "incomplete_records": incomplete,
-        "generated_at": datetime.utcnow().isoformat(timespec="seconds") + "Z",
+        "generated_at": datetime.now(UTC).isoformat(timespec="seconds").replace("+00:00", "Z"),
     }

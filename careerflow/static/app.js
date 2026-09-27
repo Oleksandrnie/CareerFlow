@@ -28,6 +28,7 @@ const appLayout = document.querySelector("#app-layout");
 const newVacancyButton = document.querySelector("#new-vacancy");
 const themeToggle = document.querySelector("#theme-toggle");
 const dialog = document.querySelector("#import-dialog");
+const analyticsHelp = document.querySelector("#analytics-help");
 const form = document.querySelector("#import-form");
 const fileInput = document.querySelector("#vacancy-file");
 const dropZone = document.querySelector("#drop-zone");
@@ -42,7 +43,7 @@ let lastWorkspaceScrollTop = 0;
 const RU = {
   "LOCAL CAREER WORKSPACE": "ЛОКАЛЬНОЕ ПРОСТРАНСТВО ПОИСКА РАБОТЫ",
   "Primary navigation": "Основная навигация",
-  "Vacancies": "Вакансии", "Master Resume": "Главное резюме", "Analytics": "Аналитика", "+ Add vacancy": "+ Добавить вакансию",
+  "Vacancies": "Вакансии", "Master Resume": "Главное резюме", "Analytics": "Аналитика", "+ Add vacancy": "+ Добавить вакансию", "How analytics works": "Как работает аналитика", "Got it": "Понятно", "Period": "Период", "Grouping": "Группировка", "All time": "Всё время", "Current month": "Текущий месяц", "Last 3 months": "Последние 3 месяца", "Current year": "Текущий год", "By month": "По месяцам", "By week": "По неделям", "Vacancies added": "Добавлено вакансий", "Applications sent": "Отправлено откликов", "Vacancies with interview": "Вакансий с интервью", "Interviews completed": "Проведено интервью", "Offers received": "Получено офферов", "Rejections received": "Получено отказов", "Active processes": "Активных процессов", "Successfully completed": "Успешно завершено", "Job-search funnel": "Воронка поиска работы", "Conversions": "Конверсии", "Final outcomes": "Конечные результаты", "Activity trend": "Динамика активности", "No activity in this period.": "В этом периоде активности нет.", "CareerFlow calculates analytics from recorded structured events. Mark submitted resumes, interview results, offers and final outcomes for accurate statistics.": "CareerFlow считает аналитику по зафиксированным структурированным событиям. Отмечайте отправленные резюме, результаты интервью, офферы и конечные исходы.",
   "Archived": "Архив", "Build your job-search workspace": "Создайте рабочее пространство для поиска работы",
   "Add a vacancy by pasting its text or dropping a TXT, HTML, PDF, or DOCX file.": "Добавьте вакансию: вставьте текст или перетащите файл TXT, HTML, PDF или DOCX.",
   "Add your first vacancy": "Добавить первую вакансию", "NEW RECORD": "НОВАЯ ЗАПИСЬ", "Add vacancy": "Добавить вакансию",
@@ -269,7 +270,20 @@ function renderAnalyticsData(data) {
   const funnel = data.funnel.map(item => `<div class="funnel-row"><span>${item.stage}</span><strong>${item.count}</strong></div>`).join("");
   const conversions = data.conversions.map(item => `<tr><td>${item.transition}</td><td>${item.base}</td><td>${item.reached}</td><td>${item.percent == null ? "—" : `${item.percent}%`}</td></tr>`).join("");
   const outcomes = Object.entries(data.outcomes).map(([key, value]) => `<div class="result-row"><span>${key}</span><strong>${value}</strong></div>`).join("");
-  document.querySelector("#analytics-content").innerHTML = `<section class="analytics-cards">${cards}</section><div class="analytics-grid"><section class="panel"><h3>Job-search funnel</h3>${funnel}</section><section class="panel"><h3>Conversions</h3><div class="table-scroll"><table><thead><tr><th>Transition</th><th>Base</th><th>Reached</th><th>Conversion</th></tr></thead><tbody>${conversions}</tbody></table></div></section><section class="panel"><h3>Final outcomes</h3>${outcomes}</section><section class="panel"><h3>Activity trend</h3>${data.series.map(item => `<div class="result-row"><span>${item.period}</span><strong>${item.vacancies_added} / ${item.applications_submitted} / ${item.interviews_completed}</strong></div>`).join("") || `<p class="muted">No activity in this period.</p>`}</section></div>`;
+  const series = data.series.map(item => `<div class="result-row"><span>${item.period}</span><strong>${item.vacancies_added} / ${item.applications_submitted} / ${item.interviews_completed}</strong></div>`).join("") || `<p class="muted">No activity in this period.</p>`;
+  const chart = renderAnalyticsChart(data.series);
+  document.querySelector("#analytics-content").innerHTML = `<section class="analytics-cards">${cards}</section><div class="analytics-grid"><section class="panel"><h3>Job-search funnel</h3>${funnel}</section><section class="panel"><h3>Conversions</h3><div class="table-scroll"><table><thead><tr><th>Transition</th><th>Base</th><th>Reached</th><th>Conversion</th></tr></thead><tbody>${conversions}</tbody></table></div></section><section class="panel"><h3>Final outcomes</h3>${outcomes}</section><section class="panel"><h3>Activity trend</h3><p class="muted">Added / applications / interviews</p>${chart}${series}</section></div>`;
+  const help = document.querySelector(".help-button");
+  help?.addEventListener("click", () => { analyticsHelp?.showModal(); analyticsHelp?.querySelector("[data-close-analytics-help]")?.focus(); });
+}
+
+function renderAnalyticsChart(series) {
+  if (!series.length) return "";
+  const width = 640, height = 180, pad = 24;
+  const max = Math.max(1, ...series.flatMap(item => [item.vacancies_added, item.applications_submitted, item.interviews_completed]));
+  const point = (key, index) => { const x = pad + (index * (width - pad * 2)) / Math.max(1, series.length - 1); const y = height - pad - (series[index][key] * (height - pad * 2)) / max; return `${x},${y}`; };
+  const line = key => series.map((_, index) => point(key, index)).join(" ");
+  return `<svg class="analytics-chart" viewBox="0 0 ${width} ${height}" role="img" aria-label="Activity trend: vacancies, applications and interviews"><polyline class="chart-line vacancies" points="${line("vacancies_added")}"/><polyline class="chart-line applications" points="${line("applications_submitted")}"/><polyline class="chart-line interviews" points="${line("interviews_completed")}"/></svg><div class="chart-legend"><span class="vacancies">Vacancies</span><span class="applications">Applications</span><span class="interviews">Interviews</span></div>`;
 }
 
 function isCurrentMasterView(epoch, panel = workspace) {
@@ -1101,6 +1115,7 @@ function openDialog() { resetImportReview(); dialog.showModal(); }
 function closeDialog() { dialog.close(); form.reset(); resetImportReview(); selectedFile.textContent = ""; document.querySelector("#import-error").textContent = ""; }
 
 document.addEventListener("click", async event => {
+  if (event.target.closest("[data-close-analytics-help]")) { analyticsHelp?.close(); return; }
   if (state.section === "vacancies" && state.sidebarOpen && !event.target.closest("#vacancy-sidebar") && !event.target.closest("#sidebar-toggle")) {
     setSidebarOpen(false);
   }
