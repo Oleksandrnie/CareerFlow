@@ -196,17 +196,22 @@ async function testStaleNotesAndCardSelection() {
 
 async function testVacancyNavigationRestoresLastSelection() {
   const app = harness();
+  app.routes.set("GET /api/vacancies/1/notes", []);
   app.run(`renderVacancy(${JSON.stringify(first)})`);
   assert.equal(app.run("state.lastSelectedVacancy.id"), 1);
+  await app.run('openTab("Notes", state.selected)');
+  assert.equal(app.run("state.lastSelectedVacancyTab"), "Notes");
 
   app.run('state.section = "master-resume"; state.selected = null');
-  app.run("showVacancies()");
+  await app.run("showVacancies()");
   assert.equal(app.run("state.selected.id"), 1, "returning to Vacancies should restore the last vacancy");
+  assert.equal(app.run("state.activeTab"), "Notes", "returning to Vacancies should restore the last vacancy tab");
   assert.match(app.document.querySelector("#workspace").innerHTML, /First role/);
 
-  app.run("showVacancies()");
+  await app.run("showVacancies()");
   assert.equal(app.run("state.selected"), null, "a second Vacancies click should return to the landing screen");
   assert.equal(app.run("state.lastSelectedVacancy"), null, "landing screen should clear the remembered vacancy");
+  assert.equal(app.run("state.lastSelectedVacancyTab"), null, "landing screen should clear the remembered tab");
   assert.match(app.document.querySelector("#workspace").innerHTML, /Build your job-search workspace/);
 }
 

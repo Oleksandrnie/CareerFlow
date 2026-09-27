@@ -3,6 +3,7 @@ const state = {
   vacancies: [],
   selected: null,
   lastSelectedVacancy: null,
+  lastSelectedVacancyTab: null,
   activeTab: null,
   viewEpoch: 0,
   selectionEpoch: 0,
@@ -299,14 +300,18 @@ function setSidebarOpen(open) {
   if (vacancySidebar && "inert" in vacancySidebar) vacancySidebar.inert = isCompactViewport && !isOpen;
 }
 
-function showVacancies() {
+async function showVacancies() {
   const returningFromAnotherSection = state.section !== "vacancies";
   const rememberedVacancy = state.lastSelectedVacancy;
+  const rememberedTab = state.lastSelectedVacancyTab;
   setSection("vacancies");
   state.viewEpoch++;
   if (returningFromAnotherSection && rememberedVacancy) {
     state.selected = rememberedVacancy;
     renderVacancy(rememberedVacancy);
+    if (VACANCY_TABS.includes(rememberedTab) && rememberedTab !== "Overview") {
+      await openTab(rememberedTab, rememberedVacancy);
+    }
   } else if (state.selected) {
     renderEmpty();
   }
@@ -415,7 +420,7 @@ async function loadVacancies() {
   renderList();
   if (state.selected && selectionEpoch === state.selectionEpoch) {
     const current = state.vacancies.find(item => item.id === state.selected.id);
-    if (!current) { state.selected = null; state.lastSelectedVacancy = null; renderEmpty(); }
+    if (!current) { state.selected = null; state.lastSelectedVacancy = null; state.lastSelectedVacancyTab = null; renderEmpty(); }
   }
 }
 
@@ -446,6 +451,7 @@ function renderEmpty({ preserveSidebar = false } = {}) {
   setSection("vacancies");
   state.selected = null;
   state.lastSelectedVacancy = null;
+  state.lastSelectedVacancyTab = null;
   state.activeTab = null;
   state.viewEpoch++;
   state.selectionEpoch++;
@@ -542,6 +548,7 @@ function renderVacancy(vacancy) {
   state.activeTab = "Overview";
   state.selected = vacancy;
   state.lastSelectedVacancy = vacancy;
+  state.lastSelectedVacancyTab = "Overview";
   renderList();
   workspace.innerHTML = `
     <div class="workspace-head">
@@ -568,6 +575,7 @@ function activateTab(name) {
 async function openTab(name, vacancy) {
   if (state.selected?.id !== vacancy.id) return;
   state.activeTab = name;
+  state.lastSelectedVacancyTab = name;
   state.viewEpoch++;
   const view = currentView(vacancy, name);
   activateTab(name);
@@ -1217,7 +1225,7 @@ document.addEventListener("click", async event => {
   if (sectionButton) {
     if (sectionButton.dataset.section === "master-resume") await renderMasterResume();
     else if (sectionButton.dataset.section === "analytics") await renderAnalytics();
-    else showVacancies();
+    else await showVacancies();
     return;
   }
   if (event.target.closest("[data-open-import]")) openDialog();
