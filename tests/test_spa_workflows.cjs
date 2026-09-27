@@ -443,7 +443,13 @@ async function testMasterResumeWorkspaceAndSave() {
   assert.match(app.document.querySelector("#workspace").innerHTML, /GLOBAL IMMUTABLE LIBRARY/);
   assert.match(app.document.querySelector("#workspace").innerHTML, /Master Resume v1/);
   assert.match(app.document.querySelector("#workspace").innerHTML, /Download Markdown/);
-  const masterForm = app.document.querySelector("#workspace").querySelector(".master-panel").querySelector("#resume-form");
+  assert.match(app.document.querySelector("#workspace").innerHTML, /Resume list/);
+  assert.match(app.document.querySelector("#workspace").innerHTML, /id="open-master-resume-dialog">Add resume/);
+  assert.match(app.document.querySelector("#workspace").innerHTML, /<dialog id="master-resume-dialog"/);
+  const addResume = app.document.querySelector("#workspace").querySelector("#open-master-resume-dialog");
+  addResume.onclick();
+  assert.equal(app.document.querySelector("#workspace").querySelector("#master-resume-dialog").open, true);
+  const masterForm = app.document.querySelector("#workspace").querySelector("#resume-form");
   masterForm.fields = { label: "Second version", text: "# Updated profile", source_resume_id: "" };
   app.routes.set("POST /api/resumes", options => {
     assert.equal(options.body.get("kind"), "master");
