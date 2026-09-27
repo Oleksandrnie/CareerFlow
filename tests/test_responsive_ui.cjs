@@ -13,6 +13,7 @@ assert.match(css, /\.master-list-head \{ flex-direction: row; align-items: cente
 assert.match(css, /#cleaning-review:has\(\.cleaning-review\) \.cleaning-review > \.form-grid \{ grid-template-columns: 1fr; \}/);
 assert.match(css, /\.score-row \{ flex-direction: column; align-items: flex-start; \}/);
 assert.match(css, /\.table-scroll th:first-child, \.table-scroll td:first-child \{ width: 58%; white-space: normal; overflow-wrap: anywhere; \}/);
+assert.match(css, /\.table-scroll th:not\(:first-child\), \.table-scroll td:not\(:first-child\) \{ text-align:center; \}/);
 assert.match(app, /renderEmpty\(\{ preserveSidebar = false \} = \{\}\)/);
 assert.match(app, /renderEmpty\(\{ preserveSidebar: true \}\)/);
 assert.match(css, /@media \(max-width: 420px\) \{\s+\.topbar \{ grid-template-columns: minmax\(0, 1fr\) auto; grid-template-rows: auto auto; column-gap: 8px;/);
