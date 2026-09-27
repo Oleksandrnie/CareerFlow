@@ -159,7 +159,7 @@ button:focus-visible, input:focus-visible, textarea:focus-visible, select:focus-
 .empty-icon { display: grid; place-items: center; margin: auto; width: 54px; height: 54px; border-radius: 18px; background: var(--soft); color: var(--brand); font-size: 30px; }
 .workspace-head { display: flex; align-items: flex-start; justify-content: space-between; gap: 20px; margin-bottom: 22px; }
 .workspace-head h2 { font-size: 30px; letter-spacing: -.03em; }
-.standalone-head { max-width: 1080px; margin: 0 auto 22px; }
+.standalone-head { max-width: none; margin: 0 0 22px; }
 .standalone-head h2 { margin: 3px 0; font-size: 32px; letter-spacing: -.03em; }
 .master-panel { max-width: 1080px; margin: 0 auto; }
 .master-list-head { align-items: center; }

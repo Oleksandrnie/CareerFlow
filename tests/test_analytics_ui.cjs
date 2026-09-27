@@ -26,6 +26,7 @@ assert.match(app, /state\.locale === "ru" && state\.section === "analytics"/);
 assert.match(css, /\.analytics-head \{[^}]*grid-template-columns: minmax\(0, 1fr\) 38px;[^}]*min-height: 92px;/);
 assert.match(css, /\.analytics-head \.help-button \{[^}]*width: 38px;[^}]*border-radius: 50%;/);
 assert.match(css, /\.analytics-help-shell \{[^}]*padding: 24px;/);
+assert.match(css, /\.standalone-head \{ max-width: none; margin: 0 0 22px; \}/);
 assert.match(css, /\.analytics-date\[hidden\] \{ display: none !important; \}/);
 assert.match(css, /\.sidebar-toggle\[hidden\] \{ display: none !important; \}/);
 assert.match(css, /\.topbar\.header-nav-hidden \.primary-nav \{ display: flex;/);
