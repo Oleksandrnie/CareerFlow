@@ -2,6 +2,7 @@ const state = {
   section: "vacancies",
   vacancies: [],
   selected: null,
+  lastSelectedVacancy: null,
   activeTab: null,
   viewEpoch: 0,
   selectionEpoch: 0,
@@ -299,9 +300,16 @@ function setSidebarOpen(open) {
 }
 
 function showVacancies() {
+  const returningFromAnotherSection = state.section !== "vacancies";
+  const rememberedVacancy = state.lastSelectedVacancy;
   setSection("vacancies");
   state.viewEpoch++;
-  if (state.selected) renderVacancy(state.selected);
+  if (returningFromAnotherSection && rememberedVacancy) {
+    state.selected = rememberedVacancy;
+    renderVacancy(rememberedVacancy);
+  } else if (state.selected) {
+    renderEmpty();
+  }
   else renderEmpty();
 }
 
@@ -407,7 +415,7 @@ async function loadVacancies() {
   renderList();
   if (state.selected && selectionEpoch === state.selectionEpoch) {
     const current = state.vacancies.find(item => item.id === state.selected.id);
-    if (!current) { state.selected = null; renderEmpty(); }
+    if (!current) { state.selected = null; state.lastSelectedVacancy = null; renderEmpty(); }
   }
 }
 
@@ -437,6 +445,7 @@ function renderEmpty({ preserveSidebar = false } = {}) {
   const keepSidebarOpen = preserveSidebar && state.sidebarOpen;
   setSection("vacancies");
   state.selected = null;
+  state.lastSelectedVacancy = null;
   state.activeTab = null;
   state.viewEpoch++;
   state.selectionEpoch++;
@@ -532,6 +541,7 @@ function renderVacancy(vacancy) {
   state.viewEpoch++;
   state.activeTab = "Overview";
   state.selected = vacancy;
+  state.lastSelectedVacancy = vacancy;
   renderList();
   workspace.innerHTML = `
     <div class="workspace-head">
