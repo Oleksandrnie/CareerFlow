@@ -90,10 +90,11 @@ button, input, textarea, select { font: inherit; }
 button { cursor: pointer; }
 button:disabled { cursor: wait; opacity: .6; }
 button:focus-visible, input:focus-visible, textarea:focus-visible, select:focus-visible { outline: 3px solid var(--focus); outline-offset: 2px; }
-.topbar { height: 84px; display: flex; align-items: center; justify-content: space-between; padding: 14px 28px; background: var(--surface); border-bottom: 1px solid var(--line); }
+.topbar { height: 84px; display: flex; flex: 0 0 auto; align-items: center; justify-content: space-between; padding: 14px 28px; background: var(--surface); border-bottom: 1px solid var(--line); }
 .topbar h1, h2, p { margin: 0; }
 .topbar-actions { display: flex; align-items: center; gap: .65rem; }
 .sidebar-toggle { display: none; min-width: 40px; padding: 8px 10px; font-size: 18px; line-height: 1; }
+.sidebar-toggle[hidden] { display: none !important; }
 .locale-toggle { min-width: 3.2rem; text-transform: lowercase; }
 .theme-toggle { min-width: 2.6rem; padding-inline: 9px; font-size: 18px; line-height: 1; }
 .topbar h1 { font-size: 24px; letter-spacing: -0.04em; }
@@ -121,6 +122,10 @@ button:focus-visible, input:focus-visible, textarea:focus-visible, select:focus-
 .table-scroll table { width:100%; border-collapse:collapse; }
 .table-scroll th, .table-scroll td { padding:10px 8px; text-align:left; border-bottom:1px solid var(--line); white-space:nowrap; }
 .analytics-filters { display:flex; gap:16px; margin-bottom:16px; }
+.analytics-date[hidden] { display: none !important; }
+.analytics-head { display: grid; grid-template-columns: minmax(0, 1fr) 44px; align-items: start; }
+.analytics-head > div { min-width: 0; }
+.analytics-head .help-button { width: 44px; min-width: 44px; height: 44px; justify-self: end; padding: 0; line-height: 1; }
 .help-content { max-width: 680px; line-height: 1.6; }
 .analytics-chart { width:100%; min-height:180px; margin:8px 0; overflow:visible; }
 .chart-line { fill:none; stroke-width:3; stroke-linejoin:round; stroke-linecap:round; }
@@ -389,6 +394,9 @@ textarea { resize: vertical; max-width: 100%; }
   /* Keep the first vacancy heading clear of the mobile primary navigation. */
   .workspace { padding: 28px 12px 14px; }
   .workspace-head { display: grid; }
+  .analytics-head { grid-template-columns: minmax(0, 1fr) 44px; }
+  .analytics-head .help-button { grid-column: 2; grid-row: 1; align-self: start; justify-self: end; }
+  .analytics-head > div { grid-column: 1; grid-row: 1; }
   .workspace-head h2 { font-size: 24px; }
   .workspace-head .actions { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); }
   .workspace-head .actions > button { width: 100%; }
@@ -407,6 +415,6 @@ textarea { resize: vertical; max-width: 100%; }
   #cleaning-review:has(.cleaning-review) { padding: 8px; }
   #cleaning-review:has(.cleaning-review) .cleaning-review { width: 100%; height: min(90vh, 680px); padding: 12px; }
   .topbar { transition: none; }
-  .topbar.header-nav-hidden { grid-template-rows: auto 0; min-height: 0; overflow: hidden; }
-  .topbar.header-nav-hidden .primary-nav { display: none; min-height: 0; height: 0; padding-top: 0; opacity: 0; visibility: hidden; overflow: hidden; pointer-events: none; transition: none; }
+  .topbar.header-nav-hidden { grid-template-rows: auto auto; overflow: visible; }
+  .topbar.header-nav-hidden .primary-nav { display: flex; min-height: 48px; height: auto; padding-top: 4px; opacity: 1; visibility: visible; overflow-x: auto; pointer-events: auto; }
 }

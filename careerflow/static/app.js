@@ -43,7 +43,7 @@ let lastWorkspaceScrollTop = 0;
 const RU = {
   "LOCAL CAREER WORKSPACE": "ЛОКАЛЬНОЕ ПРОСТРАНСТВО ПОИСКА РАБОТЫ",
   "Primary navigation": "Основная навигация",
-  "Vacancies": "Вакансии", "Master Resume": "Главное резюме", "Analytics": "Аналитика", "+ Add vacancy": "+ Добавить вакансию", "How analytics works": "Как работает аналитика", "Got it": "Понятно", "Period": "Период", "Grouping": "Группировка", "From": "От", "To": "До", "All time": "Всё время", "Current month": "Текущий месяц", "Last 3 months": "Последние 3 месяца", "Current year": "Текущий год", "Custom range": "Произвольный диапазон", "By month": "По месяцам", "By week": "По неделям", "Vacancies added": "Добавлено вакансий", "Applications sent": "Отправлено откликов", "Vacancies with interview": "Вакансий с интервью", "Interviews completed": "Проведено интервью", "Offers received": "Получено офферов", "Rejections received": "Получено отказов", "Active processes": "Активных процессов", "Successfully completed": "Успешно завершено", "Job-search funnel": "Воронка поиска работы", "Conversions": "Конверсии", "Final outcomes": "Конечные результаты", "Activity trend": "Динамика активности", "No activity in this period.": "В этом периоде активности нет.", "CareerFlow calculates analytics from recorded structured events. Mark submitted resumes, interview results, offers and final outcomes for accurate statistics.": "CareerFlow считает аналитику по зафиксированным структурированным событиям. Отмечайте отправленные резюме, результаты интервью, офферы и конечные исходы.", "Incomplete data": "Неполные данные",
+  "Vacancies": "Вакансии", "Master Resume": "Главное резюме", "Analytics": "Аналитика", "+ Add vacancy": "+ Добавить вакансию", "LOCAL PROCESS ANALYTICS": "ЛОКАЛЬНАЯ АНАЛИТИКА ПРОЦЕССА", "Activity uses event dates; funnel uses vacancies added in the selected period.": "Активность считается по датам событий, а воронка — по вакансиям, добавленным в выбранном периоде.", "How analytics works": "Как работает аналитика", "Got it": "Понятно", "Period": "Период", "Grouping": "Группировка", "From": "От", "To": "До", "All time": "Всё время", "Current month": "Текущий месяц", "Last 3 months": "Последние 3 месяца", "Current year": "Текущий год", "Custom range": "Произвольный диапазон", "By month": "По месяцам", "By week": "По неделям", "Vacancies added": "Добавлено вакансий", "Applications sent": "Отправлено откликов", "Vacancies with interview": "Вакансий с интервью", "Interviews completed": "Проведено интервью", "Offers received": "Получено офферов", "Rejections received": "Получено отказов", "Active processes": "Активных процессов", "Successfully completed": "Успешно завершено", "Job-search funnel": "Воронка поиска работы", "Conversions": "Конверсии", "Transition": "Переход", "Base": "База", "Reached": "Достигли", "Conversion": "Конверсия", "Final outcomes": "Конечные результаты", "Activity trend": "Динамика активности", "Added / applications / interviews": "Добавлено / отклики / интервью", "Vacancies": "Вакансии", "Applications": "Отклики", "Interviews": "Интервью", "No activity in this period.": "В этом периоде активности нет.", "CareerFlow calculates analytics from recorded structured events. Mark submitted resumes, interview results, offers and final outcomes for accurate statistics.": "CareerFlow считает аналитику по зафиксированным структурированным событиям. Отмечайте отправленные резюме, результаты интервью, офферы и конечные исходы.", "Incomplete data": "Неполные данные",
   "Archived": "Архив", "Build your job-search workspace": "Создайте рабочее пространство для поиска работы",
   "Add a vacancy by pasting its text or dropping a TXT, HTML, PDF, or DOCX file.": "Добавьте вакансию: вставьте текст или перетащите файл TXT, HTML, PDF или DOCX.",
   "Add your first vacancy": "Добавить первую вакансию", "NEW RECORD": "НОВАЯ ЗАПИСЬ", "Add vacancy": "Добавить вакансию",
@@ -138,6 +138,9 @@ function setLocale(locale) {
   }
   if (state.locale === "ru") applyLocale();
   else window.location.reload();
+  if (state.locale === "ru" && state.section === "analytics") {
+    renderAnalytics().catch(error => showError(error));
+  }
 }
 
 localeToggle?.addEventListener("click", () => setLocale(state.locale === "ru" ? "en" : "ru"));
@@ -210,10 +213,16 @@ function setSection(section) {
   document.querySelectorAll("[data-section]").forEach(button => button.classList.toggle("active", button.dataset.section === section));
   appLayout.classList.toggle("master-mode", section !== "vacancies");
   setSidebarOpen(false);
+  if (sidebarToggle) sidebarToggle.hidden = section !== "vacancies";
   newVacancyButton.hidden = section === "master-resume";
 }
 
 function updateHeaderOnScroll() {
+  if (typeof window !== "undefined" && window.matchMedia?.("(max-width: 600px)").matches) {
+    topbar?.classList?.remove?.("header-nav-hidden");
+    lastWorkspaceScrollTop = 0;
+    return;
+  }
   const documentScrollTop = document.documentElement?.scrollTop || document.body?.scrollTop || 0;
   const windowScrollTop = typeof window !== "undefined" ? window.scrollY || 0 : 0;
   const scrollTop = Math.max(0, workspace?.scrollTop || 0, documentScrollTop, windowScrollTop);
@@ -221,6 +230,57 @@ function updateHeaderOnScroll() {
   if (scrollTop <= 8 || delta < -3) topbar?.classList?.remove?.("header-nav-hidden");
   else if (scrollTop > 28 && delta > 3) topbar?.classList?.add?.("header-nav-hidden");
   lastWorkspaceScrollTop = scrollTop;
+}
+
+const ANALYTICS_LABELS = {
+  en: {
+    added: "Added",
+    application_submitted: "Application submitted",
+    interview_invited: "Interview invitation",
+    interview_completed: "Interview completed",
+    offer_received: "Offer received",
+    offer_accepted: "Offer accepted",
+    added_to_application: "Added → application",
+    application_to_interview: "Application → interview",
+    interview_to_completed: "Interview invitation → completed interview",
+    completed_to_offer: "Completed interview → offer",
+    offer_to_accepted: "Offer → accepted",
+    added_to_accepted: "Added → accepted offer",
+    offer_declined: "Offer declined",
+    employer_rejected: "Employer rejection",
+    candidate_withdrew: "Candidate withdrew",
+    vacancy_closed: "Vacancy closed or frozen",
+    no_response: "No response",
+    successful: "Successful outcomes",
+    unsuccessful: "Unsuccessful outcomes",
+    active: "Active processes",
+  },
+  ru: {
+    added: "Добавлено",
+    application_submitted: "Отклик отправлен",
+    interview_invited: "Приглашение на интервью",
+    interview_completed: "Интервью проведено",
+    offer_received: "Оффер получен",
+    offer_accepted: "Оффер принят",
+    added_to_application: "Добавлено → отклик",
+    application_to_interview: "Отклик → приглашение на интервью",
+    interview_to_completed: "Приглашение → проведённое интервью",
+    completed_to_offer: "Проведённое интервью → оффер",
+    offer_to_accepted: "Оффер → принят",
+    added_to_accepted: "Добавлено → принятый оффер",
+    offer_declined: "Оффер отклонён кандидатом",
+    employer_rejected: "Отказ работодателя",
+    candidate_withdrew: "Кандидат прекратил процесс",
+    vacancy_closed: "Вакансия закрыта или заморожена",
+    no_response: "Нет ответа",
+    successful: "Успешные исходы",
+    unsuccessful: "Неуспешные исходы",
+    active: "Активные процессы",
+  },
+};
+
+function analyticsLabel(code) {
+  return ANALYTICS_LABELS[state.locale]?.[code] || ANALYTICS_LABELS.en[code] || code;
 }
 
 workspace?.addEventListener?.("scroll", updateHeaderOnScroll, { passive: true });
@@ -271,9 +331,9 @@ async function renderAnalytics() {
 function renderAnalyticsData(data) {
   const labels = { vacancies_added: "Vacancies added", applications_submitted: "Applications sent", vacancies_with_interview: "Vacancies with interview", interviews_completed: "Interviews completed", offers_received: "Offers received", rejections_received: "Rejections received", active_processes: "Active processes", completed_successfully: "Successfully completed" };
   const cards = Object.entries(labels).map(([key, label]) => `<article class="analytics-card"><span>${label}</span><strong>${data.activity_metrics[key] ?? 0}</strong></article>`).join("");
-  const funnel = data.funnel.map(item => `<div class="funnel-row"><span>${item.stage}</span><strong>${item.count}</strong></div>`).join("");
-  const conversions = data.conversions.map(item => `<tr><td>${item.transition}</td><td>${item.base}</td><td>${item.reached}</td><td>${item.percent == null ? "—" : `${item.percent}%`}</td></tr>`).join("");
-  const outcomes = Object.entries(data.outcomes).map(([key, value]) => `<div class="result-row"><span>${key}</span><strong>${value}</strong></div>`).join("");
+  const funnel = data.funnel.map(item => `<div class="funnel-row"><span>${escapeHtml(analyticsLabel(item.stage))}</span><strong>${item.count}</strong></div>`).join("");
+  const conversions = data.conversions.map(item => `<tr><td>${escapeHtml(analyticsLabel(item.transition))}</td><td>${item.base}</td><td>${item.reached}</td><td>${item.percent == null ? "—" : `${item.percent}%`}</td></tr>`).join("");
+  const outcomes = Object.entries(data.outcomes).map(([key, value]) => `<div class="result-row"><span>${escapeHtml(analyticsLabel(key))}</span><strong>${value}</strong></div>`).join("");
   const incomplete = data.incomplete_records?.length ? `<section class="panel incomplete-panel"><h3>Incomplete data</h3>${data.incomplete_records.map(item => `<div class="result-row"><span>${escapeHtml(item.title)}${item.company ? ` · ${escapeHtml(item.company)}` : ""}</span><strong>${escapeHtml(item.status || "Review")}</strong></div>`).join("")}</section>` : "";
   const series = data.series.map(item => `<div class="result-row"><span>${item.period}</span><strong>${item.vacancies_added} / ${item.applications_submitted} / ${item.interviews_completed}</strong></div>`).join("") || `<p class="muted">No activity in this period.</p>`;
   const chart = renderAnalyticsChart(data.series);
