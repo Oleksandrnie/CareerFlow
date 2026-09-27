@@ -481,3 +481,8 @@ textarea { resize: vertical; max-width: 100%; }
   .theme-toggle { min-width: 30px; padding-inline: 4px; }
   .primary-nav-item { padding-inline: 6px; font-size: 12px; }
 }
+
+@media (max-width: 760px) {
+  #master-resume-dialog .dialog-actions { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); align-items: stretch; }
+  #master-resume-dialog .dialog-actions > button { width: 100%; min-width: 0; height: 64px; min-height: 64px; padding: 8px; display: inline-flex; align-items: center; justify-content: center; text-align: center; }
+}
