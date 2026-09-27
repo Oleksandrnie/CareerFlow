@@ -122,6 +122,7 @@ button:focus-visible, input:focus-visible, textarea:focus-visible, select:focus-
 .table-scroll table { width:100%; border-collapse:collapse; }
 .table-scroll th, .table-scroll td { padding:10px 8px; text-align:left; border-bottom:1px solid var(--line); white-space:nowrap; }
 .table-scroll th:first-child, .table-scroll td:first-child { width: 58%; white-space: normal; overflow-wrap: anywhere; }
+.table-scroll th:not(:first-child), .table-scroll td:not(:first-child) { text-align:center; }
 .analytics-filters { display:flex; gap:16px; margin-bottom:16px; }
 .analytics-date[hidden] { display: none !important; }
 .analytics-head { display: grid; grid-template-columns: minmax(0, 1fr) 38px; align-items: start; min-height: 92px; margin-top: -14px; }
