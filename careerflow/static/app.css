@@ -418,8 +418,8 @@ textarea { resize: vertical; max-width: 100%; }
   .analytics-head .help-button { grid-column: 2; grid-row: 1; align-self: start; justify-self: end; }
   .analytics-head > div { grid-column: 1; grid-row: 1; }
   .workspace-head h2 { font-size: 24px; }
-  .workspace-head .actions { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); }
-  .workspace-head .actions > button { width: 100%; }
+  .workspace-head .actions { display: grid; grid-column: 1 / -1; grid-template-columns: repeat(2, minmax(0, 1fr)); width: 100%; min-width: 0; }
+  .workspace-head .actions > button { width: 100%; min-width: 0; }
   .form-grid, .overview-meta { grid-template-columns: 1fr; }
   .panel { padding: 13px; border-radius: 11px; }
   .section-head { align-items: flex-start; flex-direction: column; gap: 10px; }
