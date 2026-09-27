@@ -285,7 +285,9 @@ textarea { resize: vertical; max-width: 100%; }
   .topbar .eyebrow { display: none; }
   .topbar h1 { font-size: 19px; }
   .topbar-actions { justify-content: flex-end; }
+  .topbar-actions > button { min-height: 48px; }
   .topbar-actions .primary { width: auto; padding: 7px 9px; font-size: 11px; }
+  .locale-toggle { min-width: 72px; }
   .primary-nav { grid-column: 1 / -1; width: 100%; min-height: 48px; align-items: flex-end; overflow-x: auto; padding-top: 6px; }
   .primary-nav-item { padding: 0 10px; white-space: nowrap; }
   .topbar > div:first-child .sidebar-toggle { display: inline-grid; width: 28px; min-width: 28px; height: 24px; margin: 0; padding: 2px; border-radius: 6px; font-size: 14px; }
@@ -308,4 +310,7 @@ textarea { resize: vertical; max-width: 100%; }
   .dialog-actions > button { flex: 1 1 120px; }
   #cleaning-review:has(.cleaning-review) { padding: 8px; }
   #cleaning-review:has(.cleaning-review) .cleaning-review { width: 100%; height: min(90vh, 680px); padding: 12px; }
+  .topbar { transition: grid-template-rows .2s ease, min-height .2s ease; }
+  .topbar.header-nav-hidden { grid-template-rows: auto 0; min-height: 0; }
+  .topbar.header-nav-hidden .primary-nav { min-height: 0; height: 0; padding-top: 0; opacity: 0; overflow: hidden; pointer-events: none; transition: opacity .15s ease; }
 }
