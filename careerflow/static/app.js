@@ -739,7 +739,6 @@ async function renderMasterResume() {
     bindResumeDelete(panel, renderMasterResume, isCurrent);
     const openResumeDialog = () => {
       resumeDialog.showModal();
-      resumeForm.querySelector("input[name=label]").focus();
     };
     workspace.querySelector("#open-master-resume-dialog").onclick = () => {
       resumeForm.reset();
