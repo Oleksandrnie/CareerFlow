@@ -145,7 +145,9 @@ Backend использует стандартный `sqlite3` без ORM. При
 .venv/bin/python -m compileall -q careerflow tests run.py
 .venv/bin/python -m unittest discover -s tests -v
 node --check careerflow/static/app.js
+node tests/test_analytics_ui.cjs
 node tests/test_ats_ui.cjs
+node tests/test_responsive_ui.cjs
 node tests/test_spa_workflows.cjs
 ```
 
@@ -158,4 +160,4 @@ node tests/test_spa_workflows.cjs
 - HTML импортируется из файла; URL parsing и scraping отсутствуют.
 - Аудио хранится как вложение; автоматической транскрипции нет.
 - Нет multi-user, авторизации, облачного deployment, RAG и сложной аналитики.
-- Миграции существующей БД до схемы v8 выполняются при старте; перед обновлением и после него храните резервную копию `data/` и `storage/` вместе.
+- Миграции существующей БД до схемы v9 выполняются при старте; перед обновлением и после него храните резервную копию `data/` и `storage/` вместе.
