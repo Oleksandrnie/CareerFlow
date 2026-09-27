@@ -242,7 +242,7 @@ function setSection(section) {
   appLayout.classList.toggle("master-mode", section !== "vacancies");
   setSidebarOpen(false);
   if (sidebarToggle) sidebarToggle.hidden = section !== "vacancies";
-  newVacancyButton.hidden = section === "master-resume";
+  newVacancyButton.hidden = false;
 }
 
 function updateHeaderOnScroll() {
