@@ -194,6 +194,22 @@ async function testStaleNotesAndCardSelection() {
   assert.match(app.panel.innerHTML, /SECOND_DESCRIPTION/);
 }
 
+async function testVacancyNavigationRestoresLastSelection() {
+  const app = harness();
+  app.run(`renderVacancy(${JSON.stringify(first)})`);
+  assert.equal(app.run("state.lastSelectedVacancy.id"), 1);
+
+  app.run('state.section = "master-resume"; state.selected = null');
+  app.run("showVacancies()");
+  assert.equal(app.run("state.selected.id"), 1, "returning to Vacancies should restore the last vacancy");
+  assert.match(app.document.querySelector("#workspace").innerHTML, /First role/);
+
+  app.run("showVacancies()");
+  assert.equal(app.run("state.selected"), null, "a second Vacancies click should return to the landing screen");
+  assert.equal(app.run("state.lastSelectedVacancy"), null, "landing screen should clear the remembered vacancy");
+  assert.match(app.document.querySelector("#workspace").innerHTML, /Build your job-search workspace/);
+}
+
 async function testOverviewLinkAndTabOrder() {
   const app = harness();
   const vacancy = {
@@ -833,6 +849,7 @@ async function testMutationFailuresAndDuplicateRecovery() {
 
 (async () => {
   await testStaleNotesAndCardSelection();
+  await testVacancyNavigationRestoresLastSelection();
   await testOverviewLinkAndTabOrder();
   await testEditAndInterviewSubmitControls();
   await testInterviewCounterLifecycleAndStaleReads();
