@@ -19,6 +19,7 @@ const state = {
 };
 const listEl = document.querySelector("#vacancy-list");
 const workspace = document.querySelector("#workspace");
+const topbar = document.querySelector(".topbar");
 const appLayout = document.querySelector("#app-layout");
 const newVacancyButton = document.querySelector("#new-vacancy");
 const dialog = document.querySelector("#import-dialog");
@@ -31,6 +32,7 @@ const localeToggle = document.querySelector("#locale-toggle");
 const sidebarToggle = document.querySelector("#sidebar-toggle");
 const vacancySidebar = document.querySelector("#vacancy-sidebar");
 const VACANCY_TABS = ["Overview", "Resume", "ATS", "AI / Codex", "Timeline", "Notes", "Files"];
+let lastWorkspaceScrollTop = 0;
 
 const RU = {
   "LOCAL CAREER WORKSPACE": "ЛОКАЛЬНОЕ ПРОСТРАНСТВО ПОИСКА РАБОТЫ",
@@ -180,11 +182,23 @@ function renderSafeMarkdown(value = "") {
 
 function setSection(section) {
   state.section = section;
+  lastWorkspaceScrollTop = 0;
+  topbar?.classList?.remove?.("header-nav-hidden");
   document.querySelectorAll("[data-section]").forEach(button => button.classList.toggle("active", button.dataset.section === section));
   appLayout.classList.toggle("master-mode", section === "master-resume");
   setSidebarOpen(false);
   newVacancyButton.hidden = section !== "vacancies";
 }
+
+function updateHeaderOnScroll() {
+  const scrollTop = Math.max(0, workspace?.scrollTop || 0);
+  const delta = scrollTop - lastWorkspaceScrollTop;
+  if (scrollTop <= 8 || delta < -3) topbar?.classList?.remove?.("header-nav-hidden");
+  else if (scrollTop > 28 && delta > 3) topbar?.classList?.add?.("header-nav-hidden");
+  lastWorkspaceScrollTop = scrollTop;
+}
+
+workspace?.addEventListener?.("scroll", updateHeaderOnScroll, { passive: true });
 
 function setSidebarOpen(open) {
   const isOpen = Boolean(open) && state.section === "vacancies";
