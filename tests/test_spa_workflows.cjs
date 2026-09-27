@@ -633,7 +633,7 @@ async function testExistingDescriptionReviewAndCodexOptIn() {
 async function testSavedAiDetailAndLateRun() {
   const app = harness();
   app.run(`renderVacancy(${JSON.stringify(first)})`);
-  const run = { id: 9, prompt: "Saved prompt", model: "gpt-5.6-luna", reasoning_effort: "low", status: "completed", response: "FULL_SAVED_ANSWER", created_at: "2026-09-21 10:00:00" };
+  const run = { id: 9, prompt: "Saved prompt", model: "gpt-5.6-luna", reasoning_effort: "low", response_language: "russian", status: "completed", response: "FULL_SAVED_ANSWER", created_at: "2026-09-21 10:00:00" };
   const failed = { ...run, id: 8, status: "failed", response: "", error: "SAVED_FAILURE_DETAIL" };
   app.routes.set("GET /api/vacancies/1/ai-runs", [run, failed]);
   const modelCatalog = { models: [{ id: "gpt-5.6-luna", name: "Luna", efforts: ["low", "medium"] }, { id: "gpt-6-sol", name: "Sol", efforts: ["high", "ultra"] }], default_model: "gpt-5.6-luna", default_effort: "low", source: "codex-cli", warning: "" };
@@ -643,6 +643,9 @@ async function testSavedAiDetailAndLateRun() {
   await app.run('openTab("AI / Codex", state.selected)');
   assert.match(app.panel.innerHTML, /name="model" id="ai-model"/);
   assert.match(app.panel.innerHTML, /name="reasoning_effort" id="ai-effort"/);
+  assert.match(app.panel.innerHTML, /name="response_language" id="ai-response-language"/);
+  assert.match(app.panel.innerHTML, /value="auto" selected>Auto<\/option><option value="russian">Russian<\/option><option value="english">English/);
+  assert.match(app.panel.innerHTML, /gpt-5\.6-luna · low · Russian/);
   assert.match(app.panel.innerHTML, /Match resume to vacancy/);
   app.panel.querySelector("#ai-action").value = "Match resume to vacancy";
   app.panel.querySelector("#ai-action").onchange({ target: app.panel.querySelector("#ai-action") });
@@ -654,6 +657,7 @@ async function testSavedAiDetailAndLateRun() {
   await savedButtons[0].onclick();
   assert.match(savedButtons[0].aiRow.querySelector(".ai-inline-result").innerHTML, /FULL_SAVED_ANSWER/);
   assert.match(savedButtons[0].aiRow.querySelector(".ai-inline-result").innerHTML, /gpt-5\.6-luna · low/);
+  assert.match(savedButtons[0].aiRow.querySelector(".ai-inline-result").innerHTML, /Russian/);
   await savedButtons[1].onclick();
   assert.match(savedButtons[1].aiRow.querySelector(".ai-inline-result").innerHTML, /SAVED_FAILURE_DETAIL/);
   assert.doesNotMatch(app.panel.innerHTML, /id="ai-history-result"/);
@@ -730,6 +734,30 @@ async function testTailoredResumeActionAndExplicitDraftHandoff() {
   assert.equal(app.calls.filter(call => call.startsWith("POST /api/resumes")).length, 0, "draft handoff must not save a resume version");
 }
 
+async function testAiResponseLanguageSubmission() {
+  const app = harness();
+  app.run(`renderVacancy(${JSON.stringify(first)})`);
+  app.routes.set("GET /api/vacancies/1/ai-runs", []);
+  await app.run('openTab("AI / Codex", state.selected)');
+  let submitted;
+  app.routes.set("POST /api/vacancies/1/ai-runs", options => {
+    submitted = JSON.parse(options.body);
+    return {
+      id: 21, vacancy_id: 1, action: submitted.action, prompt: submitted.prompt,
+      model: submitted.model, reasoning_effort: submitted.reasoning_effort,
+      response_language: submitted.response_language, status: "completed",
+      response: "English answer", created_at: "2026-09-21 10:00:00",
+    };
+  });
+  const aiForm = app.panel.querySelector("#ai-form");
+  aiForm.fields = {
+    action: "Analyze vacancy", prompt: "Analyze this role", model: "gpt-5.6-luna",
+    reasoning_effort: "low", response_language: "english",
+  };
+  await aiForm.onsubmit({ preventDefault() {}, currentTarget: aiForm });
+  assert.equal(submitted.response_language, "english");
+}
+
 async function testMutationFailuresAndDuplicateRecovery() {
   const app = harness();
   app.run(`renderVacancy(${JSON.stringify(first)})`);
@@ -782,6 +810,7 @@ async function testMutationFailuresAndDuplicateRecovery() {
   await testExistingDescriptionReviewAndCodexOptIn();
   await testSavedAiDetailAndLateRun();
   await testTailoredResumeActionAndExplicitDraftHandoff();
+  await testAiResponseLanguageSubmission();
   await testMutationFailuresAndDuplicateRecovery();
   process.stdout.write("SPA workflow regressions passed\n");
 })().catch(error => {

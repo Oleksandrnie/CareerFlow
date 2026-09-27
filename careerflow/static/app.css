@@ -77,6 +77,7 @@ button:focus-visible, input:focus-visible, textarea:focus-visible, select:focus-
 input, textarea, select { width: 100%; border: 1px solid #cfd8d1; background: white; color: var(--ink); border-radius: 9px; padding: 10px 12px; }
 textarea { resize: vertical; line-height: 1.5; }
 .form-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 14px; }
+.ai-controls { grid-template-columns: minmax(180px, 1.5fr) minmax(180px, 1.5fr) minmax(140px, 1fr) minmax(130px, .8fr); }
 .form-grid > *, .split-grid > * { min-width: 0; }
 .overview-text { white-space: pre-wrap; max-height: 45vh; overflow: auto; background: #f8faf8; border-radius: 10px; padding: 14px; line-height: 1.55; }
 .description-head { margin: 24px 0 12px; }
