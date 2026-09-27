@@ -401,6 +401,7 @@ textarea { resize: vertical; max-width: 100%; }
 }
 
 @media (max-width: 600px) {
+  dialog input, dialog textarea, dialog select { font-size: 16px; }
   .topbar { display: grid; grid-template-columns: minmax(110px, 1fr) auto; grid-template-rows: auto auto; align-items: center; row-gap: 8px; height: auto; min-height: 0; padding-top: 12px; padding-bottom: 8px; }
   .topbar > div:first-child { display: grid; justify-items: start; gap: 3px; min-width: 0; }
   .topbar .eyebrow { display: none; }
