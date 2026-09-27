@@ -30,6 +30,7 @@ router = APIRouter(prefix="/api/vacancies/{vacancy_id}", tags=["tracking"])
 class StatusChange(BaseModel):
     status: str
     note: str = ""
+    outcome: str | None = None
 
 
 class InterviewCreate(BaseModel):
@@ -37,6 +38,7 @@ class InterviewCreate(BaseModel):
     interview_type: str = "Interview"
     note: str = ""
     result: str = ""
+    result_code: str = "unknown"
 
 
 class NoteBody(BaseModel):
@@ -58,7 +60,7 @@ def get_timeline(request: Request, vacancy_id: int) -> list[dict]:
 @router.post("/status")
 def set_status(request: Request, vacancy_id: int, payload: StatusChange) -> dict:
     try:
-        return change_status(request.app.state.db, vacancy_id, payload.status, payload.note)
+        return change_status(request.app.state.db, vacancy_id, payload.status, payload.note, payload.outcome)
     except (LookupError, ValueError) as exc:
         raise _translate_error(exc) from exc
 
@@ -76,7 +78,7 @@ def create_interview(request: Request, vacancy_id: int, payload: InterviewCreate
     try:
         return add_interview(
             request.app.state.db, vacancy_id, payload.interview_at,
-            payload.interview_type, payload.note, payload.result,
+            payload.interview_type, payload.note, payload.result, payload.result_code,
         )
     except (LookupError, ValueError) as exc:
         raise _translate_error(exc) from exc
