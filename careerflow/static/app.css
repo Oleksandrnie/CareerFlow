@@ -453,7 +453,23 @@ textarea { resize: vertical; max-width: 100%; }
 }
 
 @media (max-width: 420px) {
-  .topbar { grid-template-columns: minmax(0, 1fr); grid-template-rows: auto auto auto; }
-  .topbar-actions { grid-column: 1; grid-row: 2; width: 100%; flex-wrap: wrap; justify-content: flex-end; }
-  .primary-nav { grid-column: 1; grid-row: 3; }
+  .topbar { grid-template-columns: minmax(0, 1fr) auto; grid-template-rows: auto auto; column-gap: 8px; padding-inline: 10px; }
+  .topbar > div:first-child { min-width: 0; overflow: hidden; }
+  .topbar h1 { white-space: nowrap; }
+  .topbar-actions { grid-column: 2; grid-row: 1; min-width: 0; flex-wrap: nowrap; gap: 4px; justify-content: flex-end; }
+  .topbar-actions > button { min-width: 0; white-space: nowrap; }
+  .topbar-actions .primary { padding-inline: 7px; font-size: 10px; }
+  .locale-toggle { min-width: 44px; padding-inline: 6px; }
+  .theme-toggle { min-width: 36px; padding-inline: 6px; }
+  .primary-nav { grid-column: 1 / -1; grid-row: 2; }
+}
+
+@media (max-width: 340px) {
+  .topbar h1 { font-size: 16px; }
+  .topbar-actions { gap: 2px; }
+  .topbar-actions .primary { width: 34px; min-width: 34px; padding-inline: 0; font-size: 0; }
+  .topbar-actions .primary::before { content: "+"; font-size: 16px; line-height: 1; }
+  .locale-toggle { min-width: 38px; padding-inline: 4px; }
+  .theme-toggle { min-width: 30px; padding-inline: 4px; }
+  .primary-nav-item { padding-inline: 6px; font-size: 12px; }
 }

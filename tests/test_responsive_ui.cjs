@@ -15,6 +15,10 @@ assert.match(css, /\.score-row \{ flex-direction: column; align-items: flex-star
 assert.match(css, /\.table-scroll th:first-child, \.table-scroll td:first-child \{ width: 58%; white-space: normal; overflow-wrap: anywhere; \}/);
 assert.match(app, /renderEmpty\(\{ preserveSidebar = false \} = \{\}\)/);
 assert.match(app, /renderEmpty\(\{ preserveSidebar: true \}\)/);
-assert.match(css, /@media \(max-width: 420px\) \{\s+\.topbar \{ grid-template-columns: minmax\(0, 1fr\); grid-template-rows: auto auto auto; \}/);
+assert.match(css, /@media \(max-width: 420px\) \{\s+\.topbar \{ grid-template-columns: minmax\(0, 1fr\) auto; grid-template-rows: auto auto; column-gap: 8px;/);
+assert.match(css, /\.topbar-actions \{ grid-column: 2; grid-row: 1; min-width: 0; flex-wrap: nowrap;/);
+assert.match(css, /\.primary-nav \{ grid-column: 1 \/ -1; grid-row: 2; \}/);
+assert.match(css, /@media \(max-width: 340px\) \{\s+\.topbar h1 \{ font-size: 16px; \}/);
+assert.match(css, /\.topbar-actions \.primary \{ width: 34px; min-width: 34px; padding-inline: 0; font-size: 0; \}/);
 
 console.log("Responsive UI contract passed");
