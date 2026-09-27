@@ -16,12 +16,17 @@ const state = {
     try { return localStorage.getItem("careerflow-locale") === "ru" ? "ru" : "en"; }
     catch (_) { return "en"; }
   })(),
+  theme: (() => {
+    try { return localStorage.getItem("careerflow-theme") === "dark" ? "dark" : "light"; }
+    catch (_) { return "light"; }
+  })(),
 };
 const listEl = document.querySelector("#vacancy-list");
 const workspace = document.querySelector("#workspace");
 const topbar = document.querySelector(".topbar");
 const appLayout = document.querySelector("#app-layout");
 const newVacancyButton = document.querySelector("#new-vacancy");
+const themeToggle = document.querySelector("#theme-toggle");
 const dialog = document.querySelector("#import-dialog");
 const form = document.querySelector("#import-form");
 const fileInput = document.querySelector("#vacancy-file");
@@ -67,7 +72,7 @@ const RU = {
   "EVENT LOG": "ЖУРНАЛ СОБЫТИЙ", "Add interview": "Добавить собеседование", "Date and time": "Дата и время", "Type": "Тип", "Notes": "Заметки", "Result": "Результат", "Scheduled, passed, follow-up…": "Назначено, пройдено, дальнейшие шаги…", "Add interview": "Добавить собеседование", "Interview added": "Собеседование добавлено",
   "DATED NOTES": "ЗАМЕТКИ ПО ДАТАМ", "New note": "Новая заметка", "Interview preparation, company research, impressions…": "Подготовка к собеседованию, исследование компании, впечатления…", "Add note": "Добавить заметку", "No notes yet.": "Заметок пока нет.", "Save": "Сохранить", "Note added": "Заметка добавлена", "Note saved": "Заметка сохранена", "Delete this note?": "Удалить эту заметку?", "Note deleted": "Заметка удалена",
   "LOCAL STORAGE": "ЛОКАЛЬНОЕ ХРАНИЛИЩЕ", "Attach file": "Прикрепить файл", "Up to 100 MB. Audio is stored as-is; automatic transcription is outside the MVP.": "До 100 МБ. Аудио хранится как есть; автоматическая расшифровка не входит в MVP.", "No attachments yet.": "Вложений пока нет.", "Download": "Скачать", "Remove this attachment?": "Удалить это вложение?", "File attached": "Файл прикреплён", "File removed": "Файл удалён", "Building…": "Формирование…", "Markdown report generated": "Markdown-отчёт создан",
-  "READ-ONLY CLI ASSISTANT": "CLI-АССИСТЕНТ ТОЛЬКО ДЛЯ ЧТЕНИЯ", "CareerFlow sends the generated vacancy Markdown context to": "CareerFlow отправляет сгенерированный Markdown-контекст вакансии в", "Action": "Действие", "Analyze vacancy": "Анализ вакансии", "Improve resume": "Улучшить резюме", "Review ATS analysis": "Проверить анализ ATS", "Match resume to vacancy": "Сопоставить резюме с вакансией", "Create tailored resume": "Создать резюме под вакансию", "Prepare for interview": "Подготовиться к собеседованию", "Analyze interview notes": "Проанализировать заметки собеседования", "Custom request": "Свой запрос", "Model": "Модель", "Reasoning effort": "Уровень рассуждений", "Response language": "Язык ответа", "Auto": "Авто", "Russian": "Русский", "English": "Английский", "Request": "Запрос", "Run Codex": "Запустить Codex", "Saved responses": "Сохранённые ответы", "No saved responses yet.": "Сохранённых ответов пока нет.", "Filter saved responses…": "Фильтр сохранённых ответов…", "Codex response saved below. Open it when you are ready to review.": "Ответ Codex сохранён ниже. Откройте его, когда будете готовы к просмотру.", "View response": "Открыть ответ", "Hide response": "Скрыть ответ", "Create editable resume draft": "Создать редактируемый черновик резюме", "Tailored resume copied into an editable draft. Review it before saving a new version.": "Резюме под вакансию скопировано в редактируемый черновик. Проверьте его перед сохранением новой версии.", "Codex is working…": "Codex работает…", "Codex response received": "Ответ Codex получен", "AI match score updated": "AI-оценка совпадения обновлена", "AI match score": "AI-оценка совпадения", "AI score is not available because the model did not return valid JSON.": "AI-оценка недоступна: модель не вернула корректный JSON.", "Review the response, then manually decide what to save as a new resume version or note.": "Проверьте ответ и вручную решите, что сохранить как новую версию резюме или заметку.", "Legacy model unknown": "Старая модель неизвестна", "effort unknown": "уровень неизвестен", "Open vacancy list": "Открыть список вакансий", "Close vacancy list": "Закрыть список вакансий",
+  "READ-ONLY CLI ASSISTANT": "CLI-АССИСТЕНТ ТОЛЬКО ДЛЯ ЧТЕНИЯ", "CareerFlow sends the generated vacancy Markdown context to": "CareerFlow отправляет сгенерированный Markdown-контекст вакансии в", "Action": "Действие", "Analyze vacancy": "Анализ вакансии", "Improve resume": "Улучшить резюме", "Review ATS analysis": "Проверить анализ ATS", "Match resume to vacancy": "Сопоставить резюме с вакансией", "Create tailored resume": "Создать резюме под вакансию", "Prepare for interview": "Подготовиться к собеседованию", "Analyze interview notes": "Проанализировать заметки собеседования", "Custom request": "Свой запрос", "Model": "Модель", "Reasoning effort": "Уровень рассуждений", "Response language": "Язык ответа", "Auto": "Авто", "Russian": "Русский", "English": "Английский", "Request": "Запрос", "Run Codex": "Запустить Codex", "Saved responses": "Сохранённые ответы", "No saved responses yet.": "Сохранённых ответов пока нет.", "Filter saved responses…": "Фильтр сохранённых ответов…", "Codex response saved below. Open it when you are ready to review.": "Ответ Codex сохранён ниже. Откройте его, когда будете готовы к просмотру.", "View response": "Открыть ответ", "Hide response": "Скрыть ответ", "Create editable resume draft": "Создать редактируемый черновик резюме", "Tailored resume copied into an editable draft. Review it before saving a new version.": "Резюме под вакансию скопировано в редактируемый черновик. Проверьте его перед сохранением новой версии.", "Codex is working…": "Codex работает…", "Codex response received": "Ответ Codex получен", "AI match score updated": "AI-оценка совпадения обновлена", "AI match score": "AI-оценка совпадения", "AI score is not available because the model did not return valid JSON.": "AI-оценка недоступна: модель не вернула корректный JSON.", "Review the response, then manually decide what to save as a new resume version or note.": "Проверьте ответ и вручную решите, что сохранить как новую версию резюме или заметку.", "Legacy model unknown": "Старая модель неизвестна", "effort unknown": "уровень неизвестен", "Open vacancy list": "Открыть список вакансий", "Close vacancy list": "Закрыть список вакансий", "Switch to dark theme": "Переключить на тёмную тему", "Switch to light theme": "Переключить на светлую тему",
   "Review description": "Проверить описание", "Preparing preview…": "Подготовка предпросмотра…", "Vacancy imported": "Вакансия импортирована", "Deletion cancelled": "Удаление отменено", "Vacancy deleted": "Вакансия удалена", "Vacancy archived": "Вакансия отправлена в архив", "Vacancy restored": "Вакансия восстановлена", "Vacancy updated": "Вакансия обновлена", "Status changed to": "Статус изменён на", "Invalid value": "Недопустимое значение", "Request failed": "Запрос не выполнен", "Error": "Ошибка"
 };
 
@@ -106,6 +111,22 @@ function applyLocale(root = document.body) {
   });
 }
 
+function setTheme(theme) {
+  state.theme = theme === "dark" ? "dark" : "light";
+  if (document.documentElement) {
+    document.documentElement.dataset.theme = state.theme;
+    if (document.documentElement.style) document.documentElement.style.colorScheme = state.theme;
+  }
+  if (themeToggle) {
+    const darkTheme = state.theme === "dark";
+    themeToggle.textContent = darkTheme ? "☀" : "☾";
+    const label = darkTheme ? "Switch to light theme" : "Switch to dark theme";
+    themeToggle.setAttribute?.("aria-label", translateText(label));
+    themeToggle.setAttribute?.("title", translateText(label));
+  }
+  try { localStorage.setItem("careerflow-theme", state.theme); } catch (_) { /* Ignore unavailable storage. */ }
+}
+
 function setLocale(locale) {
   state.locale = locale === "ru" ? "ru" : "en";
   try { localStorage.setItem("careerflow-locale", state.locale); } catch (_) { /* Ignore unavailable storage. */ }
@@ -119,6 +140,7 @@ function setLocale(locale) {
 }
 
 localeToggle?.addEventListener("click", () => setLocale(state.locale === "ru" ? "en" : "ru"));
+themeToggle?.addEventListener("click", () => setTheme(state.theme === "dark" ? "light" : "dark"));
 if (typeof MutationObserver !== "undefined") new MutationObserver(() => applyLocale()).observe(document.body, { childList: true, subtree: true });
 
 async function api(url, options = {}) {
@@ -1174,6 +1196,7 @@ form.onsubmit = async event => {
 };
 
 if (document.documentElement) document.documentElement.lang = state.locale;
+setTheme(state.theme);
 if (state.locale === "ru") {
   setLocale("ru");
   applyLocale();
