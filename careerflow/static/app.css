@@ -281,14 +281,14 @@ textarea { resize: vertical; max-width: 100%; }
 
 @media (max-width: 600px) {
   .topbar { display: grid; grid-template-columns: minmax(110px, 1fr) auto; grid-template-rows: auto auto; align-items: center; row-gap: 0; height: auto; min-height: 0; padding-top: 12px; }
-  .topbar > div:first-child { min-width: 0; }
+  .topbar > div:first-child { display: grid; justify-items: start; gap: 3px; min-width: 0; }
   .topbar .eyebrow { display: none; }
   .topbar h1 { font-size: 19px; }
   .topbar-actions { justify-content: flex-end; }
   .topbar-actions .primary { width: auto; padding: 7px 9px; font-size: 11px; }
   .primary-nav { grid-column: 1 / -1; width: 100%; min-height: 48px; align-items: flex-end; overflow-x: auto; padding-top: 6px; }
   .primary-nav-item { padding: 0 10px; white-space: nowrap; }
-  .primary-nav .sidebar-toggle { flex: 0 0 38px; width: 38px; min-width: 38px; height: 32px; margin: 0 2px 6px 0; padding: 5px; border-radius: 8px; font-size: 16px; }
+  .topbar > div:first-child .sidebar-toggle { display: inline-grid; width: 28px; min-width: 28px; height: 24px; margin: 0; padding: 2px; border-radius: 6px; font-size: 14px; }
   .workspace { padding: 14px 12px; }
   .workspace-head { display: grid; }
   .workspace-head h2 { font-size: 24px; }
