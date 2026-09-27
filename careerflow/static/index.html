@@ -5,7 +5,7 @@
     <meta name="viewport" content="width=device-width, initial-scale=1">
     <title>CareerFlow</title>
     <link rel="icon" href="data:image/svg+xml,<svg xmlns=%22http://www.w3.org/2000/svg%22 viewBox=%220 0 64 64%22><rect width=%2264%22 height=%2264%22 rx=%2216%22 fill=%22%23246b49%22/><path d=%22M18 42L42 18M25 18h17v17%22 fill=%22none%22 stroke=%22white%22 stroke-width=%226%22 stroke-linecap=%22round%22 stroke-linejoin=%22round%22/></svg>">
-    <link rel="stylesheet" href="/static/app.css?v=analytics-mobile-4">
+    <link rel="stylesheet" href="/static/app.css?v=analytics-ui-6">
   </head>
   <body>
     <header class="topbar">
@@ -67,11 +67,13 @@
       </form>
     </dialog>
     <dialog id="analytics-help">
-      <div class="dialog-head"><div><p class="eyebrow">ANALYTICS</p><h2>How analytics works</h2></div><button type="button" class="icon-button" data-close-analytics-help aria-label="Close">×</button></div>
-      <div class="help-content"><p>CareerFlow calculates analytics from recorded structured events. Mark submitted resumes, interview results, offers and final outcomes for accurate statistics.</p><p>Activity cards and the trend use events that happened within the selected period. The funnel and conversion table use vacancies added within that period and inspect their full history.</p><p>Several interview rounds count as several activity events, but as one vacancy in the funnel. Legacy vacancies archived during the analytics migration are intentionally excluded.</p></div>
-      <div class="dialog-actions"><button type="button" class="primary" data-close-analytics-help>Got it</button></div>
+      <div class="analytics-help-shell">
+        <div class="dialog-head"><div><p class="eyebrow">ANALYTICS</p><h2>How analytics works</h2></div><button type="button" class="icon-button" data-close-analytics-help aria-label="Close">×</button></div>
+        <div class="help-content"><p>CareerFlow calculates analytics from recorded structured events. Mark submitted resumes, interview results, offers and final outcomes for accurate statistics.</p><p>Activity cards and the trend use events that happened within the selected period. The funnel and conversion table use vacancies added within that period and inspect their full history.</p><p>Several interview rounds count as several activity events, but as one vacancy in the funnel. Legacy vacancies archived during the analytics migration are intentionally excluded.</p></div>
+        <div class="dialog-actions"><button type="button" class="primary" data-close-analytics-help>Got it</button></div>
+      </div>
     </dialog>
     <div id="toast" class="toast" role="status"></div>
-    <script src="/static/app.js?v=analytics-mobile-4" defer></script>
+    <script src="/static/app.js?v=analytics-ui-6" defer></script>
   </body>
 </html>
