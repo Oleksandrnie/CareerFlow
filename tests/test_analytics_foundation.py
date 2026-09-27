@@ -6,12 +6,26 @@ import unittest
 from pathlib import Path
 
 from careerflow.db import Database, SCHEMA
+from careerflow.analytics import calculate
 from careerflow.resumes import create_resume, mark_submitted
 from careerflow.tracking import add_interview, change_status
 from careerflow.vacancies import create_vacancy, list_vacancies
 
 
 class AnalyticsFoundationTest(unittest.TestCase):
+    def test_analytics_snapshot_uses_cohort_and_returns_dash_for_zero_base(self) -> None:
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            database = Database(root / "careerflow.db")
+            database.initialize()
+            create_vacancy(database, root / "storage", "Python Engineer", "text")
+            snapshot = calculate(database, "2026-01-01", "2026-01-31", "month")
+            self.assertEqual(snapshot["activity_metrics"]["vacancies_added"], 0)
+            self.assertEqual(snapshot["funnel"][0]["count"], 0)
+            self.assertIsNone(snapshot["conversions"][0]["percent"])
+            with self.assertRaises(ValueError):
+                calculate(database, "2026-02-01", "2026-01-01", "month")
+
     def test_new_vacancy_and_domain_actions_emit_structured_events(self) -> None:
         with tempfile.TemporaryDirectory() as directory:
             root = Path(directory)
