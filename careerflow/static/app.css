@@ -217,6 +217,7 @@ textarea { resize: vertical; line-height: 1.5; }
 .success { color: var(--brand) !important; background: var(--soft); }
 hr { border: 0; border-top: 1px solid var(--line); margin: 24px 0; }
 .score-row { display: flex; align-items: center; gap: 16px; margin: 18px 0; }
+.score-row > :last-child { min-width: 0; }
 .score { display: grid; place-items: center; width: 82px; min-width: 82px; height: 82px; aspect-ratio: 1; flex: 0 0 82px; border-radius: 50%; background: var(--soft); color: var(--brand); font-size: 25px; font-weight: 900; }
 .metric-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 10px; margin: 18px 0 24px; }
 .metric-grid div { display: grid; padding: 13px; background: var(--metric-bg); border-radius: 10px; }
@@ -422,6 +423,10 @@ textarea { resize: vertical; max-width: 100%; }
   .form-grid, .overview-meta { grid-template-columns: 1fr; }
   .panel { padding: 13px; border-radius: 11px; }
   .section-head { align-items: flex-start; flex-direction: column; gap: 10px; }
+  .ats-head > div { min-width: 0; max-width: 100%; }
+  .ats-head .actions { display: grid; grid-template-columns: minmax(0, 1fr) minmax(120px, 150px); width: 100%; min-width: 0; }
+  .ats-head .actions select, .ats-head .actions button { width: 100%; min-width: 0; }
+  .ats-head .actions button { white-space: normal; }
   .master-list-head { flex-direction: row; align-items: center; justify-content: space-between; flex-wrap: wrap; }
   .master-list-head > .primary { width: auto; }
   .ai-history-head { flex-direction: row; align-items: center; }
