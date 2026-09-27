@@ -191,7 +191,9 @@ function setSection(section) {
 }
 
 function updateHeaderOnScroll() {
-  const scrollTop = Math.max(0, workspace?.scrollTop || 0);
+  const documentScrollTop = document.documentElement?.scrollTop || document.body?.scrollTop || 0;
+  const windowScrollTop = typeof window !== "undefined" ? window.scrollY || 0 : 0;
+  const scrollTop = Math.max(0, workspace?.scrollTop || 0, documentScrollTop, windowScrollTop);
   const delta = scrollTop - lastWorkspaceScrollTop;
   if (scrollTop <= 8 || delta < -3) topbar?.classList?.remove?.("header-nav-hidden");
   else if (scrollTop > 28 && delta > 3) topbar?.classList?.add?.("header-nav-hidden");
@@ -199,6 +201,8 @@ function updateHeaderOnScroll() {
 }
 
 workspace?.addEventListener?.("scroll", updateHeaderOnScroll, { passive: true });
+if (typeof window !== "undefined") window.addEventListener?.("scroll", updateHeaderOnScroll, { passive: true });
+document.addEventListener?.("scroll", updateHeaderOnScroll, { passive: true, capture: true });
 
 function setSidebarOpen(open) {
   const isOpen = Boolean(open) && state.section === "vacancies";
