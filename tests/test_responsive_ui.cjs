@@ -17,6 +17,7 @@ assert.match(css, /\.ats-head \.actions \{ display: grid; grid-template-columns:
 assert.match(css, /\.workspace-head \.actions \{ display: grid; grid-column: 1 \/ -1; grid-template-columns: repeat\(2, minmax\(0, 1fr\)\); width: 100%; min-width: 0; \}/);
 assert.match(css, /\.workspace-head \{ display: grid; grid-template-columns: minmax\(0, 1fr\); width: 100%; \}/);
 assert.match(css, /@media \(max-width: 600px\) \{\s+dialog input, dialog textarea, dialog select \{ font-size: 16px; \}/);
+assert.match(css, /\.workspace \{ width: 100%; height: 100%; min-height: 0; overflow-x: hidden; overflow-y: auto; padding: 18px 16px; \}/);
 assert.match(app, /<div class="section-head ats-head">/);
 assert.match(css, /\.table-scroll th:first-child, \.table-scroll td:first-child \{ width: 58%; white-space: normal; overflow-wrap: anywhere; \}/);
 assert.match(css, /\.table-scroll th:not\(:first-child\), \.table-scroll td:not\(:first-child\) \{ text-align:center; \}/);
