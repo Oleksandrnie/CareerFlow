@@ -450,6 +450,7 @@ async function testMasterResumeWorkspaceAndSave() {
   addResume.onclick();
   assert.equal(app.document.querySelector("#workspace").querySelector("#master-resume-dialog").open, true);
   const masterForm = app.document.querySelector("#workspace").querySelector("#resume-form");
+  assert.notEqual(masterForm.querySelector("input[name=label]").focused, true, "opening a new Master Resume dialog must not trigger the mobile keyboard");
   masterForm.fields = { label: "Second version", text: "# Updated profile", source_resume_id: "" };
   app.routes.set("POST /api/resumes", options => {
     assert.equal(options.body.get("kind"), "master");
