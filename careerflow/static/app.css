@@ -217,7 +217,7 @@ textarea { resize: vertical; line-height: 1.5; }
 .success { color: var(--brand) !important; background: var(--soft); }
 hr { border: 0; border-top: 1px solid var(--line); margin: 24px 0; }
 .score-row { display: flex; align-items: center; gap: 16px; margin: 18px 0; }
-.score { display: grid; place-items: center; flex: 0 0 82px; height: 82px; border-radius: 50%; background: var(--soft); color: var(--brand); font-size: 25px; font-weight: 900; }
+.score { display: grid; place-items: center; width: 82px; min-width: 82px; height: 82px; aspect-ratio: 1; flex: 0 0 82px; border-radius: 50%; background: var(--soft); color: var(--brand); font-size: 25px; font-weight: 900; }
 .metric-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 10px; margin: 18px 0 24px; }
 .metric-grid div { display: grid; padding: 13px; background: var(--metric-bg); border-radius: 10px; }
 .metric-grid strong { font-size: 22px; }.metric-grid span { color: var(--muted); font-size: 12px; }
