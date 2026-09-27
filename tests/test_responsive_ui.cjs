@@ -4,6 +4,7 @@ const path = require("node:path");
 
 const css = fs.readFileSync(path.join(__dirname, "../careerflow/static/app.css"), "utf8");
 const app = fs.readFileSync(path.join(__dirname, "../careerflow/static/app.js"), "utf8");
+const index = fs.readFileSync(path.join(__dirname, "../careerflow/static/index.html"), "utf8");
 
 assert.match(css, /\.item-row > :first-child \{ min-width: 0; flex: 1 1 240px; \}/);
 assert.match(css, /@media \(max-width: 1100px\) \{\s+\.item-row \{ flex-direction: column; align-items: flex-start; \}\s+\.item-row > :first-child \{ width: 100%; flex: 0 1 auto; \}/);
@@ -28,7 +29,14 @@ assert.match(css, /\.topbar-actions \{ grid-column: 2; grid-row: 1; min-width: 0
 assert.match(css, /\.primary-nav \{ grid-column: 1 \/ -1; grid-row: 2; \}/);
 assert.match(css, /@media \(max-width: 340px\) \{\s+\.topbar h1 \{ font-size: 16px; \}/);
 assert.match(css, /\.topbar-actions \.primary \{ width: 34px; min-width: 34px; padding-inline: 0; font-size: 0; \}/);
-assert.match(css, /@media \(max-width: 760px\) \{\s+#master-resume-dialog \.dialog-actions \{ display: grid; grid-template-columns: repeat\(2, minmax\(0, 1fr\)\); align-items: stretch; \}/);
+assert.match(css, /#master-resume-dialog \.dialog-actions \{ display: grid; grid-template-columns: repeat\(2, minmax\(0, 1fr\)\); align-items: stretch; \}/);
 assert.match(css, /#master-resume-dialog \.dialog-actions > button \{ width: 100%; min-width: 0; height: 64px; min-height: 64px;/);
+assert.match(css, /\.sidebar-toggle\[hidden\] \{ visibility: hidden; pointer-events: none; \}/);
+assert.match(css, /\.brand-lockup \{ display: flex; align-items: center; gap: 10px; min-width: 0; \}/);
+assert.match(app, /newVacancyButton\.hidden = false;/);
+assert.match(index, /<div class="brand-lockup">\s*<button id="sidebar-toggle"[\s\S]*?<div class="brand-copy"><p class="eyebrow">[\s\S]*?<h1>CareerFlow<\/h1>/);
+assert.match(css, /@media \(max-width: 760px\) \{\s+\.topbar \{ display: grid; grid-template-columns: minmax\(0, 1fr\) auto; grid-template-rows: auto auto;/);
+assert.match(css, /\.topbar-actions \{ grid-column: 2; grid-row: 1; min-width: 0; flex-wrap: nowrap; justify-content: flex-end; \}/);
+assert.match(css, /\.primary-nav \{ grid-column: 1 \/ -1; grid-row: 2; width: calc\(100% \+ 28px\);/);
 
 console.log("Responsive UI contract passed");
