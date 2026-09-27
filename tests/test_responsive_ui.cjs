@@ -35,6 +35,8 @@ assert.match(css, /\.sidebar-toggle\[hidden\] \{ visibility: hidden; pointer-eve
 assert.match(css, /\.brand-lockup \{ display: flex; align-items: center; gap: 10px; min-width: 0; \}/);
 assert.match(app, /newVacancyButton\.hidden = false;/);
 assert.match(index, /<div class="brand-lockup">\s*<button id="sidebar-toggle"[\s\S]*?<div class="brand-copy"><p class="eyebrow">[\s\S]*?<h1>CareerFlow<\/h1>/);
+assert.match(index, /id="sidebar-toggle"[\s\S]*?class="menu-glyph"[^>]*>☰/);
+assert.match(index, /id="new-vacancy"[^>]*class="primary new-vacancy-action"[^>]*>\+</);
 assert.match(css, /@media \(max-width: 760px\) \{\s+\.topbar \{ display: grid; grid-template-columns: minmax\(0, 1fr\) auto; grid-template-rows: auto auto;/);
 assert.match(css, /\.topbar-actions \{ grid-column: 2; grid-row: 1; min-width: 0; flex-wrap: nowrap; justify-content: flex-end; \}/);
 assert.match(css, /\.primary-nav \{ grid-column: 1 \/ -1; grid-row: 2; width: calc\(100% \+ 28px\);/);

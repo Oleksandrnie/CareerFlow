@@ -239,9 +239,14 @@ function setSection(section) {
   lastWorkspaceScrollTop = 0;
   topbar?.classList?.remove?.("header-nav-hidden");
   document.querySelectorAll("[data-section]").forEach(button => button.classList.toggle("active", button.dataset.section === section));
+  topbar?.setAttribute?.("data-section", section);
   appLayout.classList.toggle("master-mode", section !== "vacancies");
   setSidebarOpen(false);
-  if (sidebarToggle) sidebarToggle.hidden = section !== "vacancies";
+  if (sidebarToggle) {
+    sidebarToggle.hidden = false;
+    sidebarToggle.disabled = false;
+    sidebarToggle.setAttribute?.("aria-label", translateText("Open vacancy list"));
+  }
   newVacancyButton.hidden = false;
 }
 
@@ -316,7 +321,7 @@ if (typeof window !== "undefined") window.addEventListener?.("scroll", updateHea
 document.addEventListener?.("scroll", updateHeaderOnScroll, { passive: true, capture: true });
 
 function setSidebarOpen(open) {
-  const isOpen = Boolean(open) && state.section === "vacancies";
+  const isOpen = Boolean(open);
   state.sidebarOpen = isOpen;
   appLayout.classList.toggle("sidebar-open", isOpen);
   sidebarToggle?.setAttribute?.("aria-expanded", String(isOpen));
@@ -1283,7 +1288,7 @@ function closeDialog() { dialog.close(); form.reset(); resetImportReview(); sele
 
 document.addEventListener("click", async event => {
   if (event.target.closest("[data-close-analytics-help]")) { analyticsHelp?.close(); return; }
-  if (state.section === "vacancies" && state.sidebarOpen && !event.target.closest("#vacancy-sidebar") && !event.target.closest("#sidebar-toggle")) {
+  if (state.sidebarOpen && !event.target.closest("#vacancy-sidebar") && !event.target.closest("#sidebar-toggle")) {
     setSidebarOpen(false);
   }
   if (event.target.closest("#sidebar-toggle")) {
@@ -1327,7 +1332,7 @@ document.addEventListener("click", async event => {
     }
   }
   const card = event.target.closest(".vacancy-card");
-  if (card && state.section === "vacancies") {
+  if (card) {
     setSidebarOpen(false);
     const selectionEpoch = ++state.selectionEpoch;
     try {
