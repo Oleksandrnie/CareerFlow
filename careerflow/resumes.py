@@ -7,7 +7,7 @@ import shutil
 from pathlib import Path
 from uuid import uuid4
 
-from .db import Database, insert_and_get_id
+from .db import Database, insert_and_get_id, insert_funnel_event
 from .files import normalize_text, safe_filename, write_bytes, write_text
 
 
@@ -409,6 +409,10 @@ def mark_submitted(database: Database, resume_id: int) -> dict:
                 f"Resume v{resume['version']} marked as submitted",
                 resume["label"],
             ),
+        )
+        insert_funnel_event(
+            connection, resume["vacancy_id"], "application_submitted",
+            metadata={"resume_version_id": resume_id},
         )
     updated = get_resume(database, resume_id)
     if updated is None:

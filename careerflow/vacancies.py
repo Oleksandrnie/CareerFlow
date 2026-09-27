@@ -7,7 +7,7 @@ import shutil
 from pathlib import Path
 from uuid import uuid4
 
-from .db import Database, insert_and_get_id
+from .db import Database, insert_and_get_id, insert_funnel_event
 from .files import normalize_text, safe_filename, write_bytes, write_text
 
 
@@ -99,6 +99,7 @@ def create_vacancy(
             """,
             (vacancy_id, f"Imported from {source_type}"),
         )
+        insert_funnel_event(connection, vacancy_id, "vacancy_added")
         if cleaning_method and description_confirmed:
             connection.execute(
                 """

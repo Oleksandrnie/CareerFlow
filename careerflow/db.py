@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import json
 import sqlite3
 from contextlib import contextmanager
 from pathlib import Path
@@ -42,6 +43,9 @@ CREATE TABLE IF NOT EXISTS vacancies (
     archived_at TEXT,
     created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
     updated_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP
+    ,analytics_eligible INTEGER NOT NULL DEFAULT 1 CHECK (analytics_eligible IN (0, 1))
+    ,outcome TEXT
+    ,outcome_at TEXT
 );
 
 CREATE TABLE IF NOT EXISTS resume_versions (
@@ -95,6 +99,7 @@ CREATE TABLE IF NOT EXISTS interviews (
     interview_type TEXT NOT NULL DEFAULT 'Interview',
     note TEXT NOT NULL DEFAULT '',
     result TEXT NOT NULL DEFAULT '',
+    result_code TEXT NOT NULL DEFAULT 'unknown' CHECK (result_code IN ('scheduled', 'passed', 'failed', 'cancelled', 'unknown')),
     created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
     UNIQUE(vacancy_id, sequence_number)
 );
@@ -115,6 +120,15 @@ CREATE TABLE IF NOT EXISTS attachments (
     media_type TEXT NOT NULL DEFAULT 'application/octet-stream',
     size_bytes INTEGER NOT NULL,
     is_text INTEGER NOT NULL DEFAULT 0 CHECK (is_text IN (0, 1)),
+    created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP
+);
+
+CREATE TABLE IF NOT EXISTS funnel_events (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    vacancy_id INTEGER NOT NULL REFERENCES vacancies(id) ON DELETE CASCADE,
+    event_type TEXT NOT NULL,
+    occurred_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    metadata_json TEXT NOT NULL DEFAULT '{}',
     created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP
 );
 
@@ -143,6 +157,8 @@ CREATE TABLE IF NOT EXISTS ai_runs (
 
 CREATE INDEX IF NOT EXISTS idx_vacancies_status ON vacancies(status, archived_at);
 CREATE INDEX IF NOT EXISTS idx_timeline_vacancy ON timeline_events(vacancy_id, event_at DESC);
+CREATE INDEX IF NOT EXISTS idx_funnel_events_type_time ON funnel_events(event_type, occurred_at);
+CREATE INDEX IF NOT EXISTS idx_funnel_events_vacancy ON funnel_events(vacancy_id, event_type, occurred_at);
 CREATE INDEX IF NOT EXISTS idx_notes_vacancy ON notes(vacancy_id, created_at DESC);
 CREATE INDEX IF NOT EXISTS idx_attachments_vacancy ON attachments(vacancy_id, created_at DESC);
 """
@@ -216,6 +232,40 @@ class Database:
             self._ensure_ai_run_response_language_column(connection)
             connection.execute(
                 "INSERT OR IGNORE INTO schema_version(version) VALUES (8)"
+            )
+            self._ensure_analytics_foundation(connection)
+            connection.execute(
+                "INSERT OR IGNORE INTO schema_version(version) VALUES (9)"
+            )
+
+    @staticmethod
+    def _ensure_analytics_foundation(connection: sqlite3.Connection) -> None:
+        vacancy_columns = {
+            row["name"] for row in connection.execute("PRAGMA table_info(vacancies)")
+        }
+        if "analytics_eligible" not in vacancy_columns:
+            connection.execute(
+                "ALTER TABLE vacancies ADD COLUMN analytics_eligible INTEGER NOT NULL DEFAULT 1"
+            )
+        if "outcome" not in vacancy_columns:
+            connection.execute("ALTER TABLE vacancies ADD COLUMN outcome TEXT")
+        if "outcome_at" not in vacancy_columns:
+            connection.execute("ALTER TABLE vacancies ADD COLUMN outcome_at TEXT")
+
+        interview_columns = {
+            row["name"] for row in connection.execute("PRAGMA table_info(interviews)")
+        }
+        if "result_code" not in interview_columns:
+            connection.execute(
+                "ALTER TABLE interviews ADD COLUMN result_code TEXT NOT NULL DEFAULT 'unknown'"
+            )
+
+        already_migrated = connection.execute(
+            "SELECT 1 FROM schema_version WHERE version = 9"
+        ).fetchone()
+        if already_migrated is None:
+            connection.execute(
+                "UPDATE vacancies SET analytics_eligible = 0, archived_at = COALESCE(archived_at, CURRENT_TIMESTAMP)"
             )
 
     @staticmethod
@@ -396,3 +446,33 @@ def insert_and_get_id(
     if cursor.lastrowid is None:
         raise RuntimeError("SQLite did not return an inserted row id")
     return int(cursor.lastrowid)
+
+
+def insert_funnel_event(
+    connection: sqlite3.Connection,
+    vacancy_id: int,
+    event_type: str,
+    *,
+    occurred_at: str | None = None,
+    metadata: dict | None = None,
+) -> int | None:
+    """Append one canonical analytics event, ignoring an exact logical duplicate."""
+    metadata_json = json.dumps(metadata or {}, ensure_ascii=False, sort_keys=True)
+    existing = connection.execute(
+        """
+        SELECT id FROM funnel_events
+        WHERE vacancy_id = ? AND event_type = ? AND metadata_json = ?
+        ORDER BY id LIMIT 1
+        """,
+        (vacancy_id, event_type, metadata_json),
+    ).fetchone()
+    if existing is not None:
+        return int(existing[0])
+    cursor = connection.execute(
+        """
+        INSERT INTO funnel_events(vacancy_id, event_type, occurred_at, metadata_json)
+        VALUES (?, ?, COALESCE(?, CURRENT_TIMESTAMP), ?)
+        """,
+        (vacancy_id, event_type, occurred_at, metadata_json),
+    )
+    return int(cursor.lastrowid) if cursor.lastrowid is not None else None
