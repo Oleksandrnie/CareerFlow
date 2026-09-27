@@ -15,6 +15,7 @@ assert.match(css, /\.score-row \{ flex-direction: column; align-items: flex-star
 assert.match(css, /\.score \{ display: grid; place-items: center; width: 82px; min-width: 82px; height: 82px; aspect-ratio: 1; flex: 0 0 82px;/);
 assert.match(css, /\.ats-head \.actions \{ display: grid; grid-template-columns: minmax\(0, 1fr\) minmax\(120px, 150px\); width: 100%; min-width: 0; \}/);
 assert.match(css, /\.workspace-head \.actions \{ display: grid; grid-column: 1 \/ -1; grid-template-columns: repeat\(2, minmax\(0, 1fr\)\); width: 100%; min-width: 0; \}/);
+assert.match(css, /\.workspace-head \{ display: grid; grid-template-columns: minmax\(0, 1fr\); width: 100%; \}/);
 assert.match(app, /<div class="section-head ats-head">/);
 assert.match(css, /\.table-scroll th:first-child, \.table-scroll td:first-child \{ width: 58%; white-space: normal; overflow-wrap: anywhere; \}/);
 assert.match(css, /\.table-scroll th:not\(:first-child\), \.table-scroll td:not\(:first-child\) \{ text-align:center; \}/);
