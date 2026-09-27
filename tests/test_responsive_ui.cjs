@@ -28,5 +28,7 @@ assert.match(css, /\.topbar-actions \{ grid-column: 2; grid-row: 1; min-width: 0
 assert.match(css, /\.primary-nav \{ grid-column: 1 \/ -1; grid-row: 2; \}/);
 assert.match(css, /@media \(max-width: 340px\) \{\s+\.topbar h1 \{ font-size: 16px; \}/);
 assert.match(css, /\.topbar-actions \.primary \{ width: 34px; min-width: 34px; padding-inline: 0; font-size: 0; \}/);
+assert.match(css, /@media \(max-width: 760px\) \{\s+#master-resume-dialog \.dialog-actions \{ display: grid; grid-template-columns: repeat\(2, minmax\(0, 1fr\)\); align-items: stretch; \}/);
+assert.match(css, /#master-resume-dialog \.dialog-actions > button \{ width: 100%; min-width: 0; height: 64px; min-height: 64px;/);
 
 console.log("Responsive UI contract passed");
