@@ -758,6 +758,22 @@ async function testAiResponseLanguageSubmission() {
   assert.equal(submitted.response_language, "english");
 }
 
+async function testResponsiveSidebarToggleClosesAfterSelection() {
+  const app = harness();
+  app.run(`renderVacancy(${JSON.stringify(first)})`);
+  const click = app.listeners.get("click");
+  const toggleTarget = { closest: selector => selector === "#sidebar-toggle" ? {} : null };
+  await click({ target: toggleTarget });
+  assert.equal(app.run("state.sidebarOpen"), true);
+  app.routes.set("GET /api/vacancies/1", first);
+  const vacancyCard = {
+    dataset: { id: "1" },
+    closest: selector => selector === ".vacancy-card" ? vacancyCard : null,
+  };
+  await click({ target: vacancyCard });
+  assert.equal(app.run("state.sidebarOpen"), false);
+}
+
 async function testMutationFailuresAndDuplicateRecovery() {
   const app = harness();
   app.run(`renderVacancy(${JSON.stringify(first)})`);
@@ -811,6 +827,7 @@ async function testMutationFailuresAndDuplicateRecovery() {
   await testSavedAiDetailAndLateRun();
   await testTailoredResumeActionAndExplicitDraftHandoff();
   await testAiResponseLanguageSubmission();
+  await testResponsiveSidebarToggleClosesAfterSelection();
   await testMutationFailuresAndDuplicateRecovery();
   process.stdout.write("SPA workflow regressions passed\n");
 })().catch(error => {

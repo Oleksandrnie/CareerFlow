@@ -11,6 +11,7 @@ const state = {
   interviewCounts: new Map(),
   interviewCountEpochs: new Map(),
   interviewRequests: new Map(),
+  sidebarOpen: false,
   locale: (() => {
     try { return localStorage.getItem("careerflow-locale") === "ru" ? "ru" : "en"; }
     catch (_) { return "en"; }
@@ -27,6 +28,8 @@ const dropZone = document.querySelector("#drop-zone");
 const selectedFile = document.querySelector("#selected-file");
 const archivedToggle = document.querySelector("#show-archived");
 const localeToggle = document.querySelector("#locale-toggle");
+const sidebarToggle = document.querySelector("#sidebar-toggle");
+const vacancySidebar = document.querySelector("#vacancy-sidebar");
 const VACANCY_TABS = ["Overview", "Resume", "ATS", "AI / Codex", "Timeline", "Notes", "Files"];
 
 const RU = {
@@ -62,7 +65,7 @@ const RU = {
   "EVENT LOG": "ЖУРНАЛ СОБЫТИЙ", "Add interview": "Добавить собеседование", "Date and time": "Дата и время", "Type": "Тип", "Notes": "Заметки", "Result": "Результат", "Scheduled, passed, follow-up…": "Назначено, пройдено, дальнейшие шаги…", "Add interview": "Добавить собеседование", "Interview added": "Собеседование добавлено",
   "DATED NOTES": "ЗАМЕТКИ ПО ДАТАМ", "New note": "Новая заметка", "Interview preparation, company research, impressions…": "Подготовка к собеседованию, исследование компании, впечатления…", "Add note": "Добавить заметку", "No notes yet.": "Заметок пока нет.", "Save": "Сохранить", "Note added": "Заметка добавлена", "Note saved": "Заметка сохранена", "Delete this note?": "Удалить эту заметку?", "Note deleted": "Заметка удалена",
   "LOCAL STORAGE": "ЛОКАЛЬНОЕ ХРАНИЛИЩЕ", "Attach file": "Прикрепить файл", "Up to 100 MB. Audio is stored as-is; automatic transcription is outside the MVP.": "До 100 МБ. Аудио хранится как есть; автоматическая расшифровка не входит в MVP.", "No attachments yet.": "Вложений пока нет.", "Download": "Скачать", "Remove this attachment?": "Удалить это вложение?", "File attached": "Файл прикреплён", "File removed": "Файл удалён", "Building…": "Формирование…", "Markdown report generated": "Markdown-отчёт создан",
-  "READ-ONLY CLI ASSISTANT": "CLI-АССИСТЕНТ ТОЛЬКО ДЛЯ ЧТЕНИЯ", "CareerFlow sends the generated vacancy Markdown context to": "CareerFlow отправляет сгенерированный Markdown-контекст вакансии в", "Action": "Действие", "Analyze vacancy": "Анализ вакансии", "Improve resume": "Улучшить резюме", "Review ATS analysis": "Проверить анализ ATS", "Match resume to vacancy": "Сопоставить резюме с вакансией", "Create tailored resume": "Создать резюме под вакансию", "Prepare for interview": "Подготовиться к собеседованию", "Analyze interview notes": "Проанализировать заметки собеседования", "Custom request": "Свой запрос", "Model": "Модель", "Reasoning effort": "Уровень рассуждений", "Response language": "Язык ответа", "Auto": "Авто", "Russian": "Русский", "English": "Английский", "Request": "Запрос", "Run Codex": "Запустить Codex", "Saved responses": "Сохранённые ответы", "No saved responses yet.": "Сохранённых ответов пока нет.", "Filter saved responses…": "Фильтр сохранённых ответов…", "Codex response saved below. Open it when you are ready to review.": "Ответ Codex сохранён ниже. Откройте его, когда будете готовы к просмотру.", "View response": "Открыть ответ", "Hide response": "Скрыть ответ", "Create editable resume draft": "Создать редактируемый черновик резюме", "Tailored resume copied into an editable draft. Review it before saving a new version.": "Резюме под вакансию скопировано в редактируемый черновик. Проверьте его перед сохранением новой версии.", "Codex is working…": "Codex работает…", "Codex response received": "Ответ Codex получен", "AI match score updated": "AI-оценка совпадения обновлена", "AI match score": "AI-оценка совпадения", "AI score is not available because the model did not return valid JSON.": "AI-оценка недоступна: модель не вернула корректный JSON.", "Review the response, then manually decide what to save as a new resume version or note.": "Проверьте ответ и вручную решите, что сохранить как новую версию резюме или заметку.", "Legacy model unknown": "Старая модель неизвестна", "effort unknown": "уровень неизвестен",
+  "READ-ONLY CLI ASSISTANT": "CLI-АССИСТЕНТ ТОЛЬКО ДЛЯ ЧТЕНИЯ", "CareerFlow sends the generated vacancy Markdown context to": "CareerFlow отправляет сгенерированный Markdown-контекст вакансии в", "Action": "Действие", "Analyze vacancy": "Анализ вакансии", "Improve resume": "Улучшить резюме", "Review ATS analysis": "Проверить анализ ATS", "Match resume to vacancy": "Сопоставить резюме с вакансией", "Create tailored resume": "Создать резюме под вакансию", "Prepare for interview": "Подготовиться к собеседованию", "Analyze interview notes": "Проанализировать заметки собеседования", "Custom request": "Свой запрос", "Model": "Модель", "Reasoning effort": "Уровень рассуждений", "Response language": "Язык ответа", "Auto": "Авто", "Russian": "Русский", "English": "Английский", "Request": "Запрос", "Run Codex": "Запустить Codex", "Saved responses": "Сохранённые ответы", "No saved responses yet.": "Сохранённых ответов пока нет.", "Filter saved responses…": "Фильтр сохранённых ответов…", "Codex response saved below. Open it when you are ready to review.": "Ответ Codex сохранён ниже. Откройте его, когда будете готовы к просмотру.", "View response": "Открыть ответ", "Hide response": "Скрыть ответ", "Create editable resume draft": "Создать редактируемый черновик резюме", "Tailored resume copied into an editable draft. Review it before saving a new version.": "Резюме под вакансию скопировано в редактируемый черновик. Проверьте его перед сохранением новой версии.", "Codex is working…": "Codex работает…", "Codex response received": "Ответ Codex получен", "AI match score updated": "AI-оценка совпадения обновлена", "AI match score": "AI-оценка совпадения", "AI score is not available because the model did not return valid JSON.": "AI-оценка недоступна: модель не вернула корректный JSON.", "Review the response, then manually decide what to save as a new resume version or note.": "Проверьте ответ и вручную решите, что сохранить как новую версию резюме или заметку.", "Legacy model unknown": "Старая модель неизвестна", "effort unknown": "уровень неизвестен", "Open vacancy list": "Открыть список вакансий", "Close vacancy list": "Закрыть список вакансий",
   "Review description": "Проверить описание", "Preparing preview…": "Подготовка предпросмотра…", "Vacancy imported": "Вакансия импортирована", "Deletion cancelled": "Удаление отменено", "Vacancy deleted": "Вакансия удалена", "Vacancy archived": "Вакансия отправлена в архив", "Vacancy restored": "Вакансия восстановлена", "Vacancy updated": "Вакансия обновлена", "Status changed to": "Статус изменён на", "Invalid value": "Недопустимое значение", "Request failed": "Запрос не выполнен", "Error": "Ошибка"
 };
 
@@ -179,7 +182,19 @@ function setSection(section) {
   state.section = section;
   document.querySelectorAll("[data-section]").forEach(button => button.classList.toggle("active", button.dataset.section === section));
   appLayout.classList.toggle("master-mode", section === "master-resume");
+  setSidebarOpen(false);
   newVacancyButton.hidden = section !== "vacancies";
+}
+
+function setSidebarOpen(open) {
+  const isOpen = Boolean(open) && state.section === "vacancies";
+  state.sidebarOpen = isOpen;
+  appLayout.classList.toggle("sidebar-open", isOpen);
+  sidebarToggle?.setAttribute?.("aria-expanded", String(isOpen));
+  sidebarToggle?.setAttribute?.("aria-label", translateText(isOpen ? "Close vacancy list" : "Open vacancy list"));
+  const isCompactViewport = typeof window !== "undefined" && typeof window.matchMedia === "function" && window.matchMedia("(max-width: 900px)").matches;
+  vacancySidebar?.setAttribute?.("aria-hidden", String(isCompactViewport && !isOpen));
+  if (vacancySidebar && "inert" in vacancySidebar) vacancySidebar.inert = isCompactViewport && !isOpen;
 }
 
 function showVacancies() {
@@ -1018,6 +1033,13 @@ function openDialog() { resetImportReview(); dialog.showModal(); }
 function closeDialog() { dialog.close(); form.reset(); resetImportReview(); selectedFile.textContent = ""; document.querySelector("#import-error").textContent = ""; }
 
 document.addEventListener("click", async event => {
+  if (state.section === "vacancies" && state.sidebarOpen && !event.target.closest("#vacancy-sidebar") && !event.target.closest("#sidebar-toggle")) {
+    setSidebarOpen(false);
+  }
+  if (event.target.closest("#sidebar-toggle")) {
+    setSidebarOpen(!state.sidebarOpen);
+    return;
+  }
   const sectionButton = event.target.closest("[data-section]");
   if (sectionButton) {
     if (sectionButton.dataset.section === "master-resume") await renderMasterResume();
@@ -1055,11 +1077,20 @@ document.addEventListener("click", async event => {
   }
   const card = event.target.closest(".vacancy-card");
   if (card && state.section === "vacancies") {
+    setSidebarOpen(false);
     const selectionEpoch = ++state.selectionEpoch;
     try {
       const vacancy = await api(`/api/vacancies/${card.dataset.id}`);
-      if (selectionEpoch === state.selectionEpoch) renderVacancy(vacancy);
+      if (selectionEpoch === state.selectionEpoch) {
+        renderVacancy(vacancy);
+      }
     } catch (error) { if (selectionEpoch === state.selectionEpoch) showError(error); }
+  }
+});
+document.addEventListener("keydown", event => {
+  if (event.key === "Escape" && state.sidebarOpen) {
+    setSidebarOpen(false);
+    sidebarToggle?.focus?.();
   }
 });
 newVacancyButton.onclick = openDialog;
