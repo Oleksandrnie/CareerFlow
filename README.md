@@ -52,6 +52,17 @@ python3 -m venv .venv
 
 На Windows используйте `.venv\Scripts\python.exe` вместо `.venv/bin/python`.
 
+### Запуск в локальной сети
+
+Чтобы открыть CareerFlow с телефона или другого устройства в той же Wi‑Fi сети, остановите обычный сервер и запустите:
+
+```bash
+cd "/Users/oleksandr/Documents/Custom files/1. Github Repositories/CareerFlow"
+CAREERFLOW_HOST=0.0.0.0 .venv/bin/python run.py
+```
+
+После запуска откройте на другом устройстве `http://<IP-адрес-компьютера>:8000`, например `http://192.168.0.101:8000`. IP-адрес компьютера можно узнать командой `ipconfig getifaddr en0` на macOS или `ipconfig` на Windows.
+
 ## Основной сценарий
 
 1. Нажмите **Add vacancy**, вставьте описание либо перетащите файл, проверьте предпросмотр очистки и подтвердите его. При желании классификацию блоков можно отдельно поручить локальному Codex CLI.
