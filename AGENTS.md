@@ -5,7 +5,7 @@
 These instructions apply to execution work in this repository.
 
 - In conversation mode—questions, explanations, planning, brainstorming, or code discussion without requested changes—use the model selected by the user. Do not delegate or escalate solely because the project is open.
-- Execution mode begins when the user requests implementation, modification, migration, review, audit, or another action affecting project state.
+- Execution mode begins when the user requests implementation, modification, migration, or another action affecting project state. A requested read-only review or audit may use the review routing below, but it authorizes inspection only, not project changes or automatic delegation.
 - An explicit user choice of model, effort, or no-delegation policy overrides automatic model routing for that task only. It does not override architecture, scope, Git, safety, security, testing, validation, documentation, or Definition of Done requirements.
 - Priority: explicit task instruction → task-specific repository rules → default routing below → current conversation model.
 
@@ -14,7 +14,7 @@ Before execution:
 1. Read this file and the relevant parts of `README.md`.
 2. Establish scope, acceptance criteria, affected boundaries, and validation.
 3. Select routing from the table below.
-4. If model-specific subagents are available, delegate to the selected executor unless the user overrides delegation. Give agents only the necessary context, constraints, relevant files, and validation criteria.
+4. Delegate only when model-specific subagents are available and independent parallel work, natural subsystem boundaries, approach comparison, or an independent second opinion has concrete value. Give agents only the necessary context, constraints, relevant files, and validation criteria.
 5. Keep routing commentary brief unless the user asks for detail.
 
 ## Model routing
@@ -35,6 +35,8 @@ Choose the least expensive model likely to complete the task correctly:
 | Major architectural uncertainty, migration, data-loss/security risk, or high-risk cross-system decision | GPT-6 Astra, effort chosen for the task |
 
 GPT-6 Luna is not an automatic routing target, but the user may select it explicitly.
+
+When reporting a routing decision, distinguish the selected model and effort from the effective executor. Report effective execution metadata only when the runtime exposes it; otherwise state that it is unavailable. Never infer the actual executor from this routing table alone.
 
 Use Luna when the implementation approach is already clear; use Sol when the model must determine the correct approach. Escalate Luna to Sol when scope becomes ambiguous, root cause is unknown, architecture or migration decisions appear, subsystem boundaries expand, persistence/lifecycle risk grows, or repeated validation failures suggest that retries are no longer economical.
 
@@ -93,7 +95,9 @@ Run checks proportionate to the change. The full project validation is:
 .venv/bin/python -m compileall -q careerflow tests run.py
 .venv/bin/python -m unittest discover -s tests -v
 node --check careerflow/static/app.js
+node tests/test_analytics_ui.cjs
 node tests/test_ats_ui.cjs
+node tests/test_responsive_ui.cjs
 node tests/test_spa_workflows.cjs
 ```
 
