@@ -57,8 +57,11 @@ class ConcurrentIntegrityTest(unittest.TestCase):
             ]
         )
 
-        self.assertEqual(sorted(item["version"] for item in created), list(range(1, count + 1)))
-        self.assertEqual(len({item["version"] for item in created}), count)
+        self.assertEqual(sorted(item["version"] for item in created), [1] * count)
+        self.assertEqual(
+            [row["version"] for row in self.database.fetch_all("SELECT version FROM resume_versions WHERE kind = 'master' ORDER BY version")],
+            list(range(1, count + 1)),
+        )
 
     def test_concurrent_vacancy_resume_versions_leave_no_orphan_files(self) -> None:
         count = 20
@@ -148,7 +151,11 @@ class ConcurrentIntegrityTest(unittest.TestCase):
         self._run_concurrently(operations)
 
         masters = list_resumes(self.database, "master")
-        self.assertEqual(sorted(item["version"] for item in masters), list(range(1, count * 2 + 1)))
+        self.assertEqual(sorted(item["version"] for item in masters), [1] * (count * 2))
+        self.assertEqual(
+            [row["version"] for row in self.database.fetch_all("SELECT version FROM resume_versions WHERE kind = 'master' ORDER BY version")],
+            list(range(1, count * 2 + 1)),
+        )
         self.assertTrue(all(Path(item["extracted_text_path"]).is_file() for item in masters))
 
     def test_failed_resume_allocation_removes_new_resume_folder(self) -> None:
@@ -201,7 +208,7 @@ class MasterVersionMigrationTest(unittest.TestCase):
             self.assertEqual([row["version"] for row in rows], [1, 4, 3])
             self.assertEqual(
                 database.fetch_one("SELECT MAX(version) AS version FROM schema_version")["version"],
-                9,
+                10,
             )
             with self.assertRaises(sqlite3.IntegrityError):
                 with database.transaction() as connection:

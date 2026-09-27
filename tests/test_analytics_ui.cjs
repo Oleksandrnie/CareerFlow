@@ -28,7 +28,7 @@ assert.match(css, /\.analytics-head \.help-button \{[^}]*width: 38px;[^}]*border
 assert.match(css, /\.analytics-help-shell \{[^}]*padding: 24px;/);
 assert.match(css, /\.standalone-head \{ max-width: none; margin: 0 0 22px; \}/);
 assert.match(css, /\.analytics-date\[hidden\] \{ display: none !important; \}/);
-assert.match(css, /\.sidebar-toggle\[hidden\] \{ display: none !important; \}/);
+assert.match(css, /\.sidebar-toggle\[hidden\] \{ visibility: hidden; pointer-events: none; \}/);
 assert.match(css, /\.topbar\.header-nav-hidden \.primary-nav \{ display: flex;/);
 
 console.log("Analytics mobile UI contract passed");

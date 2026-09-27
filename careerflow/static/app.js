@@ -93,7 +93,7 @@ const RU = {
   "Cleaning method:": "Метод очистки:", "Original imported text": "Исходный импортированный текст", "Cleaned draft (editable)": "Очищенный вариант (можно редактировать)", "Removed blocks": "Удалённые блоки", "Needs review": "Требует проверки", "Nothing removed": "Ничего не удалено", "No uncertain blocks": "Сомнительных блоков нет", "Removed": "Удалено", "Uncertain": "Сомнительно", "Back": "Назад", "Confirm": "Подтвердить", "Confirm cleaned description": "Подтвердить очищенное описание",
   "Title": "Название", "Company": "Компания", "Salary": "Зарплата", "Source": "Источник", "Save changes": "Сохранить изменения",
   "Source version deleted": "Исходная версия удалена", "Created independently": "Создано независимо", "Based on Master Resume": "На основе главного резюме", "Based on Vacancy Resume": "На основе резюме вакансии",
-  "Preview": "Предпросмотр", "Create next version": "Создать следующую версию", "Create new version from this": "Создать новую версию на основе этой", "Download Markdown": "Скачать Markdown", "Download original": "Скачать оригинал", "Submitted": "Отправлено", "Mark submitted": "Отметить отправленным",
+  "Preview": "Предпросмотр", "Create next version": "Создать следующую версию", "Create new version from this": "Создать новую версию на основе этой", "Download Markdown": "Скачать Markdown", "Download original": "Скачать оригинал", "Submitted": "Отправлено", "Mark submitted": "Отметить отправленным", "Version": "Версия", "Resume name": "Название резюме",
   "Permanently delete this resume version? Its stored text and original files will be permanently removed. ATS history and existing copied child versions will remain, and any submitted marker will be cleared. Saved AI/Codex run history and copies already returned or exported outside CareerFlow are not scrubbed automatically.": "Удалить эту версию резюме навсегда? Сохранённый текст и исходные файлы будут удалены. История ATS и уже скопированные дочерние версии останутся, а отметка об отправке будет снята. История запусков AI/Codex и уже экспортированные копии автоматически не очищаются.",
   "Resume version deleted": "Версия резюме удалена", "GLOBAL IMMUTABLE LIBRARY": "ГЛОБАЛЬНАЯ НЕИЗМЕНЯЕМАЯ БИБЛИОТЕКА", "MASTER RESUME": "ГЛАВНОЕ РЕЗЮМЕ", "Create a new version whenever your canonical resume changes.": "Создавайте новую версию при каждом изменении основного резюме.", "Resume list": "Список резюме", "Add resume": "Добавить резюме", "Create a Master Resume version": "Создать версию главного резюме", "Create a new version": "Создать новую версию", "Create a version": "Создать версию", "Version name": "Название версии", "Resume file (PDF, DOCX, TXT, MD)": "Файл резюме (PDF, DOCX, TXT, MD)", "Or edit Markdown": "Или отредактируйте Markdown", "Save Master Resume version": "Сохранить версию главного резюме", "Master Resume copied into an editable new-version draft.": "Главное резюме скопировано в редактируемый черновик новой версии.", "Master Resume version created": "Версия главного резюме создана",
   "VACANCY-SPECIFIC HISTORY": "ИСТОРИЯ ПО ВАКАНСИИ", "Resume versions for this vacancy": "Версии резюме для этой вакансии", "No vacancy-specific versions yet.": "Версий для этой вакансии пока нет.", "Create from Master Resume": "Создать из главного резюме", "Copy into draft": "Скопировать в черновик", "No Master Resume exists yet.": "Главного резюме пока нет.", "Create one in the Master Resume section.": "Создайте его в разделе «Главное резюме».", "Add a vacancy-specific version": "Добавить версию для вакансии", "Save vacancy resume version": "Сохранить версию резюме вакансии", "Vacancy resume version created": "Версия резюме вакансии создана", "Submitted version recorded": "Отправленная версия сохранена",
@@ -754,8 +754,28 @@ function resumeOrigin(item) {
   return `Based on ${item.source_kind === "master" ? "Master Resume" : "Vacancy Resume"} v${item.source_version}`;
 }
 
+function resumeDisplayTitle(item) {
+  if (item.kind === "master") return item.label?.trim() || translateText("Master Resume");
+  return "Vacancy Resume";
+}
+
+function resumeVersionLabel(version) {
+  return `${translateText("Version")} ${version}`;
+}
+
+function resumePreviewTitle(item) {
+  if (item.kind === "master") return `${resumeDisplayTitle(item)} · ${resumeVersionLabel(item.version)}`;
+  return `${resumeDisplayTitle(item)} v${item.version}`;
+}
+
 function resumeItem(item, { masterWorkspace = false } = {}) {
-  return `<article class="item-row"><div><strong>${item.kind === "master" ? "Master" : "Vacancy"} Resume v${item.version}</strong><p class="muted">${escapeHtml(item.label || "No label")} · ${new Date(item.created_at + "Z").toLocaleString()}</p><p class="muted resume-origin">${escapeHtml(resumeOrigin(item))}</p></div><div class="actions"><button class="secondary" type="button" data-preview-resume="${item.id}">Preview</button><button class="secondary" type="button" data-use-resume="${item.id}">${masterWorkspace ? "Create next version" : "Create new version from this"}</button><a class="secondary link-button" href="/api/resumes/${item.id}/markdown" download>Download Markdown</a>${item.original_filename ? `<a class="secondary link-button" href="/api/resumes/${item.id}/download" download>Download original</a>` : ""}${item.is_submitted ? `<span class="badge success">Submitted</span>` : item.kind === "vacancy" ? `<button class="secondary" type="button" data-submit-resume="${item.id}">Mark submitted</button>` : ""}<button class="danger" type="button" data-delete-resume="${item.id}">Delete</button></div></article>`;
+  const title = masterWorkspace && item.kind === "master"
+    ? resumeDisplayTitle(item)
+    : `${resumeDisplayTitle(item)} v${item.version}`;
+  const metadata = masterWorkspace && item.kind === "master"
+    ? `${resumeVersionLabel(item.version)} · ${new Date(item.created_at + "Z").toLocaleString()}`
+    : `${item.label || "No label"} · ${new Date(item.created_at + "Z").toLocaleString()}`;
+  return `<article class="item-row"><div><strong>${escapeHtml(title)}</strong><p class="muted">${escapeHtml(metadata)}</p><p class="muted resume-origin">${escapeHtml(resumeOrigin(item))}</p></div><div class="actions"><button class="secondary" type="button" data-preview-resume="${item.id}">Preview</button><button class="secondary" type="button" data-use-resume="${item.id}">${masterWorkspace ? "Create next version" : "Create new version from this"}</button><a class="secondary link-button" href="/api/resumes/${item.id}/markdown" download>Download Markdown</a>${item.original_filename ? `<a class="secondary link-button" href="/api/resumes/${item.id}/download" download>Download original</a>` : ""}${item.is_submitted ? `<span class="badge success">Submitted</span>` : item.kind === "vacancy" ? `<button class="secondary" type="button" data-submit-resume="${item.id}">Mark submitted</button>` : ""}<button class="danger" type="button" data-delete-resume="${item.id}">Delete</button></div></article>`;
 }
 
 function bindResumeDelete(panel, refresh, viewCheck, view = null) {
@@ -770,7 +790,7 @@ function bindResumePreview(panel, viewCheck) {
   document.querySelectorAll("[data-preview-resume]").forEach(button => button.onclick = () => runAction(button, async () => {
     const resume = await api(`/api/resumes/${button.dataset.previewResume}`);
     if (!viewCheck()) return;
-    panel.querySelector("#resume-preview").innerHTML = `<hr><h4>${resume.kind === "master" ? "Master" : "Vacancy"} Resume v${resume.version}</h4><div class="markdown-preview">${renderSafeMarkdown(resume.content_text)}</div>`;
+    panel.querySelector("#resume-preview").innerHTML = `<hr><h4>${escapeHtml(resumePreviewTitle(resume))}</h4><div class="markdown-preview">${renderSafeMarkdown(resume.content_text)}</div>`;
   }));
 }
 
@@ -797,7 +817,7 @@ async function renderMasterResume() {
     workspace.innerHTML = `<div class="standalone-head"><div><p class="eyebrow">GLOBAL IMMUTABLE LIBRARY</p><h2>Master Resume</h2><p class="muted">Create a new version whenever your canonical resume changes.</p></div></div>
       <section class="panel master-panel"><div class="section-head master-list-head"><h3>Resume list</h3><button class="primary" type="button" id="open-master-resume-dialog">Add resume</button></div><div class="item-list">${masters.length ? masters.map(item => resumeItem(item, { masterWorkspace: true })).join("") : `<div class="empty-inline"><h3>Create a Master Resume version</h3><p>Upload PDF, DOCX, TXT, or MD, or paste Markdown. Existing history is retained when prior versions are deleted.</p></div>`}</div>
       <div id="resume-preview" aria-live="polite"></div></section>
-      <dialog id="master-resume-dialog" aria-labelledby="master-resume-dialog-title"><form id="resume-form" class="stack"><div class="dialog-head"><div><p class="eyebrow">MASTER RESUME</p><h2 id="master-resume-dialog-title">${masters.length ? "Create a new version" : "Create a version"}</h2></div><button type="button" class="icon-button" data-close-master-resume aria-label="Close">×</button></div><input type="hidden" name="source_resume_id"><label>Version name<input name="label" placeholder="e.g. September 2026"></label><label>Resume file (PDF, DOCX, TXT, MD)<input name="file" type="file" accept=".pdf,.docx,.txt,.md"></label><label>Or edit Markdown<textarea name="text" rows="14"></textarea></label><p class="error" id="resume-error"></p><div class="dialog-actions"><button class="secondary" type="button" data-close-master-resume>Cancel</button><button class="primary" type="submit">Save Master Resume version</button></div></form></dialog>`;
+      <dialog id="master-resume-dialog" aria-labelledby="master-resume-dialog-title"><form id="resume-form" class="stack"><div class="dialog-head"><div><p class="eyebrow">MASTER RESUME</p><h2 id="master-resume-dialog-title">${masters.length ? "Create a new version" : "Create a version"}</h2></div><button type="button" class="icon-button" data-close-master-resume aria-label="Close">×</button></div><input type="hidden" name="source_resume_id"><label>Resume name<input name="label" placeholder="e.g. Product Manager CV"></label><label>Resume file (PDF, DOCX, TXT, MD)<input name="file" type="file" accept=".pdf,.docx,.txt,.md"></label><label>Or edit Markdown<textarea name="text" rows="14"></textarea></label><p class="error" id="resume-error"></p><div class="dialog-actions"><button class="secondary" type="button" data-close-master-resume>Cancel</button><button class="primary" type="submit">Save Master Resume version</button></div></form></dialog>`;
     const panel = workspace.querySelector?.(".master-panel") || workspace;
     const resumeDialog = workspace.querySelector("#master-resume-dialog");
     const resumeForm = workspace.querySelector("#resume-form");

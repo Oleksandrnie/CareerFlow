@@ -483,7 +483,8 @@ async function testMasterResumeWorkspaceAndSave() {
   app.routes.set("GET /api/resumes?kind=master", [{ id: 42, kind: "master", version: 1, label: "Initial", original_filename: null, created_at: "2026-09-21 10:00:00" }]);
   await app.run("renderMasterResume()");
   assert.match(app.document.querySelector("#workspace").innerHTML, /GLOBAL IMMUTABLE LIBRARY/);
-  assert.match(app.document.querySelector("#workspace").innerHTML, /Master Resume v1/);
+  assert.match(app.document.querySelector("#workspace").innerHTML, /Initial/);
+  assert.match(app.document.querySelector("#workspace").innerHTML, /Version 1/);
   assert.match(app.document.querySelector("#workspace").innerHTML, /Download Markdown/);
   assert.match(app.document.querySelector("#workspace").innerHTML, /Resume list/);
   assert.match(app.document.querySelector("#workspace").innerHTML, /id="open-master-resume-dialog">Add resume/);
@@ -492,6 +493,7 @@ async function testMasterResumeWorkspaceAndSave() {
   addResume.onclick();
   assert.equal(app.document.querySelector("#workspace").querySelector("#master-resume-dialog").open, true);
   const masterForm = app.document.querySelector("#workspace").querySelector("#resume-form");
+  assert.match(fs.readFileSync(path.join(__dirname, "../careerflow/static/app.js"), "utf8"), /<label>Resume name<input name="label"/);
   assert.notEqual(masterForm.querySelector("input[name=label]").focused, true, "opening a new Master Resume dialog must not trigger the mobile keyboard");
   masterForm.fields = { label: "Second version", text: "# Updated profile", source_resume_id: "" };
   app.routes.set("POST /api/resumes", options => {
@@ -501,7 +503,8 @@ async function testMasterResumeWorkspaceAndSave() {
   app.routes.set("GET /api/resumes?kind=master", [{ id: 42, kind: "master", version: 1, label: "Initial", created_at: "2026-09-21 10:00:00" }, { id: 43, kind: "master", version: 2, label: "Second version", created_at: "2026-09-22 10:00:00" }]);
   await masterForm.onsubmit({ preventDefault() {}, currentTarget: masterForm });
   assert.equal(app.calls.filter(call => call === "POST /api/resumes").length, 1);
-  assert.match(app.document.querySelector("#workspace").innerHTML, /Master Resume v2/);
+  assert.match(app.document.querySelector("#workspace").innerHTML, /Second version/);
+  assert.match(app.document.querySelector("#workspace").innerHTML, /Version 2/);
 }
 
 async function testImportPreviewEditConfirmAndRecovery() {

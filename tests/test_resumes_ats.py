@@ -60,6 +60,29 @@ class ResumeAndAtsTest(unittest.TestCase):
         self.assertEqual([item["version"] for item in versions], [2, 1])
         self.assertEqual(sum(item["is_submitted"] for item in versions), 1)
 
+    def test_master_resume_series_have_independent_version_sequences(self) -> None:
+        engineer_v1 = self.client.post(
+            "/api/resumes",
+            data={"kind": "master", "label": "Engineer CV", "text": "Python engineer"},
+        ).json()
+        engineer_v2 = self.client.post(
+            "/api/resumes",
+            data={
+                "kind": "master",
+                "source_resume_id": engineer_v1["id"],
+                "label": "Engineer CV",
+            },
+        ).json()
+        sales_v1 = self.client.post(
+            "/api/resumes",
+            data={"kind": "master", "label": "Sales CV", "text": "Sales manager"},
+        ).json()
+
+        self.assertEqual(engineer_v1["version"], 1)
+        self.assertEqual(engineer_v2["version"], 2)
+        self.assertEqual(sales_v1["version"], 1)
+        self.assertEqual(engineer_v2["source_version"], 1)
+
     def test_resume_source_rules_copy_edited_markdown_and_prevent_cycles(self) -> None:
         master = self.client.post(
             "/api/resumes",
@@ -662,7 +685,7 @@ class AtsLegacyMigrationTest(unittest.TestCase):
             self.assertIsNone(analysis["description_snapshot"])
             self.assertEqual(
                 database.fetch_one("SELECT MAX(version) AS version FROM schema_version")["version"],
-                9,
+                10,
             )
             vacancy = database.fetch_one("SELECT * FROM vacancies WHERE id = 1")
             self.assertEqual(vacancy["raw_description"], vacancy["description"])
