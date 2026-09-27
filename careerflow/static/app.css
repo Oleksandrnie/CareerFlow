@@ -274,7 +274,8 @@ dialog form { display: grid; gap: 16px; padding: 24px; }
   .workspace { padding: 20px 16px; }
   .form-grid { grid-template-columns: 1fr; }
   .split-grid { grid-template-columns: 1fr; }
-  .workspace-head { display: grid; }
+  .workspace-head { display: grid; grid-template-columns: minmax(0, 1fr); width: 100%; }
+  .workspace-head > :first-child { min-width: 0; }
   .workspace-head .actions { flex-wrap: wrap; }
   .cleaning-review { padding: 13px; }
   .cleaning-review .dialog-actions { justify-content: stretch; }
