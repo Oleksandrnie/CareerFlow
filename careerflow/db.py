@@ -237,6 +237,10 @@ class Database:
             connection.execute(
                 "INSERT OR IGNORE INTO schema_version(version) VALUES (9)"
             )
+            self._ensure_resume_series_columns(connection)
+            connection.execute(
+                "INSERT OR IGNORE INTO schema_version(version) VALUES (10)"
+            )
 
     @staticmethod
     def _ensure_analytics_foundation(connection: sqlite3.Connection) -> None:
@@ -267,6 +271,54 @@ class Database:
             connection.execute(
                 "UPDATE vacancies SET analytics_eligible = 0, archived_at = COALESCE(archived_at, CURRENT_TIMESTAMP)"
             )
+
+    @staticmethod
+    def _ensure_resume_series_columns(connection: sqlite3.Connection) -> None:
+        columns = {
+            row["name"] for row in connection.execute("PRAGMA table_info(resume_versions)")
+        }
+        if "series_id" not in columns:
+            connection.execute(
+                "ALTER TABLE resume_versions ADD COLUMN series_id TEXT NOT NULL DEFAULT ''"
+            )
+        if "series_version" not in columns:
+            connection.execute(
+                "ALTER TABLE resume_versions ADD COLUMN series_version INTEGER NOT NULL DEFAULT 0"
+            )
+
+        rows = connection.execute(
+            "SELECT id, kind, vacancy_id, version, source_resume_id, series_id, series_version FROM resume_versions ORDER BY id"
+        ).fetchall()
+        parents = {int(row["id"]): row["source_resume_id"] for row in rows}
+
+        def root_id(resume_id: int) -> int:
+            seen: set[int] = set()
+            current = resume_id
+            while current in parents and parents[current] is not None and int(parents[current]) not in seen:
+                seen.add(current)
+                current = int(parents[current])
+            return current
+
+        for row in rows:
+            current_series = str(row["series_id"] or "").strip()
+            if current_series:
+                series_id = current_series
+            elif row["vacancy_id"] is not None and row["kind"] == "vacancy":
+                series_id = f"legacy-vacancy-{int(row['vacancy_id'])}"
+            else:
+                series_id = f"legacy-resume-{root_id(int(row['id']))}"
+            series_version = int(row["series_version"] or 0) or int(row["version"])
+            if current_series != series_id or int(row["series_version"] or 0) != series_version:
+                connection.execute(
+                    "UPDATE resume_versions SET series_id = ?, series_version = ? WHERE id = ?",
+                    (series_id, series_version, int(row["id"])),
+                )
+        connection.execute(
+            """
+            CREATE UNIQUE INDEX IF NOT EXISTS unique_resume_series_version
+            ON resume_versions(kind, vacancy_id, series_id, series_version)
+            """
+        )
 
     @staticmethod
     def _ensure_ai_run_response_language_column(connection: sqlite3.Connection) -> None:
