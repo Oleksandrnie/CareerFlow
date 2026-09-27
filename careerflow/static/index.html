@@ -16,7 +16,7 @@
       <nav class="primary-nav" aria-label="Primary navigation">
         <button type="button" class="primary-nav-item active" data-section="vacancies">Vacancies</button>
         <button type="button" class="primary-nav-item" data-section="master-resume">Master Resume</button>
-        <button type="button" class="primary-nav-item" data-section="analytics">Analytics</button>
+        <button type="button" class="primary-nav-item" data-section="analytics" onclick="renderAnalytics()">Analytics</button>
       </nav>
       <div class="topbar-actions"><button id="locale-toggle" class="secondary locale-toggle" type="button" aria-label="Switch language">ru</button><button id="theme-toggle" class="secondary theme-toggle" type="button" aria-label="Switch to dark theme" title="Switch to dark theme">☾</button><button id="new-vacancy" class="primary">+ Add vacancy</button></div>
     </header>
@@ -66,7 +66,12 @@
         <div class="dialog-actions"><button type="button" class="secondary" data-close-dialog>Cancel</button><button class="primary" type="submit">Review description</button></div>
       </form>
     </dialog>
+    <dialog id="analytics-help">
+      <div class="dialog-head"><div><p class="eyebrow">ANALYTICS</p><h2>How analytics works</h2></div><button type="button" class="icon-button" data-close-analytics-help aria-label="Close">×</button></div>
+      <div class="help-content"><p>CareerFlow calculates analytics from recorded structured events. Mark submitted resumes, interview results, offers and final outcomes for accurate statistics.</p><p>Activity cards and the trend use events that happened within the selected period. The funnel and conversion table use vacancies added within that period and inspect their full history.</p><p>Several interview rounds count as several activity events, but as one vacancy in the funnel. Legacy vacancies archived during the analytics migration are intentionally excluded.</p></div>
+      <div class="dialog-actions"><button type="button" class="primary" data-close-analytics-help>Got it</button></div>
+    </dialog>
     <div id="toast" class="toast" role="status"></div>
-    <script src="/static/app.js" defer></script>
+    <script src="/static/app.js?v=analytics3" defer></script>
   </body>
 </html>
