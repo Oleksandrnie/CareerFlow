@@ -62,7 +62,7 @@ class MockFormData {
   [Symbol.iterator]() { return this.entries[Symbol.iterator](); }
 }
 
-function harness() {
+function harness(storage = new Map()) {
   const routes = new Map();
   const calls = [];
   const root = new Map();
@@ -155,7 +155,12 @@ function harness() {
   routes.set("GET /api/vacancies?archived=false", []);
   routes.set("GET /api/codex/models", { models: [{ id: "gpt-5.6-luna", name: "Luna", efforts: ["low", "medium"] }], default_model: "gpt-5.6-luna", default_effort: "low", source: "codex-cli", warning: "" });
   const window = { confirm: () => true, prompt: () => "DELETE" };
-  const context = vm.createContext({ document, fetch, FormData: MockFormData, window, setTimeout: () => 0 });
+  const localStorage = {
+    getItem(key) { return storage.get(key) ?? null; },
+    setItem(key, value) { storage.set(key, String(value)); },
+    removeItem(key) { storage.delete(key); },
+  };
+  const context = vm.createContext({ document, fetch, FormData: MockFormData, window, localStorage, setTimeout: () => 0 });
   vm.runInContext(source, context);
   return {
     context, document, routes, calls, listeners,
@@ -213,6 +218,22 @@ async function testVacancyNavigationRestoresLastSelection() {
   assert.equal(app.run("state.lastSelectedVacancy"), null, "landing screen should clear the remembered vacancy");
   assert.equal(app.run("state.lastSelectedVacancyTab"), null, "landing screen should clear the remembered tab");
   assert.match(app.document.querySelector("#workspace").innerHTML, /Build your job-search workspace/);
+}
+
+async function testVacancyNavigationRestoresAfterReload() {
+  const storage = new Map();
+  const firstSession = harness(storage);
+  firstSession.run(`renderVacancy(${JSON.stringify(first)})`);
+  await firstSession.run('openTab("Notes", state.selected)');
+  assert.match(storage.get("careerflow-last-vacancy-navigation"), /"vacancyId":1/);
+  assert.match(storage.get("careerflow-last-vacancy-navigation"), /"tab":"Notes"/);
+
+  const reloaded = harness(storage);
+  reloaded.routes.set("GET /api/vacancies?archived=false", [first]);
+  reloaded.routes.set("GET /api/vacancies/1", first);
+  await reloaded.run("loadVacancies()");
+  assert.equal(reloaded.run("state.selected.id"), 1, "reload should restore the saved vacancy");
+  assert.equal(reloaded.run("state.activeTab"), "Notes", "reload should restore the saved vacancy tab");
 }
 
 async function testOverviewLinkAndTabOrder() {
@@ -855,6 +876,7 @@ async function testMutationFailuresAndDuplicateRecovery() {
 (async () => {
   await testStaleNotesAndCardSelection();
   await testVacancyNavigationRestoresLastSelection();
+  await testVacancyNavigationRestoresAfterReload();
   await testOverviewLinkAndTabOrder();
   await testEditAndInterviewSubmitControls();
   await testInterviewCounterLifecycleAndStaleReads();

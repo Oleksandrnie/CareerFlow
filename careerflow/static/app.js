@@ -1,9 +1,35 @@
+const VACANCY_NAVIGATION_STORAGE_KEY = "careerflow-last-vacancy-navigation";
+
+function readSavedVacancyNavigation() {
+  try {
+    if (typeof localStorage === "undefined") return null;
+    const saved = JSON.parse(localStorage.getItem(VACANCY_NAVIGATION_STORAGE_KEY) || "null");
+    const vacancyId = Number(saved?.vacancyId);
+    return Number.isInteger(vacancyId) && vacancyId > 0
+      ? { vacancyId, tab: typeof saved.tab === "string" ? saved.tab : "Overview" }
+      : null;
+  } catch (_) { return null; }
+}
+
+function saveVacancyNavigation(vacancyId, tab) {
+  try { localStorage.setItem(VACANCY_NAVIGATION_STORAGE_KEY, JSON.stringify({ vacancyId, tab })); }
+  catch (_) { /* Storage can be unavailable in private browsing or embedded contexts. */ }
+}
+
+function clearSavedVacancyNavigation() {
+  try { localStorage.removeItem(VACANCY_NAVIGATION_STORAGE_KEY); }
+  catch (_) { /* Storage can be unavailable in private browsing or embedded contexts. */ }
+}
+
+const savedVacancyNavigation = readSavedVacancyNavigation();
 const state = {
   section: "vacancies",
   vacancies: [],
   selected: null,
   lastSelectedVacancy: null,
   lastSelectedVacancyTab: null,
+  pendingVacancyId: savedVacancyNavigation?.vacancyId || null,
+  pendingVacancyTab: savedVacancyNavigation?.tab || null,
   activeTab: null,
   viewEpoch: 0,
   selectionEpoch: 0,
@@ -418,6 +444,24 @@ async function loadVacancies() {
   if (epoch !== state.listEpoch || archived !== archivedToggle.checked) return;
   state.vacancies = vacancies;
   renderList();
+  if (!state.selected && state.pendingVacancyId && state.section === "vacancies") {
+    const restoreId = state.pendingVacancyId;
+    const restoreTab = state.pendingVacancyTab;
+    state.pendingVacancyId = null;
+    state.pendingVacancyTab = null;
+    const restoreEpoch = ++state.selectionEpoch;
+    if (state.vacancies.some(item => item.id === restoreId)) {
+      try {
+        const vacancy = await api(`/api/vacancies/${restoreId}`);
+        if (restoreEpoch === state.selectionEpoch && state.section === "vacancies" && !state.selected) {
+          renderVacancy(vacancy);
+          if (VACANCY_TABS.includes(restoreTab) && restoreTab !== "Overview") await openTab(restoreTab, vacancy);
+        }
+      } catch (_) { clearSavedVacancyNavigation(); }
+    } else {
+      clearSavedVacancyNavigation();
+    }
+  }
   if (state.selected && selectionEpoch === state.selectionEpoch) {
     const current = state.vacancies.find(item => item.id === state.selected.id);
     if (!current) { state.selected = null; state.lastSelectedVacancy = null; state.lastSelectedVacancyTab = null; renderEmpty(); }
@@ -452,6 +496,9 @@ function renderEmpty({ preserveSidebar = false } = {}) {
   state.selected = null;
   state.lastSelectedVacancy = null;
   state.lastSelectedVacancyTab = null;
+  state.pendingVacancyId = null;
+  state.pendingVacancyTab = null;
+  clearSavedVacancyNavigation();
   state.activeTab = null;
   state.viewEpoch++;
   state.selectionEpoch++;
@@ -549,6 +596,7 @@ function renderVacancy(vacancy) {
   state.selected = vacancy;
   state.lastSelectedVacancy = vacancy;
   state.lastSelectedVacancyTab = "Overview";
+  saveVacancyNavigation(vacancy.id, "Overview");
   renderList();
   workspace.innerHTML = `
     <div class="workspace-head">
@@ -576,6 +624,7 @@ async function openTab(name, vacancy) {
   if (state.selected?.id !== vacancy.id) return;
   state.activeTab = name;
   state.lastSelectedVacancyTab = name;
+  saveVacancyNavigation(vacancy.id, name);
   state.viewEpoch++;
   const view = currentView(vacancy, name);
   activateTab(name);
