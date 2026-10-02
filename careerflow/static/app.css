@@ -99,9 +99,10 @@ button:focus-visible, input:focus-visible, textarea:focus-visible, select:focus-
 .sidebar-toggle .menu-glyph { display: inline-grid; place-items: center; width: 100%; height: 100%; }
 .brand-lockup { display: flex; align-items: center; gap: 10px; min-width: 0; }
 .brand-copy { min-width: 0; }
-.locale-toggle { min-width: 3.2rem; text-transform: lowercase; }
-.theme-toggle { min-width: 2.6rem; padding-inline: 9px; font-size: 18px; line-height: 1; }
-.new-vacancy-action { width: 42px; min-width: 42px; height: 40px; padding: 0; font-size: 25px; line-height: 1; }
+.topbar-actions > button { width: 38px; min-width: 38px; height: 30px; padding: 0; display: inline-flex; align-items: center; justify-content: center; }
+.locale-toggle { text-transform: lowercase; }
+.theme-toggle { font-size: 18px; line-height: 1; }
+.new-vacancy-action { font-size: 25px; line-height: 1; }
 .topbar h1 { font-size: 24px; letter-spacing: -0.04em; }
 .primary-nav { display: flex; align-self: stretch; align-items: stretch; gap: 4px; margin-left: 28px; margin-right: auto; }
 .primary-nav-item { border: 0; border-bottom: 3px solid transparent; background: transparent; color: var(--muted); padding: 0 14px; font-weight: 800; }
@@ -414,8 +415,8 @@ textarea { resize: vertical; max-width: 100%; }
   .topbar h1 { font-size: 19px; }
   .topbar-actions { justify-content: flex-end; }
   .topbar-actions > button { min-height: 36px; }
-  .topbar-actions .new-vacancy-action { width: 40px; min-width: 40px; height: 36px; padding: 0; font-size: 23px; }
-  .locale-toggle { min-width: 52px; padding-inline: 9px; }
+  .topbar-actions > button { width: 36px; min-width: 36px; height: 27px; padding: 0; }
+  .topbar-actions .new-vacancy-action { font-size: 23px; }
   .primary-nav { grid-column: 1 / -1; width: calc(100% + 28px); min-height: 48px; align-items: center; overflow-x: auto; margin: 0 -14px 4px; padding: 4px 14px; background: var(--paper); border-top: 1px solid var(--line); }
   .primary-nav-item { padding: 0 10px; white-space: nowrap; }
   .topbar > div:first-child .sidebar-toggle { display: inline-grid; width: 36px; min-width: 36px; height: 36px; margin: 0; padding: 6px; border-radius: 10px; font-size: 17px; }
@@ -473,8 +474,7 @@ textarea { resize: vertical; max-width: 100%; }
   .topbar-actions { grid-column: 2; grid-row: 1; min-width: 0; flex-wrap: nowrap; gap: 4px; justify-content: flex-end; }
   .topbar-actions > button { min-width: 0; white-space: nowrap; }
   .topbar-actions .primary { padding-inline: 7px; font-size: 10px; }
-  .locale-toggle { min-width: 44px; padding-inline: 6px; }
-  .theme-toggle { min-width: 36px; padding-inline: 6px; }
+  .topbar-actions > button { width: 34px; min-width: 34px; height: 27px; padding: 0; }
   .primary-nav { grid-column: 1 / -1; grid-row: 2; }
 }
 
@@ -483,8 +483,7 @@ textarea { resize: vertical; max-width: 100%; }
   .topbar-actions { gap: 2px; }
   .topbar-actions .primary { width: 34px; min-width: 34px; padding-inline: 0; font-size: 0; }
   .topbar-actions .primary::before { content: "+"; font-size: 16px; line-height: 1; }
-  .locale-toggle { min-width: 38px; padding-inline: 4px; }
-  .theme-toggle { min-width: 30px; padding-inline: 4px; }
+  .topbar-actions > button { width: 32px; min-width: 32px; height: 26px; padding: 0; }
   .primary-nav-item { padding-inline: 6px; font-size: 12px; }
 }
 
@@ -504,9 +503,11 @@ textarea { resize: vertical; max-width: 100%; }
 
 /* Header controls stay compact at every mobile width. */
 @media (max-width: 760px) {
-  .topbar-actions .new-vacancy-action { width: 40px; min-width: 40px; height: 36px; padding: 0; font-size: 23px; }
+  .topbar-actions > button { width: 36px; min-width: 36px; height: 27px; padding: 0; }
+  .topbar-actions .new-vacancy-action { font-size: 23px; }
 }
 
 @media (max-width: 340px) {
-  .topbar-actions .new-vacancy-action { width: 34px; min-width: 34px; font-size: 20px; }
+  .topbar-actions > button { width: 32px; min-width: 32px; height: 26px; }
+  .topbar-actions .new-vacancy-action { font-size: 20px; }
 }
