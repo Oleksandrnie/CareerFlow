@@ -1357,7 +1357,7 @@ archivedToggle.onchange = async () => {
   try { await loadVacancies(); } catch (error) { showError(error); }
 };
 fileInput.onchange = () => { selectedFile.textContent = fileInput.files[0]?.name || ""; };
-form.querySelector('input[name="url"]')?.addEventListener("input", event => {
+form?.querySelector?.('input[name="url"]')?.addEventListener("input", event => {
   const submit = form.querySelector("button[type=submit]");
   if (!state.importPreview) submit.textContent = event.target.value.trim() ? "Parse vacancy" : "Review description";
 });
