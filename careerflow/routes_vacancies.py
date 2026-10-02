@@ -75,11 +75,22 @@ async def add_vacancy(
     raw_description = normalize_text(text)
     extracted = raw_description
     inferred_method = "pasted-text"
+    structured_overrides: dict[str, str] = {}
     if url_import_token:
         cached = getattr(request.app.state, "url_imports", {}).pop(url_import_token, None)
         if cached is None:
             raise HTTPException(status_code=422, detail="URL import preview expired. Parse the URL again.")
-        raw_description, extracted, source_type, original_filename, original_content, url = cached
+        raw_description = cached["raw_description"]
+        extracted = cached["candidate_text"]
+        source_type = cached["source_type"]
+        original_filename = cached["original_filename"]
+        original_content = cached["original_content"]
+        url = cached["canonical_url"]
+        structured_overrides = {
+            key: str(value)
+            for key, value in cached.get("inferred_fields", {}).items()
+            if key in {"title", "company", "salary"} and value
+        }
         inferred_method = "url-import"
     elif url.strip():
         raise HTTPException(status_code=422, detail="Parse the vacancy URL before confirming the import")
@@ -97,6 +108,11 @@ async def add_vacancy(
     if not extracted:
         raise HTTPException(status_code=422, detail="Paste vacancy text or choose a supported file")
     confirmed_description = normalize_text(cleaned_description) or extracted
+    overrides = dict(structured_overrides)
+    for key, value in {"title": title, "company": company, "salary": salary}.items():
+        if value.strip():
+            overrides[key] = value.strip()
+    overrides["source"] = source.strip() or url
     return create_vacancy(
         request.app.state.db,
         request.app.state.settings.storage_dir,
@@ -104,7 +120,7 @@ async def add_vacancy(
         source_type,
         original_filename=original_filename,
         original_content=original_content,
-        overrides={"title": title, "company": company, "salary": salary, "source": source or url},
+        overrides=overrides,
         raw_description=raw_description,
         cleaning_method=cleaning_method.strip() or inferred_method,
         description_confirmed=True,
@@ -159,8 +175,31 @@ async def preview_import(
     if url.strip():
         import secrets
         token = secrets.token_urlsafe(24)
-        request.app.state.url_imports[token] = (raw_description, candidate, "url", "original.html", extraction_html, canonical_url)
-        response.update({"url": requested_url, "canonical_url": canonical_url, "url_import_token": token})
+        extracted_fields = extraction.metadata.as_dict()
+        inferred_fields = {
+            "title": extraction.metadata.title,
+            "company": extraction.metadata.company,
+            "salary": extraction.metadata.salary,
+            "source": canonical_url,
+        }
+        request.app.state.url_imports[token] = {
+            "raw_description": raw_description,
+            "candidate_text": candidate,
+            "source_type": "url",
+            "original_filename": "original.html",
+            "original_content": extraction_html,
+            "canonical_url": canonical_url,
+            "inferred_fields": inferred_fields,
+        }
+        response.update(
+            {
+                "url": requested_url,
+                "canonical_url": canonical_url,
+                "url_import_token": token,
+                "extracted_fields": extracted_fields,
+                "inferred_fields": inferred_fields,
+            }
+        )
     return response
 
 

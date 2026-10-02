@@ -9,7 +9,7 @@ import socket
 from urllib.error import HTTPError, URLError
 from urllib.parse import urljoin, urlsplit
 from urllib.request import HTTPRedirectHandler, Request, build_opener
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from html.parser import HTMLParser
 from io import BytesIO
 from pathlib import Path
@@ -27,6 +27,33 @@ SUPPORTED_EXTENSIONS = {".txt", ".md", ".html", ".htm", ".pdf", ".docx"}
 
 class ImportError(ValueError):
     """Raised when an uploaded document cannot be safely imported."""
+
+
+@dataclass(frozen=True, slots=True)
+class VacancyMetadata:
+    title: str = ""
+    company: str = ""
+    salary: str = ""
+    date_posted: str = ""
+    locations: tuple[str, ...] = ()
+
+    def as_dict(self) -> dict[str, str | list[str]]:
+        return {
+            "title": self.title,
+            "company": self.company,
+            "salary": self.salary,
+            "date_posted": self.date_posted,
+            "locations": list(self.locations),
+        }
+
+
+@dataclass(frozen=True, slots=True)
+class VacancyExtraction:
+    raw_text: str
+    candidate_text: str
+    source_type: str
+    method: str
+    metadata: VacancyMetadata = field(default_factory=VacancyMetadata)
 
 
 def _validate_public_url(value: str) -> str:
@@ -88,14 +115,6 @@ def fetch_vacancy_url(value: str) -> tuple[str, str, bytes, VacancyExtraction]:
     if len(extraction.candidate_text) < 40:
         raise ImportError("The vacancy page does not contain enough readable text")
     return url, final_url, bytes(content), extraction
-
-
-@dataclass(frozen=True, slots=True)
-class VacancyExtraction:
-    raw_text: str
-    candidate_text: str
-    source_type: str
-    method: str
 
 
 class _VisibleTextParser(HTMLParser):
@@ -262,25 +281,83 @@ class _VacancyHTMLParser(HTMLParser):
 
 def _html_fragment_text(value: str) -> str:
     parser = _VisibleTextParser()
-    parser.feed(value)
+    parser.feed(re.sub(r"\\([\"'])", r"\1", value))
     return parser.text()
 
 
-def _job_posting_descriptions(value: object) -> list[str]:
-    results: list[str] = []
+def _job_postings(value: object) -> list[dict]:
+    results: list[dict] = []
     if isinstance(value, list):
         for item in value:
-            results.extend(_job_posting_descriptions(item))
+            results.extend(_job_postings(item))
     elif isinstance(value, dict):
         raw_type = value.get("@type")
         types = raw_type if isinstance(raw_type, list) else [raw_type]
         if any(str(item).lower() == "jobposting" for item in types):
-            description = value.get("description")
-            if isinstance(description, str):
-                results.append(_html_fragment_text(description))
+            results.append(value)
         for item in value.values():
-            results.extend(_job_posting_descriptions(item))
+            results.extend(_job_postings(item))
     return results
+
+
+def _format_salary(value: object) -> str:
+    if not isinstance(value, dict):
+        return normalize_text(str(value)) if value is not None and value != "" else ""
+    currency = normalize_text(str(value.get("currency") or ""))
+    amount = value.get("value")
+    if isinstance(amount, dict):
+        minimum = amount.get("minValue")
+        maximum = amount.get("maxValue")
+        exact = amount.get("value")
+        unit = normalize_text(str(amount.get("unitText") or ""))
+        if minimum not in {None, ""} and maximum not in {None, ""}:
+            result = f"{minimum}–{maximum}"
+        elif exact not in {None, ""}:
+            result = str(exact)
+        else:
+            result = str(minimum or maximum or "")
+        return " ".join(part for part in (result, currency, unit) if part).strip()
+    return " ".join(part for part in (str(amount or ""), currency) if part).strip()
+
+
+def _job_location_names(value: object) -> tuple[str, ...]:
+    items = value if isinstance(value, list) else [value]
+    locations: list[str] = []
+    for item in items:
+        if isinstance(item, str):
+            location = normalize_text(item)
+        elif isinstance(item, dict):
+            address = item.get("address")
+            if isinstance(address, str):
+                location = normalize_text(address)
+            elif isinstance(address, dict):
+                location = ", ".join(
+                    normalize_text(str(address.get(key) or ""))
+                    for key in ("addressLocality", "addressRegion", "addressCountry")
+                    if address.get(key)
+                )
+            else:
+                location = normalize_text(str(item.get("name") or ""))
+        else:
+            location = ""
+        if location and location not in locations:
+            locations.append(location)
+    return tuple(locations)
+
+
+def _job_posting_metadata(value: dict) -> VacancyMetadata:
+    organization = value.get("hiringOrganization")
+    if isinstance(organization, dict):
+        company = normalize_text(str(organization.get("name") or ""))
+    else:
+        company = normalize_text(str(organization or ""))
+    return VacancyMetadata(
+        title=normalize_text(str(value.get("title") or "")),
+        company=company,
+        salary=_format_salary(value.get("baseSalary")),
+        date_posted=normalize_text(str(value.get("datePosted") or "")),
+        locations=_job_location_names(value.get("jobLocation")),
+    )
 
 
 def _spa_descriptions(value: object) -> list[str]:
@@ -305,17 +382,22 @@ def extract_vacancy_html(content: bytes) -> VacancyExtraction:
     except Exception as exc:
         raise ImportError("Could not extract text from HTML document") from exc
     raw_text = normalize_text(" ".join(parser.visible))
-    structured: list[tuple[str, list[str]]] = []
+    structured: list[tuple[str, str, VacancyMetadata]] = []
     for payload in parser.json_ld_payloads:
         try:
-            structured.extend(("json-ld", [item]) for item in _job_posting_descriptions(json.loads(payload)))
+            for posting in _job_postings(json.loads(payload)):
+                description = posting.get("description")
+                if isinstance(description, str):
+                    structured.append(
+                        ("json-ld", _html_fragment_text(description), _job_posting_metadata(posting))
+                    )
         except (json.JSONDecodeError, TypeError, ValueError):
             continue
     if structured:
-        method, values = max(structured, key=lambda item: len(normalize_text("\n".join(item[1]))))
-        candidate = normalize_text("\n".join(values))
+        method, value, metadata = max(structured, key=lambda item: len(normalize_text(item[1])))
+        candidate = normalize_text(value)
         if candidate:
-            return VacancyExtraction(raw_text or candidate, candidate, "html", method)
+            return VacancyExtraction(raw_text or candidate, candidate, "html", method, metadata)
     for method in ("microdata", "rdfa"):
         candidate = normalize_text(" ".join(parser.candidates[method]))
         if candidate:
@@ -345,7 +427,8 @@ def extract_vacancy_html(content: bytes) -> VacancyExtraction:
 def normalize_text(value: str) -> str:
     lines = []
     for raw_line in value.replace("\r\n", "\n").replace("\r", "\n").split("\n"):
-        line = re.sub(r"[ \t]+", " ", raw_line).strip()
+        line = re.sub(r"[ \t]+", " ", raw_line.replace("\u00a0", " ")).strip()
+        line = re.sub(r"\s+([:;,!?])", r"\1", line)
         if line:
             lines.append(line)
     return "\n".join(lines).strip()
