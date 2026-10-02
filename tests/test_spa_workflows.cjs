@@ -603,6 +603,60 @@ async function testImportPreviewEditConfirmAndRecovery() {
   assert.match(cancelApp.document.querySelector("#import-review").innerHTML, /Cleaning method: local-fallback:rules/);
 }
 
+async function testUrlImportStructuredDefaultsAndEditableMetadata() {
+  const app = harness();
+  const importForm = app.document.querySelector("#import-form");
+  importForm.fields = { url: "https://jobs.example/role", text: "", title: "", company: "", salary: "", source: "" };
+  app.routes.set("POST /api/vacancies/import-preview", () => ({
+    raw_description: "Page and vacancy text",
+    description: "Build reliable systems",
+    method: "json-ld",
+    source_type: "url",
+    url_import_token: "preview-token",
+    inferred_fields: {
+      title: "Platform Engineer",
+      company: "Example Corp",
+      salary: "80000–100000 EUR YEAR",
+      source: "https://jobs.example/role",
+    },
+    extracted_fields: {
+      title: "Platform Engineer",
+      company: "Example Corp",
+      salary: "80000–100000 EUR YEAR",
+      date_posted: "2026-09-25",
+      locations: ["Amsterdam", "Utrecht"],
+    },
+    removed_blocks: [],
+    uncertain_blocks: [],
+  }));
+  await importForm.onsubmit({ preventDefault() {} });
+
+  assert.equal(importForm.querySelector('[name="title"]').value, "Platform Engineer");
+  assert.equal(importForm.querySelector('[name="company"]').value, "Example Corp");
+  assert.equal(importForm.querySelector('[name="salary"]').value, "80000–100000 EUR YEAR");
+  assert.equal(importForm.querySelector('[name="source"]').value, "https://jobs.example/role");
+  const review = app.document.querySelector("#import-review");
+  assert.match(review.innerHTML, /Detected fields/);
+  assert.match(review.innerHTML, /Amsterdam, Utrecht/);
+
+  importForm.fields = {
+    ...importForm.fields,
+    title: "Lead Platform Engineer",
+    company: "Edited Company",
+    source: "https://canonical.example/role",
+  };
+  app.routes.set("POST /api/vacancies", options => {
+    assert.equal(options.body.get("url_import_token"), "preview-token");
+    assert.equal(options.body.get("title"), "Lead Platform Engineer");
+    assert.equal(options.body.get("company"), "Edited Company");
+    assert.equal(options.body.get("source"), "https://canonical.example/role");
+    return { ...first, title: "Lead Platform Engineer", company: "Edited Company", source_type: "url" };
+  });
+  app.routes.set("GET /api/vacancies?archived=false", []);
+  await review.querySelector("[data-confirm-cleaning]").onclick();
+  assert.equal(app.calls.filter(call => call === "POST /api/vacancies").length, 1, "metadata edits after preview are allowed");
+}
+
 async function testExistingDescriptionReviewAndCodexOptIn() {
   const app = harness();
   app.run('state.locale = "ru"');
@@ -887,6 +941,7 @@ async function testMutationFailuresAndDuplicateRecovery() {
   await testStageFourMasterCrmAndAtsAcceptance();
   await testMasterResumeWorkspaceAndSave();
   await testImportPreviewEditConfirmAndRecovery();
+  await testUrlImportStructuredDefaultsAndEditableMetadata();
   await testExistingDescriptionReviewAndCodexOptIn();
   await testSavedAiDetailAndLateRun();
   await testTailoredResumeActionAndExplicitDraftHandoff();
