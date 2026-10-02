@@ -79,6 +79,7 @@ const RU = {
   "or paste vacancy text": "или вставьте текст вакансии", "Description": "Описание", "Paste the full vacancy description…": "Вставьте полное описание вакансии…",
   "Use Codex to classify page clutter": "Использовать Codex для классификации лишних блоков", "Only when requested; vacancy text will be sent to the local Codex CLI.": "Только по запросу; текст вакансии будет передан локальному Codex CLI.",
   "Title (optional)": "Название (необязательно)", "Company (optional)": "Компания (необязательно)", "Salary (optional)": "Зарплата (необязательно)", "Source (optional)": "Источник (необязательно)",
+  "Detected fields": "Определённые поля", "Posted": "Опубликовано", "Locations": "Локации",
   "Auto-detected": "Определится автоматически", "LinkedIn, referral…": "LinkedIn, рекомендация…", "Cancel": "Отмена", "Review description": "Проверить описание",
   "No archived vacancies.": "Архивных вакансий нет.", "No vacancies yet.": "Вакансий пока нет.", "Company not set": "Компания не указана", "Salary not specified": "Зарплата не указана", "No summary yet": "Описание пока отсутствует",
   "Saved": "Сохранена", "Applied": "Отклик отправлен", "Interview": "Собеседование", "Waiting": "Ожидание", "Offer": "Оффер", "Rejected": "Отказ",
@@ -673,8 +674,20 @@ function renderCleaningReview(preview, errorId) {
     : diagnostics.codex_requested && diagnostics.fallback_used
       ? `<div class="callout"><span>${escapeHtml((preview.warnings || [])[0] || "Codex classification failed; local rules were used. Review uncertain blocks before confirmation.")}</span>${codexProfile}</div>`
       : "";
+  const extracted = preview.extracted_fields || {};
+  const extractedDetails = [
+    extracted.title,
+    extracted.company,
+    extracted.salary,
+    extracted.date_posted ? `${translateText("Posted")}: ${extracted.date_posted}` : "",
+    Array.isArray(extracted.locations) && extracted.locations.length ? `${translateText("Locations")}: ${extracted.locations.join(", ")}` : "",
+  ].filter(Boolean);
+  const extractionNotice = extractedDetails.length
+    ? `<div class="callout"><strong>${translateText("Detected fields")}:</strong> ${escapeHtml(extractedDetails.join(" · "))}</div>`
+    : "";
   return `<section class="cleaning-review"><div class="callout">Review the proposed text before confirming. Original vacancy content remains unchanged.</div>
     ${classificationNotice}
+    ${extractionNotice}
     <p class="muted">Cleaning method: ${escapeHtml(preview.method || "local")}</p>
     <div class="form-grid"><label>Original imported text<textarea rows="10" readonly>${escapeHtml(preview.raw_description || "")}</textarea></label><label>Cleaned draft (editable)<textarea rows="10" data-cleaned-description>${escapeHtml(preview.description || "")}</textarea></label></div>
     <div class="split-grid"><section><h4>Removed blocks (${removed.length})</h4><ul class="review-list">${removed.length ? removed.map(item => `<li><strong>${escapeHtml(item.text)}</strong><span class="muted">${escapeHtml(item.reason || "Removed")}</span></li>`).join("") : `<li class="muted">Nothing removed</li>`}</ul></section><section><h4>Needs review (${uncertain.length})</h4><ul class="review-list">${uncertain.length ? uncertain.map(item => `<li><strong>${escapeHtml(item.text)}</strong><span class="muted">${escapeHtml(item.reason || "Uncertain")}</span></li>`).join("") : `<li class="muted">No uncertain blocks</li>`}</ul></section></div>
@@ -1265,13 +1278,17 @@ function importSignature(data, useCodex) {
   return JSON.stringify({
     text: data.get("text") || "",
     file: file?.name ? { name: file.name, size: file.size ?? null, type: file.type || "", lastModified: file.lastModified ?? null } : null,
-    title: data.get("title") || "",
-    company: data.get("company") || "",
-    salary: data.get("salary") || "",
-    source: data.get("source") || "",
     url: data.get("url") || "",
     useCodex,
   });
+}
+
+function applyImportPreviewFields(preview) {
+  for (const name of ["title", "company", "salary", "source"]) {
+    const value = preview?.inferred_fields?.[name];
+    const input = form.querySelector(`[name="${name}"]`);
+    if (input && value && !String(input.value || "").trim()) input.value = value;
+  }
 }
 
 function resetImportReview() {
@@ -1389,6 +1406,7 @@ form.onsubmit = async event => {
           return api("/api/vacancies/import-preview", { method: "POST", body: previewData });
         })
         : initialPreview;
+      applyImportPreviewFields(preview);
       const snapshot = { preview, input: importSignature(previewData, useCodex) };
       state.importPreview = snapshot;
       if (preview.url_import_token) form.dataset.urlImportToken = preview.url_import_token;
