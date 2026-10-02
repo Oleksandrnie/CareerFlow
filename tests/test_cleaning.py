@@ -12,7 +12,7 @@ from careerflow.ats import analyze
 from careerflow.cleaning import build_preview, classify_blocks_with_codex, split_blocks
 from careerflow.codex import CodexError, CodexResult
 from careerflow.config import Settings
-from careerflow.files import VacancyExtraction, extract_vacancy_html
+from careerflow.files import VacancyExtraction, VacancyMetadata, extract_vacancy_html
 
 
 class HtmlExtractionTest(unittest.TestCase):
@@ -22,12 +22,21 @@ class HtmlExtractionTest(unittest.TestCase):
             <html><body><nav>Menu Careers</nav><main>Wrong generic content</main>
             <script type="application/ld+json">
             {"@context":"https://schema.org","@type":"JobPosting",
-             "description":"<h2>Backend Engineer</h2><p>Python &amp; SQL</p>"}
+             "title":"Backend Engineer","datePosted":"2026-09-25",
+             "hiringOrganization":{"@type":"Organization","name":"Example Corp"},
+             "jobLocation":[{"@type":"Place","address":"Amsterdam"}],
+             "baseSalary":{"currency":"EUR","value":{"minValue":80000,"maxValue":100000,"unitText":"YEAR"}},
+             "description":"<h2>Backend Engineer</h2><p>Python &amp; SQL at \\\"Example Corp\\\"</p>"}
             </script><footer>Privacy policy</footer></body></html>
             """
         )
         self.assertEqual(extraction.method, "json-ld")
-        self.assertEqual(extraction.candidate_text, "Backend Engineer\nPython & SQL")
+        self.assertEqual(extraction.candidate_text, 'Backend Engineer\nPython & SQL at "Example Corp"')
+        self.assertEqual(extraction.metadata.title, "Backend Engineer")
+        self.assertEqual(extraction.metadata.company, "Example Corp")
+        self.assertEqual(extraction.metadata.salary, "80000–100000 EUR YEAR")
+        self.assertEqual(extraction.metadata.date_posted, "2026-09-25")
+        self.assertEqual(extraction.metadata.locations, ("Amsterdam",))
         self.assertIn("Menu Careers", extraction.raw_text)
         self.assertIn("Privacy policy", extraction.raw_text)
         self.assertNotIn("@context", extraction.raw_text)
@@ -378,6 +387,11 @@ class CleaningApiTest(unittest.TestCase):
                 "URL Engineer\nBuild APIs with Python and SQL.",
                 "url",
                 "visible-text",
+                VacancyMetadata(
+                    title="Platform Engineer",
+                    company="Example Corp",
+                    locations=("Amsterdam",),
+                ),
             ),
         )
         preview_response = self.client.post(
@@ -388,6 +402,10 @@ class CleaningApiTest(unittest.TestCase):
         preview = preview_response.json()
         self.assertEqual(preview["source_type"], "url")
         self.assertEqual(preview["url_import_token"] != "", True)
+        self.assertEqual(preview["inferred_fields"]["title"], "Platform Engineer")
+        self.assertEqual(preview["inferred_fields"]["company"], "Example Corp")
+        self.assertEqual(preview["inferred_fields"]["source"], "https://jobs.example.test/role")
+        self.assertEqual(preview["extracted_fields"]["locations"], ["Amsterdam"])
         created = self.client.post(
             "/api/vacancies",
             data={
@@ -399,6 +417,8 @@ class CleaningApiTest(unittest.TestCase):
         )
         self.assertEqual(created.status_code, 201)
         vacancy = created.json()
+        self.assertEqual(vacancy["title"], "Platform Engineer")
+        self.assertEqual(vacancy["company"], "Example Corp")
         self.assertEqual(vacancy["source_type"], "url")
         self.assertEqual(vacancy["source"], "https://jobs.example.test/role")
         self.assertEqual(Path(vacancy["original_path"]).read_bytes(), html)
