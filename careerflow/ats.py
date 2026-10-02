@@ -35,9 +35,83 @@ YEARS = re.compile(
     r"(?i)\b(\d+(?:[.,]\d+)?)\s*\+?\s*(?:years?|yrs?|лет|года?|год)\b"
 )
 
+# These are high-confidence spelling/abbreviation equivalences, not general
+# semantic synonyms. Keep the list deliberately small so ATS remains
+# explainable and does not turn related concepts into false positive matches.
+TECHNICAL_ALIASES = {
+    "apis": "api",
+    "js": "javascript",
+    "javascript": "javascript",
+    "ts": "typescript",
+    "typescript": "typescript",
+    "postgres": "postgresql",
+    "postgresql": "postgresql",
+    "k8s": "kubernetes",
+    "kubernetes": "kubernetes",
+    "cicd": "ci/cd",
+    "ci/cd": "ci/cd",
+    "nodejs": "node.js",
+    "node.js": "node.js",
+    "reactjs": "react",
+    "react": "react",
+}
+
+RUSSIAN_INFLECTION_SUFFIXES = (
+    "иями", "ями", "ами", "ого", "ему", "ому", "ее", "ие", "ые",
+    "ой", "ий", "ый", "ую", "юю", "ая", "яя", "ов", "ев", "ам",
+    "ям", "ом", "ем", "ах", "ях", "ы", "и", "а", "я", "у", "ю",
+    "е", "о",
+)
+
 
 def _years_amounts(text: str) -> list[float]:
     return [float(match.replace(",", ".")) for match in YEARS.findall(text)]
+
+
+def _matching_forms(token: str) -> set[str]:
+    """Return conservative lexical forms used only for comparison.
+
+    The original token is always retained for display and keyword output.
+    Forms cover common English inflections, a small Russian noun/adjective
+    inflection set, and explicit technology aliases. They are intentionally
+    not a full stemmer or translation layer.
+    """
+    forms = {token}
+    canonical = TECHNICAL_ALIASES.get(token)
+    if canonical:
+        forms.add(canonical)
+
+    if re.fullmatch(r"[a-z][a-z0-9+#./-]*", token):
+        if token.endswith("ies") and len(token) > 4:
+            forms.add(token[:-3] + "y")
+        elif token.endswith("s") and not token.endswith(("ss", "us", "is")) and len(token) > 3:
+            forms.add(token[:-1])
+        if token.endswith("ing") and len(token) > 5:
+            forms.add(token[:-3])
+        if token.endswith("ed") and len(token) > 4:
+            stem = token[:-2]
+            forms.update({stem, f"{stem}e"})
+        for suffix in ("ment", "tion", "sion"):
+            if token.endswith(suffix) and len(token) - len(suffix) >= 4:
+                forms.add(token[:-len(suffix)])
+    elif re.search(r"[а-яё]", token):
+        for suffix in RUSSIAN_INFLECTION_SUFFIXES:
+            if token.endswith(suffix) and len(token) - len(suffix) >= 4:
+                forms.add(token[:-len(suffix)])
+
+    return forms
+
+
+def _matched_tokens(required_tokens: set[str], candidate_tokens: set[str]) -> set[str]:
+    """Return vacancy tokens supported by at least one resume token."""
+    candidate_forms = (
+        set().union(*(_matching_forms(token) for token in candidate_tokens))
+        if candidate_tokens else set()
+    )
+    return {
+        token for token in required_tokens
+        if _matching_forms(token) & candidate_forms
+    }
 
 
 def _tokens(text: str) -> list[str]:
@@ -162,47 +236,48 @@ def analyze(vacancy_text: str, resume_text: str) -> dict:
         best_evidence = ""
         best_negative = False
         best_years_ok = True
-        positive_sentences: list[tuple[str, set[str], list[float]]] = []
-        negative_sentences: list[tuple[str, set[str], list[float]]] = []
+        positive_sentences: list[tuple[str, set[str], list[float], set[str]]] = []
+        negative_sentences: list[tuple[str, set[str], list[float], set[str]]] = []
         for sentence, sentence_tokens, negative, stated_years in resume_facts:
-            if not (semantic_tokens & sentence_tokens):
+            matched = _matched_tokens(semantic_tokens, sentence_tokens)
+            if not matched:
                 continue
             if negative:
-                negative_sentences.append((sentence, sentence_tokens, stated_years))
+                negative_sentences.append((sentence, sentence_tokens, stated_years, matched))
                 continue
-            positive_sentences.append((sentence, sentence_tokens, stated_years))
+            positive_sentences.append((sentence, sentence_tokens, stated_years, matched))
 
         overlap = (
             set().union(*(
-                semantic_tokens & sentence_tokens
-                for _, sentence_tokens, _ in positive_sentences
+                matched
+                for _, _, _, matched in positive_sentences
             ))
             if positive_sentences else set()
         )
         negative_overlap = (
             set().union(*(
-                semantic_tokens & sentence_tokens
-                for _, sentence_tokens, _ in negative_sentences
+                matched
+                for _, _, _, matched in negative_sentences
             ))
             if negative_sentences else set()
         )
         unresolved_negative = negative_overlap - overlap
         if positive_sentences:
             evidence_candidates: list[tuple[tuple[int, int], str, bool]] = []
-            for sentence, sentence_tokens, stated_years in positive_sentences:
+            for sentence, _, stated_years, matched in positive_sentences:
                 years_ok = required_years is None or (
                     bool(stated_years) and min(stated_years) >= required_years
                 )
                 evidence_candidates.append((
-                    (len(semantic_tokens & sentence_tokens), int(years_ok)),
+                    (len(matched), int(years_ok)),
                     sentence,
                     years_ok,
                 ))
             _, best_evidence, best_years_ok = max(evidence_candidates, key=lambda item: item[0])
         elif negative_sentences:
-            best_evidence, _, _ = max(
+            best_evidence, _, _, _ = max(
                 negative_sentences,
-                key=lambda item: len(semantic_tokens & item[1]),
+                key=lambda item: len(item[3]),
             )
             best_negative = True
 

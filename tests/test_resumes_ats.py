@@ -527,6 +527,35 @@ class ResumeAndAtsTest(unittest.TestCase):
         self.assertEqual(item["matched_keywords"], ["python", "services"])
         self.assertEqual(item["evidence"], "Developed Python services.")
 
+    def test_ats_matches_common_technical_aliases(self) -> None:
+        result = analyze(
+            "Requirements:\nJavaScript, PostgreSQL, Kubernetes, CI/CD.",
+            "Built JS applications with Postgres, K8s, and CICD pipelines.",
+        )
+
+        self.assertEqual(result["counts"]["covered"], 1)
+        self.assertEqual(result["counts"]["missing"], 0)
+        self.assertEqual(result["match_percent"], 100)
+
+    def test_ats_matches_common_english_word_forms(self) -> None:
+        result = analyze(
+            "Requirements:\nDevelop backend services.",
+            "Developed backend services.",
+        )
+
+        item = result["requirements"][0]
+        self.assertEqual(item["classification"], "covered")
+        self.assertEqual(result["match_percent"], 100)
+
+    def test_ats_keeps_general_semantic_synonyms_out_of_lexical_matching(self) -> None:
+        result = analyze(
+            "Requirements:\nBuild REST APIs.",
+            "Developed HTTP services.",
+        )
+
+        self.assertEqual(result["requirements"][0]["classification"], "missing")
+        self.assertEqual(result["match_percent"], 0)
+
     def test_ats_excludes_generic_scaffolding_from_semantic_coverage(self) -> None:
         result = analyze("Python knowledge.", "Python")
 
