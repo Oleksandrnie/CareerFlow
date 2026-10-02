@@ -38,6 +38,7 @@ def create_app(settings: Settings | None = None) -> FastAPI:
     )
     application.state.settings = resolved_settings
     application.state.db = database
+    application.state.url_imports = {}
     static_dir = Path(__file__).parent / "static"
     application.mount("/static", StaticFiles(directory=static_dir), name="static")
     application.include_router(vacancies_router)

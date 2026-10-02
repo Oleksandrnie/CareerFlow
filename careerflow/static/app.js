@@ -1269,12 +1269,14 @@ function importSignature(data, useCodex) {
     company: data.get("company") || "",
     salary: data.get("salary") || "",
     source: data.get("source") || "",
+    url: data.get("url") || "",
     useCodex,
   });
 }
 
 function resetImportReview() {
   state.importPreview = null;
+  delete form.dataset.urlImportToken;
   const review = document.querySelector("#import-review");
   if (review) review.innerHTML = "";
   const submit = form.querySelector("button[type=submit]");
@@ -1355,6 +1357,10 @@ archivedToggle.onchange = async () => {
   try { await loadVacancies(); } catch (error) { showError(error); }
 };
 fileInput.onchange = () => { selectedFile.textContent = fileInput.files[0]?.name || ""; };
+form.querySelector('input[name="url"]')?.addEventListener("input", event => {
+  const submit = form.querySelector("button[type=submit]");
+  if (!state.importPreview) submit.textContent = event.target.value.trim() ? "Parse vacancy" : "Review description";
+});
 for (const eventName of ["dragenter", "dragover"]) dropZone.addEventListener(eventName, event => { event.preventDefault(); dropZone.classList.add("dragging"); });
 for (const eventName of ["dragleave", "drop"]) dropZone.addEventListener(eventName, event => { event.preventDefault(); dropZone.classList.remove("dragging"); });
 dropZone.addEventListener("drop", event => { fileInput.files = event.dataTransfer.files; selectedFile.textContent = fileInput.files[0]?.name || ""; });
@@ -1385,6 +1391,7 @@ form.onsubmit = async event => {
         : initialPreview;
       const snapshot = { preview, input: importSignature(previewData, useCodex) };
       state.importPreview = snapshot;
+      if (preview.url_import_token) form.dataset.urlImportToken = preview.url_import_token;
       review.innerHTML = renderCleaningReview(preview, "import-review-error");
       submit.hidden = true;
       const confirm = review.querySelector("[data-confirm-cleaning]");
@@ -1403,6 +1410,7 @@ form.onsubmit = async event => {
           data.delete?.("codex_profile");
           data.set("cleaned_description", review.querySelector("[data-cleaned-description]").value);
           data.set("cleaning_method", preview.method);
+          if (preview.url_import_token) data.set("url_import_token", preview.url_import_token);
           const vacancy = await api("/api/vacancies", { method: "POST", body: data });
           closeDialog(); await loadVacancies(); renderVacancy(vacancy); toast("Vacancy imported");
         } catch (exception) { confirmError.textContent = exception.message; }

@@ -9,7 +9,7 @@ from pydantic import BaseModel
 
 from .files import ImportError as DocumentImportError
 from .cleaning import build_preview
-from .files import extract_vacancy_text, normalize_text
+from .files import extract_vacancy_text, fetch_vacancy_url, normalize_text
 from .vacancies import (
     apply_clean_description,
     create_vacancy,
@@ -66,6 +66,8 @@ async def add_vacancy(
     cleaned_description: Annotated[str, Form()] = "",
     cleaning_method: Annotated[str, Form()] = "",
     file: Annotated[UploadFile | None, File()] = None,
+    url: Annotated[str, Form()] = "",
+    url_import_token: Annotated[str, Form()] = "",
 ) -> dict:
     original_content: bytes | None = None
     original_filename: str | None = None
@@ -73,7 +75,15 @@ async def add_vacancy(
     raw_description = normalize_text(text)
     extracted = raw_description
     inferred_method = "pasted-text"
-    if file and file.filename:
+    if url_import_token:
+        cached = getattr(request.app.state, "url_imports", {}).pop(url_import_token, None)
+        if cached is None:
+            raise HTTPException(status_code=422, detail="URL import preview expired. Parse the URL again.")
+        raw_description, extracted, source_type, original_filename, original_content, url = cached
+        inferred_method = "url-import"
+    elif url.strip():
+        raise HTTPException(status_code=422, detail="Parse the vacancy URL before confirming the import")
+    elif file and file.filename:
         original_content = await file.read()
         original_filename = file.filename
         try:
@@ -94,7 +104,7 @@ async def add_vacancy(
         source_type,
         original_filename=original_filename,
         original_content=original_content,
-        overrides={"title": title, "company": company, "salary": salary, "source": source},
+        overrides={"title": title, "company": company, "salary": salary, "source": source or url},
         raw_description=raw_description,
         cleaning_method=cleaning_method.strip() or inferred_method,
         description_confirmed=True,
@@ -108,12 +118,22 @@ async def preview_import(
     use_codex: Annotated[bool, Form()] = False,
     codex_profile: Annotated[Literal["primary", "escalation"], Form()] = "primary",
     file: Annotated[UploadFile | None, File()] = None,
+    url: Annotated[str, Form()] = "",
 ) -> dict:
     raw_description = normalize_text(text)
     candidate = raw_description
     source_type = "text"
     method = "pasted-text"
-    if file and file.filename:
+    if url.strip():
+        try:
+            requested_url, canonical_url, extraction_html, extraction = fetch_vacancy_url(url)
+        except DocumentImportError as exc:
+            raise HTTPException(status_code=422, detail=str(exc)) from exc
+        raw_description = extraction.raw_text
+        candidate = extraction.candidate_text
+        source_type = "url"
+        method = extraction.method
+    elif file and file.filename:
         try:
             extraction = extract_vacancy_text(file.filename, await file.read())
         except DocumentImportError as exc:
@@ -135,7 +155,13 @@ async def preview_import(
         )
     except (ValueError, RuntimeError) as exc:
         raise HTTPException(status_code=422, detail=str(exc)) from exc
-    return {**preview, "source_type": source_type}
+    response = {**preview, "source_type": source_type}
+    if url.strip():
+        import secrets
+        token = secrets.token_urlsafe(24)
+        request.app.state.url_imports[token] = (raw_description, candidate, "url", "original.html", extraction_html, canonical_url)
+        response.update({"url": requested_url, "canonical_url": canonical_url, "url_import_token": token})
+    return response
 
 
 @router.get("/{vacancy_id}")

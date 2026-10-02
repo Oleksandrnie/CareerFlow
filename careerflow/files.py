@@ -3,7 +3,12 @@
 from __future__ import annotations
 
 import json
+import ipaddress
 import re
+import socket
+from urllib.error import HTTPError, URLError
+from urllib.parse import urljoin, urlsplit
+from urllib.request import HTTPRedirectHandler, Request, build_opener
 from dataclasses import dataclass
 from html.parser import HTMLParser
 from io import BytesIO
@@ -14,11 +19,75 @@ from pypdf import PdfReader
 
 
 MAX_UPLOAD_BYTES = 25 * 1024 * 1024
+MAX_URL_HTML_BYTES = 5 * 1024 * 1024
+URL_FETCH_TIMEOUT_SECONDS = 15
+MAX_URL_REDIRECTS = 5
 SUPPORTED_EXTENSIONS = {".txt", ".md", ".html", ".htm", ".pdf", ".docx"}
 
 
 class ImportError(ValueError):
     """Raised when an uploaded document cannot be safely imported."""
+
+
+def _validate_public_url(value: str) -> str:
+    parsed = urlsplit(value.strip())
+    if parsed.scheme.lower() not in {"http", "https"} or not parsed.hostname:
+        raise ImportError("Use a valid public HTTP or HTTPS vacancy URL")
+    if parsed.username or parsed.password or parsed.fragment:
+        raise ImportError("Vacancy URL must not contain credentials or a fragment")
+    host = parsed.hostname.rstrip(".").lower()
+    try:
+        port = parsed.port or (443 if parsed.scheme.lower() == "https" else 80)
+        addresses = {item[4][0] for item in socket.getaddrinfo(host, port, type=socket.SOCK_STREAM)}
+    except (OSError, ValueError) as exc:
+        raise ImportError("The vacancy URL host could not be resolved") from exc
+    for address in addresses:
+        ip = ipaddress.ip_address(address)
+        if ip.is_private or ip.is_loopback or ip.is_link_local or ip.is_multicast or ip.is_reserved or ip.is_unspecified:
+            raise ImportError("The vacancy URL points to a blocked internal address")
+    return parsed.geturl()
+
+
+class _SafeRedirectHandler(HTTPRedirectHandler):
+    def __init__(self) -> None:
+        super().__init__()
+        self.redirects = 0
+
+    def redirect_request(self, req, fp, code, msg, headers, newurl):
+        self.redirects += 1
+        if self.redirects > MAX_URL_REDIRECTS:
+            raise ImportError("The vacancy page redirected too many times")
+        safe = _validate_public_url(urljoin(req.full_url, newurl))
+        return super().redirect_request(req, fp, code, msg, headers, safe)
+
+
+def fetch_vacancy_url(value: str) -> tuple[str, str, bytes, VacancyExtraction]:
+    url = _validate_public_url(value)
+    handler = _SafeRedirectHandler()
+    opener = build_opener(handler)
+    request = Request(url, headers={"Accept": "text/html,application/xhtml+xml", "User-Agent": "CareerFlow vacancy importer"})
+    try:
+        with opener.open(request, timeout=URL_FETCH_TIMEOUT_SECONDS) as response:
+            final_url = _validate_public_url(response.geturl())
+            content_type = response.headers.get_content_type().lower()
+            if content_type not in {"text/html", "application/xhtml+xml"}:
+                raise ImportError("The vacancy page did not return HTML")
+            content = bytearray()
+            while True:
+                chunk = response.read(min(64 * 1024, MAX_URL_HTML_BYTES + 1 - len(content)))
+                if not chunk:
+                    break
+                content.extend(chunk)
+                if len(content) > MAX_URL_HTML_BYTES:
+                    raise ImportError("The vacancy page is larger than the 5 MB limit")
+    except ImportError:
+        raise
+    except (HTTPError, URLError, TimeoutError, OSError) as exc:
+        raise ImportError("The vacancy page could not be downloaded") from exc
+    extraction = extract_vacancy_html(bytes(content))
+    if len(extraction.candidate_text) < 40:
+        raise ImportError("The vacancy page does not contain enough readable text")
+    return url, final_url, bytes(content), extraction
 
 
 @dataclass(frozen=True, slots=True)
