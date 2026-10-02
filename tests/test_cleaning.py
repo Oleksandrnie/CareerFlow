@@ -12,7 +12,7 @@ from careerflow.ats import analyze
 from careerflow.cleaning import build_preview, classify_blocks_with_codex, split_blocks
 from careerflow.codex import CodexError, CodexResult
 from careerflow.config import Settings
-from careerflow.files import extract_vacancy_html
+from careerflow.files import VacancyExtraction, extract_vacancy_html
 
 
 class HtmlExtractionTest(unittest.TestCase):
@@ -365,6 +365,49 @@ class CleaningApiTest(unittest.TestCase):
         self.assertNotIn("Search jobs", vacancy["description"])
         self.assertIsNotNone(vacancy["description_confirmed_at"])
         self.assertTrue(Path(vacancy["original_path"]).read_bytes() == html)
+
+    @patch("careerflow.routes_vacancies.fetch_vacancy_url")
+    def test_url_preview_and_confirm_store_html_without_refetching(self, fetch_url) -> None:
+        html = b"<html><body><main><h1>URL Engineer</h1><p>Build APIs with Python and SQL.</p></main></body></html>"
+        fetch_url.return_value = (
+            "https://jobs.example.test/role",
+            "https://jobs.example.test/role",
+            html,
+            VacancyExtraction(
+                "URL Engineer\nBuild APIs with Python and SQL.",
+                "URL Engineer\nBuild APIs with Python and SQL.",
+                "url",
+                "visible-text",
+            ),
+        )
+        preview_response = self.client.post(
+            "/api/vacancies/import-preview",
+            data={"url": "https://jobs.example.test/role"},
+        )
+        self.assertEqual(preview_response.status_code, 200)
+        preview = preview_response.json()
+        self.assertEqual(preview["source_type"], "url")
+        self.assertEqual(preview["url_import_token"] != "", True)
+        created = self.client.post(
+            "/api/vacancies",
+            data={
+                "url": "https://jobs.example.test/role",
+                "url_import_token": preview["url_import_token"],
+                "cleaned_description": preview["description"],
+                "cleaning_method": preview["method"],
+            },
+        )
+        self.assertEqual(created.status_code, 201)
+        vacancy = created.json()
+        self.assertEqual(vacancy["source_type"], "url")
+        self.assertEqual(vacancy["source"], "https://jobs.example.test/role")
+        self.assertEqual(Path(vacancy["original_path"]).read_bytes(), html)
+        self.assertEqual(fetch_url.call_count, 1)
+
+    def test_url_preview_rejects_unsupported_scheme_before_fetch(self) -> None:
+        response = self.client.post("/api/vacancies/import-preview", data={"url": "ftp://example.test/job"})
+        self.assertEqual(response.status_code, 422)
+        self.assertIn("HTTP or HTTPS", response.json()["detail"])
 
     def test_preview_api_validates_and_forwards_request_scoped_codex_profile(self) -> None:
         vacancy = self.client.post(
