@@ -21,24 +21,19 @@ Before execution:
 
 A bounded task has sufficiently clear scope, expected result, architectural boundaries, acceptance criteria, and validation. A fine-grained edit is localized and has a clear result.
 
-Choose the least expensive model likely to complete the task correctly:
+Choose the model and effort by the kind of work:
 
 | Work | Default |
 | --- | --- |
-| Fine-grained edit; simple HTML/CSS/UI | GPT-5.6 Luna Low |
-| Coordinated UI/responsive work; bounded work using established patterns | GPT-5.6 Luna Medium |
-| Bounded implementation with clear scope, boundaries, affected components, acceptance criteria, and validation | GPT-5.6 Luna High |
-| Backend, API, database, business logic, integrations, complex debugging, substantial refactoring, persistence/lifecycle, architecture-sensitive or judgment-heavy work | GPT-5.6 Sol High |
-| Routine independent review | GPT-6 Sol Medium |
-| Substantial multi-file or regression-sensitive audit | GPT-6 Sol High |
-| Unusually deep or high-risk audit | GPT-6 Sol xHigh, only when justified |
-| Major architectural uncertainty, migration, data-loss/security risk, or high-risk cross-system decision | GPT-6 Astra, effort chosen for the task |
+| Reasoning, analysis of results, and data synthesis | GPT-6 Luna xHigh |
+| Architecture decisions and technical design | GPT-6.1 Sol Medium |
+| Review or audit | GPT-6 Sol High or GPT-6 Astra, only with the user's explicit consent |
 
-GPT-6 Luna is not an automatic routing target, but the user may select it explicitly.
+For implementation work, use GPT-6 Luna xHigh for reasoning and synthesis, and GPT-6.1 Sol Medium when choosing or evaluating architecture and technical design. Keep review optional: do not start GPT-6 Sol High or Astra review unless the user requests it or explicitly approves a recommendation.
 
 When reporting a routing decision, distinguish the selected model and effort from the effective executor. Report effective execution metadata only when the runtime exposes it; otherwise state that it is unavailable. Never infer the actual executor from this routing table alone.
 
-Use Luna when the implementation approach is already clear; use Sol when the model must determine the correct approach. Escalate Luna to Sol when scope becomes ambiguous, root cause is unknown, architecture or migration decisions appear, subsystem boundaries expand, persistence/lifecycle risk grows, or repeated validation failures suggest that retries are no longer economical.
+Use the routing above for the relevant work phase; a single task may use different choices for analysis and technical design. Do not escalate to review automatically.
 
 For mixed tasks, split work along natural technical boundaries when useful; do not promote the entire task or fragment a small tightly coupled task unnecessarily. Use multiple subagents only for concrete value such as independent parallel work, natural subsystem separation, approach comparison, or an approved independent review. Do not create agent swarms.
 
