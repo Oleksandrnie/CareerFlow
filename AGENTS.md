@@ -25,11 +25,11 @@ Choose the model and effort by the kind of work:
 
 | Work | Default |
 | --- | --- |
-| Reasoning, analysis of results, and data synthesis | GPT-6 Luna xHigh (or Max when the task warrants it) |
-| Implementation, architecture decisions, and technical design | GPT-6.1 Sol xHigh (or Max when the task warrants it) |
-| Review or audit | GPT-6.1 Sol xHigh or Max, only with the user's explicit consent |
+| Reasoning, analysis of results, and data synthesis | GPT-6 Luna xHigh |
+| Architecture decisions and technical design | GPT-6.1 Sol Medium |
+| Review or audit | GPT-6 Sol High or GPT-6 Astra, only with the user's explicit consent |
 
-For implementation work, use GPT-6 Luna xHigh for reasoning and synthesis, and GPT-6.1 Sol xHigh for implementation and technical design. Use Max for unusually demanding work when available. Do not route project work to other models. Keep review optional: do not start a separate review unless the user requests it or explicitly approves a recommendation.
+For implementation work, use GPT-6 Luna xHigh for reasoning and synthesis, and GPT-6.1 Sol Medium when choosing or evaluating architecture and technical design. Keep review optional: do not start GPT-6 Sol High or GPT-6 Astra review unless the user requests it or explicitly approves a recommendation.
 
 When reporting a routing decision, distinguish the selected model and effort from the effective executor. Report effective execution metadata only when the runtime exposes it; otherwise state that it is unavailable. Never infer the actual executor from this routing table alone.
 
