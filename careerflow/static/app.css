@@ -362,17 +362,18 @@ textarea { resize: vertical; max-width: 100%; }
 .markdown-readable ul { margin: .5em 0; padding-left: 22px; }
 .markdown-readable code { border-radius: 4px; background: var(--code-bg); padding: 1px 4px; }
 #cleaning-review:has(.cleaning-review) { position: fixed; inset: 0; z-index: 30; display: grid; place-items: center; padding: 16px; background: var(--overlay); }
-#cleaning-review:has(.cleaning-review) .cleaning-review { display: flex; flex-direction: column; width: min(920px, 100%); height: min(76vh, 620px); overflow: hidden; margin: 0; padding: 16px; gap: 10px; background: var(--surface); box-shadow: 0 24px 80px var(--shadow); }
+#cleaning-review:has(.cleaning-review) .cleaning-review { display: flex; flex-direction: column; width: min(920px, 100%); height: min(70vh, 560px); overflow: hidden; margin: 0; padding: 16px; gap: 10px; background: var(--surface); box-shadow: 0 24px 80px var(--shadow); }
 #cleaning-review:has(.cleaning-review) .cleaning-review > .callout { margin: 0; padding: 9px 11px; font-size: 12px; }
 #cleaning-review:has(.cleaning-review) .cleaning-review > .muted { font-size: 12px; }
 #cleaning-review:has(.cleaning-review) .cleaning-review > .form-grid { flex: 0 0 auto; grid-template-columns: repeat(2, minmax(0, 1fr)); }
 #cleaning-review:has(.cleaning-review) .cleaning-review > .form-grid { gap: 10px; }
 #cleaning-review:has(.cleaning-review) .cleaning-review > .form-grid textarea { height: 106px; min-height: 82px; padding: 8px 10px; font-size: 12px; line-height: 1.35; }
-#cleaning-review:has(.cleaning-review) .cleaning-review > .split-grid { flex: 1 1 auto; min-height: 0; align-items: start; overflow: hidden; }
+#cleaning-review:has(.cleaning-review) .cleaning-review > .split-grid { flex: 1 1 auto; min-height: 0; align-items: start; overflow-y: auto; overscroll-behavior: contain; scrollbar-width: thin; }
 #cleaning-review:has(.cleaning-review) .cleaning-review > .split-grid { gap: 16px; }
 #cleaning-review:has(.cleaning-review) .cleaning-review > .split-grid > section { min-width: 0; min-height: 0; }
+#cleaning-review:has(.cleaning-review) .cleaning-review > .split-grid > section { overflow: hidden; }
 #cleaning-review:has(.cleaning-review) .cleaning-review .split-grid h4 { margin: 0 0 6px; font-size: 13px; }
-#cleaning-review:has(.cleaning-review) .cleaning-review .review-list { max-height: min(24vh, 175px); overflow: auto; margin: 0; padding: 0 8px 0 18px; font-size: 11px; line-height: 1.3; }
+#cleaning-review:has(.cleaning-review) .cleaning-review .review-list { height: min(24vh, 175px); max-height: 175px; overflow-y: auto; overscroll-behavior: contain; scrollbar-width: thin; margin: 0; padding: 0 8px 0 18px; font-size: 11px; line-height: 1.3; }
 #cleaning-review:has(.cleaning-review) .cleaning-review .review-list strong { font-size: 11px; }
 #cleaning-review:has(.cleaning-review) .cleaning-review .review-list span { font-size: 10px; }
 #cleaning-review:has(.cleaning-review) .cleaning-review > .error { min-height: 14px; margin: 0; font-size: 12px; }
