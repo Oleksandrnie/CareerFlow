@@ -1,0 +1,26 @@
+DEMO DATA — entirely fictional. No real employer or job opening is represented.
+
+Product Operations Analyst
+Example Systems (fictional)
+Location: Remote, Europe
+
+About the role
+Example Systems is a fictional software company building tools for small teams. The Product Operations Analyst will help the product and customer teams keep feedback, launch plans, and operating metrics easy to understand.
+
+What you will do
+- Organize customer feedback into clear themes and share them with product managers.
+- Maintain launch checklists and coordinate updates across product, support, and marketing.
+- Build simple reports that help teams understand adoption and support trends.
+- Document repeatable processes and identify opportunities to reduce manual work.
+
+What we are looking for
+- Experience coordinating projects or operations across multiple teams.
+- Clear written communication and careful documentation habits.
+- Comfort working with spreadsheets and basic reporting tools.
+- A practical, collaborative approach to ambiguous problems.
+
+Nice to have
+- Experience with a customer relationship management system.
+- Familiarity with SQL or product analytics.
+
+This is fictional demonstration content for CareerFlow.

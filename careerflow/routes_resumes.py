@@ -7,7 +7,7 @@ from typing import Annotated
 from fastapi import APIRouter, File, Form, HTTPException, Query, Request, UploadFile
 from fastapi.responses import FileResponse, Response
 
-from .files import ImportError as DocumentImportError
+from .files import MAX_UPLOAD_BYTES, ImportError as DocumentImportError
 from .files import extract_text, normalize_text
 from .resumes import (
     create_resume,
@@ -17,6 +17,7 @@ from .resumes import (
     list_resumes,
     mark_submitted,
 )
+from .routes_utils import read_limited_upload
 
 
 router = APIRouter(prefix="/api/resumes", tags=["resumes"])
@@ -53,14 +54,19 @@ async def add_resume(
         content_text = source["content_text"]
         label = label or f"Based on {source['kind']} v{source['version']}"
     elif file and file.filename:
-        original_content = await file.read()
+        original_content = await read_limited_upload(
+            file, MAX_UPLOAD_BYTES, "File is larger than the 25 MB MVP limit"
+        )
         original_filename = file.filename
         try:
             content_text, _ = extract_text(file.filename, original_content)
         except DocumentImportError as exc:
             raise HTTPException(status_code=400, detail=str(exc)) from exc
     if not content_text:
-        raise HTTPException(status_code=422, detail="Paste resume text, choose a PDF/DOCX/TXT file, or select a source version")
+        raise HTTPException(
+            status_code=422,
+            detail="Paste resume text, choose a PDF/DOCX/TXT file, or select a source version",
+        )
     try:
         return create_resume(
             request.app.state.db,

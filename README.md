@@ -1,148 +1,102 @@
 # CareerFlow
 
-Локальное браузерное приложение для ведения поиска работы. CareerFlow хранит данные в SQLite, файлы — в локальной папке проекта, а интерфейс и API запускаются одним Python-процессом.
+CareerFlow is a local-first workspace for organizing a job search. Track vacancies, keep a history of tailored resume versions, compare a resume with a vacancy, and collect notes and interview events in one place.
 
-## Возможности MVP
+**Status:** early-stage personal project. Version `0.1.0` is proposed for the first release and has not been published.
 
-- Вакансии: добавление текстом или импорт TXT, HTML, PDF и DOCX; редактирование, архив и полное удаление.
-- Resume: отдельная глобальная неизменяемая библиотека Master Resume и версии под вакансию; просмотр сохранённого текста, скачивание Markdown и оригинала загруженного файла, создание редактируемой версии-копии с сохранением происхождения; пометка реально отправленной версии. Именованные независимые резюме образуют отдельные серии: копирование продолжает серию (`v2`, `v3`), а новая серия начинается с `v1`. У версии есть явное удаление с подтверждением: текст и исходный файл удаляются, а tombstone сохраняет нумерацию, происхождение и историю ATS.
-- Описание вакансии: импорт сначала показывает исходный и очищенный текст, удалённые и сомнительные блоки; текст можно поправить до подтверждения. Повторную очистку можно проверить в карточке вакансии. Codex-классификация доступна только по явному выбору.
-- ATS: локальный эвристический анализ требований, keywords, Covered / Partial / Missing и evidence из выбранной версии CV. Анализ сохраняет версию CV и снимок описания вакансии; после изменения описания прежний результат помечается историческим, а текущий процент сбрасывается до повторного анализа.
-- Воронка: Saved, Applied, Interview, Waiting, Offer, Rejected; повторяемые Interview #1, #2 и далее.
-- Аналитика: локальные карточки активности, историческая воронка, конверсии, динамика, конечные исходы и неполные записи; учёт начинается с новых вакансий после миграции.
-- Timeline: отдельный event log всех ключевых действий.
-- Notes и Files: несколько датированных заметок и произвольные локальные вложения до 100 MB.
-- Хедер: компактная кнопка добавления вакансии и единое бургер-меню во всех разделах; оно открывает левый список вакансий, а выбор вакансии сразу переводит в её карточку.
-- Адаптивная рабочая область: на планшетах и телефонах список вакансий открывается отдельным drawer-сайдбаром, автоматически закрывается после выбора вакансии и не создаёт горизонтальную прокрутку страницы.
-- Оформление: переключатель светлой и тёмной темы рядом с языком в хедере; выбранная тема сохраняется в браузере.
-- Markdown Report: переносимый `.md`-контекст по вакансии, CV, ATS, истории, заметкам и текстовым вложениям. Отчёт различает рабочую версию CV (отправленную или последнюю для вакансии) и CV, использованный для ATS, включая его полный текст, если версии отличаются.
-- AI / Codex: non-interactive `codex exec` прямо из интерфейса, с автоматически собранным контекстом. Для каждого запуска можно выбрать язык ответа: `Auto` сохраняет текущее определение языка моделью, `Russian` и `English` явно ограничивают язык результата. Отдельное действие «Match resume to vacancy» возвращает AI-процент сопоставления в строгом JSON и сохраняет его рядом с локальным ATS-процентом; ATS и AI-оценка остаются независимыми. Действие «Create tailored resume» собирает исходное резюме, поля и полный подтверждённый текст вакансии, последние доступные Analyze vacancy / Match / Improve / Review ATS и совместимый ATS как вспомогательную подсказку. Сохранённые ответы и ошибки можно открыть повторно; история показывает фактически выбранные модель, effort и язык ответа (для старых запусков модель может быть неизвестна, а язык считается `Auto`). В карточке вакансии вкладки идут в порядке Overview → Resume → ATS → AI / Codex → Timeline → Notes → Files; в Overview используется существующее поле Source (URL открывается ссылкой), а очистка описания проходит в компактном модальном окне с внутренней прокруткой.
+[English](README.md) · [Русский](README.ru.md)
 
-Данные хранятся локально. При явном запуске Codex контекст вакансии передаётся CLI и может быть отправлен выбранной модели.
+All records and uploaded files stay on your computer by default. The optional Codex integration runs only after you explicitly start an action; the selected resume, vacancy and attachment context may be sent to the model configured in your local Codex CLI account.
 
-## Быстрый запуск
+## What it does
 
-Требования: macOS/Linux или Windows, Python 3.11+ и, для AI-раздела, установленный и авторизованный Codex CLI.
+- Track vacancies through Saved, Applied, Interview, Waiting, Offer and Rejected, with an event timeline and interview rounds.
+- Import vacancy descriptions from pasted text, supported documents, or a public static HTML page; review the cleaned text before saving.
+- Keep a global Master Resume and immutable, vacancy-specific resume versions with source lineage.
+- Run a local heuristic ATS comparison that records the resume version and vacancy-description snapshot used for the analysis.
+- Save dated notes, local attachments, and portable Markdown reports.
+- Optionally ask the local Codex CLI to analyze a vacancy, match or improve a resume, review ATS findings, or draft a tailored resume. Results are read-only until you explicitly save a new resume version.
+- Use the browser interface in English or Russian, with light and dark themes and responsive layouts.
 
-### Первый запуск
+## Architecture
 
-Откройте Terminal и выполните:
+```text
+Browser SPA (vanilla JavaScript)
+        │ same-origin requests
+        ▼
+FastAPI routes → domain services → SQLite + local file storage
+        │
+        └── optional, explicit Codex CLI action
+```
 
-```bash
-cd "/Users/oleksandr/Documents/Custom files/1. Github Repositories/CareerFlow"
+The project uses Python 3.11 or newer, FastAPI, SQLite from the Python standard library, vanilla JavaScript and CSS. Documents are processed locally. Vacancy URL import fetches public static HTML and does not run page JavaScript or use site credentials.
+
+## Quick start
+
+Requirements: Python 3.11 or newer. For AI actions, install and authenticate the Codex CLI separately; the core application does not require it.
+
+```sh
+git clone https://github.com/Oleksandrnie/CareerFlow.git
+cd CareerFlow
 ./start.sh
 ```
 
-Скрипт автоматически создаст `.venv`, установит проект и запустит локальный сервер. После запуска откройте [http://127.0.0.1:8000](http://127.0.0.1:8000). Остановить сервер можно сочетанием `Ctrl+C`.
+Open <http://127.0.0.1:8000>. Press `Ctrl+C` to stop the server. The first run creates local `data/` and `storage/` directories.
 
-### Повторный запуск
+### Manual installation
 
-```bash
-cd "/Users/oleksandr/Documents/Custom files/1. Github Repositories/CareerFlow"
-./start.sh
-```
-
-Существующее окружение `.venv` будет переиспользовано. Если Unix-система не разрешает запуск скрипта, выполните `chmod +x start.sh`.
-
-### Ручной запуск
-
-```bash
-cd "/Users/oleksandr/Documents/Custom files/1. Github Repositories/CareerFlow"
+```sh
 python3 -m venv .venv
-.venv/bin/python -m pip install -e '.[dev]'
+# macOS/Linux
+.venv/bin/python -m pip install -e .
 .venv/bin/python run.py
 ```
 
-На Windows используйте `.venv\Scripts\python.exe` вместо `.venv/bin/python`.
+On Windows, use `.venv\Scripts\python.exe` for the commands after environment creation.
 
-### Запуск в локальной сети
+### Configuration
 
-Чтобы открыть CareerFlow с телефона или другого устройства в той же Wi‑Fi сети, остановите обычный сервер и запустите:
+CareerFlow reads optional `KEY=VALUE` settings from `.env` in the project root. Environment variables already set by your shell take precedence. See [`.env.example`](.env.example) for a copyable template.
 
-```bash
-cd "/Users/oleksandr/Documents/Custom files/1. Github Repositories/CareerFlow"
-CAREERFLOW_HOST=0.0.0.0 .venv/bin/python run.py
-```
+| Variable | Default | Purpose |
+| --- | --- | --- |
+| `CAREERFLOW_HOST` | `127.0.0.1` | Bind address. Keep loopback for a single-user local setup. |
+| `CAREERFLOW_PORT` | `8000` | Local HTTP port. |
+| `CAREERFLOW_RELOAD` | `0` | Set to `1` to enable Uvicorn reload for development. |
+| `CAREERFLOW_DATA_DIR` | `<project>/data` | Directory for the SQLite database. |
+| `CAREERFLOW_STORAGE_DIR` | `<project>/storage` | Directory for original documents, attachments and reports. |
+| `CAREERFLOW_DATABASE` | `<data dir>/careerflow.db` | Optional explicit SQLite database path. |
+| `CAREERFLOW_CODEX_BINARY` | `codex` | Codex CLI executable name or path. |
+| `CAREERFLOW_CODEX_TIMEOUT` | `180` | Codex action timeout in seconds. |
+| `CAREERFLOW_CODEX_MODEL`, `CAREERFLOW_CODEX_EFFORT` | `gpt-5.6-luna`, `low` | Default model and reasoning effort for general Codex actions. |
+| `CAREERFLOW_CLEANING_CODEX_MODEL`, `CAREERFLOW_CLEANING_CODEX_EFFORT` | `gpt-5.6-luna`, `low` | Vacancy-cleaning model and effort. |
+| `CAREERFLOW_CLEANING_ESCALATION_CODEX_MODEL`, `CAREERFLOW_CLEANING_ESCALATION_CODEX_EFFORT` | `gpt-5.6-sol`, `medium` | Optional escalation profile for vacancy cleaning. |
 
-После запуска откройте на другом устройстве `http://<IP-адрес-компьютера>:8000`, например `http://192.168.0.101:8000`. IP-адрес компьютера можно узнать командой `ipconfig getifaddr en0` на macOS или `ipconfig` на Windows.
+Do not put API keys, passwords or access tokens in `.env`. CareerFlow does not need a provider API key; the Codex CLI uses its own local authentication.
 
-## Основной сценарий
+### Network access
 
-1. Нажмите **Add vacancy**, вставьте описание, перетащите файл либо укажите URL публичной статической HTML-страницы вакансии. Нажмите **Parse vacancy**, проверьте предпросмотр очистки и подтвердите его. При наличии `JobPosting` JSON-LD приложение отдельно определяет название, компанию, зарплату, дату и локации; пустые поля формы заполняются автоматически, но их можно изменить перед подтверждением. URL-импорт не выполняет JavaScript, не использует авторизацию/cookies и блокирует внутренние адреса; для динамической или закрытой страницы откройте публичную версию и вставьте описание вручную. При желании классификацию блоков можно отдельно поручить локальному Codex CLI.
-2. В верхнем разделе **Master Resume** добавьте глобальную версию. В карточке вакансии выберите Master Resume и создайте редактируемую копию в vacancy-specific истории; версии сохраняются неизменяемо с указанием происхождения.
-3. В **ATS** выберите версию CV и запустите анализ.
-4. Меняйте статус вакансии, добавляйте интервью, заметки и материалы.
-5. Нажмите **Export .md**, чтобы получить переносимый отчёт.
-6. В **AI / Codex** выберите действие, модель, поддерживаемый ею reasoning effort и язык ответа (`Auto`, `Russian` или `English`), проверьте запрос и запустите Codex; контекст вакансии добавится автоматически. Для действия сопоставления резюме с вакансией AI-процент появится рядом с ATS-процентом после корректного ответа модели. Для «Create tailored resume» по умолчанию выбираются `gpt-5.6-sol` и `medium`; результат остаётся сохранённым ответом только для чтения. Кнопка **Create editable resume draft** явно переносит его в форму новой vacancy-specific версии, но ничего не сохраняет и не перезаписывает до нажатия **Save vacancy resume version**. Сохранённый ответ или ошибку с использованными моделью, effort и языком можно открыть из истории позже.
+The service has no authentication. The default loopback binding limits access to the current computer. LAN binding is available only for a trusted private network and exposes all application data to other reachable devices. Do not expose CareerFlow to the public Internet. Browser write requests are restricted to same-origin origins, and requests with public Host names are rejected; these checks do not provide user authentication.
 
-Codex возвращает только текст. Он не применяет предложения к CV, заметкам или файлам: сохранение новой версии всегда остаётся отдельным действием пользователя.
+## Try the demo scenario
 
-### Резюме под вакансию
+The files in [`examples/`](examples/) are fictional and contain no real candidate or employer data:
 
-Для «Create tailored resume» источником фактов служит отправленное резюме вакансии; если его нет — последняя версия для этой вакансии, затем последнее главное резюме. В запрос входит его полный текст, название, компания, зарплата, источник, краткое описание и полный подтверждённый текст вакансии. Из сохранённых AI-ответов берётся по одному последнему успешному анализу вакансии, сопоставлению, улучшению резюме и проверке ATS. Если этих ответов нет, модель анализирует требования и сопоставляет их с исходным CV непосредственно в ходе генерации: предварительные запуски и ATS не обязательны.
+1. Add `examples/demo-vacancy.txt` from the **Add vacancy** form.
+2. Add `examples/demo-resume.md` to **Master Resume**.
+3. Create a vacancy-specific resume version, run the ATS comparison, then add a note or interview event.
+4. Export the vacancy as Markdown to see the local report format.
 
-Новые AI-запуски сохраняют сведения о версиях резюме и описания, вошедших в контекст. При сборке резюме рекомендации с известным устаревшим описанием или неподходящей версией CV исключаются; анализ самой вакансии не требует совпадения CV. Ответы, содержащие контекст удалённого резюме, исключаются. Старые ответы без этих сведений обозначаются как непроверенные рекомендации. ATS включается только для выбранного исходного CV и текущего описания; он служит необязательной лексической подсказкой, которую модель должна перепроверить по исходным текстам. Анализы и рекомендации не подтверждают новые факты о кандидате. Промпт требует использовать только подтверждённый опыт, сохранять даты и не добавлять неподтверждённые навыки, достижения или цифры. Результат — полное резюме в Markdown; перед сохранением пользователь проверяет редактируемый черновик.
+No Codex account or external service is needed for this scenario.
 
-### Язык интерфейса
+## Development and checks
 
-В правом верхнем углу доступны переключатели `eng` / `ru` и светлой/тёмной темы (иконка луны/солнца). Выборы сохраняются в браузере. Язык влияет только на подписи, кнопки, подсказки и сообщения интерфейса. Тексты вакансий, резюме, заметок, результатов ATS и ответов Codex не переводятся и не изменяются.
+Create the hash-locked development environment and run the project checks:
 
-## Codex CLI
-
-По умолчанию приложение использует минимальную модель и effort:
-
-- model: `gpt-5.6-luna`;
-- reasoning effort: `low`;
-- sandbox: `read-only`;
-- session: `--ephemeral`;
-- shell: не используется.
-
-Приложение загружает доступный каталог моделей и совместимые reasoning efforts из Codex CLI; при недоступности каталога показывает настроенный fallback. При очистке вакансии Codex сначала использует основной профиль Luna Low. Если он не смог вернуть корректную классификацию, приложение показывает локально очищенный вариант и предлагает один раз повторить операцию через Sol Medium. Усиленный профиль запускается только после подтверждения пользователя и не становится новым значением по умолчанию. Предпросмотр сообщает, какая модель выполнила классификацию или что вместо неё были применены локальные правила. Системные значения настраиваются переменными окружения:
-
-```bash
-CAREERFLOW_CODEX_BINARY=/path/to/codex
-CAREERFLOW_CODEX_MODEL=gpt-5.6-luna
-CAREERFLOW_CODEX_EFFORT=low
-CAREERFLOW_CODEX_TIMEOUT=180
-CAREERFLOW_CLEANING_CODEX_MODEL=gpt-5.6-luna
-CAREERFLOW_CLEANING_CODEX_EFFORT=low
-CAREERFLOW_CLEANING_ESCALATION_CODEX_MODEL=gpt-5.6-sol
-CAREERFLOW_CLEANING_ESCALATION_CODEX_EFFORT=medium
-```
-
-При запуске приложение автоматически читает локальный `.env` в корне проекта; уже заданные переменные shell имеют приоритет. Пример доступен в `.env.example`. Основной и усиленный профили очистки можно переопределить независимо четырьмя переменными выше. После изменения `.env` перезапустите сервер.
-
-## Данные и резервное копирование
-
-- `data/careerflow.db` — SQLite metadata и история.
-- `storage/vacancies/` — оригиналы и извлечённый текст вакансий.
-- `storage/resumes/` — оригиналы и версии CV.
-- `storage/attachments/` — вложения.
-- `storage/reports/` — Markdown-отчёты.
-
-Удаление версии резюме удаляет её рабочий текст и оригинальные файлы; скопированные дочерние версии остаются самостоятельными. ATS-запись сохраняется как историческая с идентификатором версии, но её текстовые evidence-фрагменты очищаются; номер версии не используется повторно. Сохранённая история AI/Codex и ранее экспортированные отчёты — отдельные артефакты и автоматически не удаляются, поэтому могут содержать контекст, сформированный до удаления версии.
-
-Эти каталоги игнорируются Git. Для резервной копии остановите приложение и скопируйте вместе `data/` и `storage/`.
-
-Полное удаление вакансии требует выбрать: удалить связанные версии CV или сохранить их в библиотеке Master Resume. Archive ничего не удаляет.
-
-## Архитектура
-
-```text
-Browser SPA (vanilla JS)
-        ↓ JSON / multipart
-FastAPI routes
-        ↓
-Services: vacancy · resume · ATS · tracking · report · Codex
-        ↓
-SQLite metadata + local storage
-```
-
-Backend использует стандартный `sqlite3` без ORM. При старте схема создаётся или обновляется до v10, включая структурированные funnel-события, признак участия вакансии в аналитике, конечные исходы и коды результатов интервью, tombstone-метаданные удалённых версий resume, историю происхождения resume и серий версий независимых резюме, исходный и подтверждённый текст вакансии, независимый AI match score, метаданные очистки, reasoning effort, язык ответа и происхождение контекста запусков Codex. Аналитика доступна через read-only `GET /api/analytics`; старые вакансии не backfill’ятся и автоматически архивируются/исключаются из новых расчётов без удаления данных. Старые ATS-записи без снимка входных данных остаются в истории, но считаются устаревшими до повторного анализа. ATS и Codex вынесены в отдельные модули, чтобы их можно было заменить позже без переписывания CRUD.
-
-## Проверка
-
-```bash
+```sh
+python3 -m venv .venv
+.venv/bin/python -m pip install --require-hashes -r requirements-dev.lock
+.venv/bin/python -m pip install --no-deps --no-build-isolation -e .
 .venv/bin/python -m compileall -q careerflow tests run.py
 .venv/bin/python -m unittest discover -s tests -v
 node --check careerflow/static/app.js
@@ -150,15 +104,30 @@ node tests/test_analytics_ui.cjs
 node tests/test_ats_ui.cjs
 node tests/test_responsive_ui.cjs
 node tests/test_spa_workflows.cjs
+.venv/bin/ruff check careerflow tests run.py
+.venv/bin/bandit -r careerflow run.py -ll
+.venv/bin/pip-audit --local
 ```
 
-Тесты используют временные SQLite/storage-каталоги и не затрагивают рабочие данные.
+`requirements-dev.lock` pins the full development dependency tree and package hashes from `pyproject.toml`.
 
-## Ограничения MVP
+The Node checks use Node.js 24 or newer. Tests use temporary database and storage directories. Never put private resumes or vacancy material into tests, examples, screenshots, or issue reports. See [CONTRIBUTING.md](CONTRIBUTING.md) for contribution instructions and [SECURITY.md](SECURITY.md) for private vulnerability reporting.
 
-- ATS — прозрачная лексическая эвристика, а не решение работодателя. `Missing` означает «не подтверждено текстом этой версии CV», а не отсутствие реального опыта. Сопоставление нормализует распространённые формы слов и ограниченный набор технических алиасов (`JS`/`JavaScript`, `Postgres`/`PostgreSQL`, `K8s`/`Kubernetes`, `CI/CD`), но не понимает перевод и свободные семантические синонимы. Стаж не выводится из дат работы. Требования и обязанности сравниваются целиком, включая одиночные навыки; отрицательные утверждения не служат положительным evidence. Сохранённые проценты пересчитываются только после нового запуска ATS.
-- PDF должен иметь текстовый слой; OCR не выполняется.
-- URL вакансии импортируется только из публичного статического HTML-ответа с ограничением размера, времени и редиректов; JavaScript, авторизация/cookies, CAPTCHA и динамические страницы не поддерживаются. При ошибке откройте публичную версию вакансии или вставьте описание вручную.
-- Аудио хранится как вложение; автоматической транскрипции нет.
-- Нет multi-user, авторизации, облачного deployment, RAG и сложной аналитики.
-- Миграции существующей БД до схемы v9 выполняются при старте; перед обновлением и после него храните резервную копию `data/` и `storage/` вместе.
+## Privacy and limitations
+
+- CareerFlow is a single-user local application. It has no authentication, multi-user isolation, hosted service, cloud sync or built-in account system.
+- The application does not automatically send records to an external service. Explicitly started Codex actions can send the context shown in the interface through the locally configured CLI account.
+- Vacancy URL import supports public static HTML only; authenticated pages, CAPTCHA, JavaScript-rendered pages and OCR are not supported.
+- PDF import requires a text layer. Audio is stored as a file and is not transcribed.
+- ATS results are heuristic guidance, not hiring predictions. Historical results retain the resume and vacancy-description provenance used for the analysis.
+- Before upgrading, make a backup of `data/` and `storage/` together. The app runs backward-compatible SQLite schema migrations on startup.
+
+## Roadmap
+
+The project is at an early MVP stage. Possible next steps include more import and export options, additional workflow polish, and deeper documentation. There is no committed public roadmap or release date; feature requests are welcome through GitHub Issues.
+
+## License and author
+
+CareerFlow is released under the GNU General Public License, version 3 or (at your option) any later version (`GPL-3.0-or-later`). See [LICENSE](LICENSE) for the full text. Copyright © 2026 Oleksandr Niemchenko.
+
+Contributions are welcome under the same license. Start with [CONTRIBUTING.md](CONTRIBUTING.md); please use synthetic data in examples and bug reports.

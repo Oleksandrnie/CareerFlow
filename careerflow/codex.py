@@ -7,7 +7,6 @@ import json
 import subprocess
 import time
 from dataclasses import dataclass
-from pathlib import Path
 from typing import Callable
 
 from .config import Settings
@@ -130,7 +129,13 @@ def load_model_catalog(
         if completed.returncode != 0:
             raise CodexError("Codex CLI model catalog command failed")
         catalog = _parse_catalog(settings, _catalog_json(completed.stdout))
-    except (FileNotFoundError, subprocess.TimeoutExpired, CodexError, ValueError, json.JSONDecodeError):
+    except (
+        FileNotFoundError,
+        subprocess.TimeoutExpired,
+        CodexError,
+        ValueError,
+        json.JSONDecodeError,
+    ):
         catalog = _fallback_catalog(
             settings,
             "Codex model catalog is unavailable; using the configured default profile.",
@@ -212,11 +217,15 @@ def run_codex(
     command = [
         settings.codex_binary,
         "exec",
-        "--sandbox", "read-only",
-        "--color", "never",
+        "--sandbox",
+        "read-only",
+        "--color",
+        "never",
         "--ephemeral",
-        "--cd", str(settings.project_root),
-        "-c", f'model_reasoning_effort="{selected_effort}"',
+        "--cd",
+        str(settings.project_root),
+        "-c",
+        f'model_reasoning_effort="{selected_effort}"',
     ]
     if selected_model:
         command.extend(["--model", selected_model])
@@ -232,9 +241,13 @@ def run_codex(
             shell=False,
         )
     except FileNotFoundError as exc:
-        raise CodexError("Codex CLI was not found. Set CAREERFLOW_CODEX_BINARY or install Codex.") from exc
+        raise CodexError(
+            "Codex CLI was not found. Set CAREERFLOW_CODEX_BINARY or install Codex."
+        ) from exc
     except subprocess.TimeoutExpired as exc:
-        raise CodexError(f"Codex CLI timed out after {settings.codex_timeout_seconds} seconds") from exc
+        raise CodexError(
+            f"Codex CLI timed out after {settings.codex_timeout_seconds} seconds"
+        ) from exc
     if completed.returncode != 0:
         detail = (completed.stderr or completed.stdout or "Unknown Codex CLI error").strip()
         raise CodexError(detail[-1500:])

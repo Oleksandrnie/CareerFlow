@@ -194,9 +194,7 @@ class Database:
         with self.connect() as connection:
             connection.executescript(SCHEMA)
         with self.transaction(immediate=True) as connection:
-            connection.execute(
-                "INSERT OR IGNORE INTO schema_version(version) VALUES (1)"
-            )
+            connection.execute("INSERT OR IGNORE INTO schema_version(version) VALUES (1)")
             self._ensure_unique_master_versions(connection)
             connection.execute(
                 """
@@ -205,42 +203,24 @@ class Database:
                 WHERE kind = 'master' AND vacancy_id IS NULL
                 """
             )
-            connection.execute(
-                "INSERT OR IGNORE INTO schema_version(version) VALUES (2)"
-            )
+            connection.execute("INSERT OR IGNORE INTO schema_version(version) VALUES (2)")
             self._ensure_ats_provenance_columns(connection)
-            connection.execute(
-                "INSERT OR IGNORE INTO schema_version(version) VALUES (3)"
-            )
+            connection.execute("INSERT OR IGNORE INTO schema_version(version) VALUES (3)")
             self._ensure_track_two_columns(connection)
             self._ensure_resume_source_guards(connection)
-            connection.execute(
-                "INSERT OR IGNORE INTO schema_version(version) VALUES (4)"
-            )
+            connection.execute("INSERT OR IGNORE INTO schema_version(version) VALUES (4)")
             self._ensure_resume_deletion_column(connection)
-            connection.execute(
-                "INSERT OR IGNORE INTO schema_version(version) VALUES (5)"
-            )
+            connection.execute("INSERT OR IGNORE INTO schema_version(version) VALUES (5)")
             self._ensure_ai_match_columns(connection)
-            connection.execute(
-                "INSERT OR IGNORE INTO schema_version(version) VALUES (6)"
-            )
+            connection.execute("INSERT OR IGNORE INTO schema_version(version) VALUES (6)")
             self._ensure_ai_run_context_columns(connection)
-            connection.execute(
-                "INSERT OR IGNORE INTO schema_version(version) VALUES (7)"
-            )
+            connection.execute("INSERT OR IGNORE INTO schema_version(version) VALUES (7)")
             self._ensure_ai_run_response_language_column(connection)
-            connection.execute(
-                "INSERT OR IGNORE INTO schema_version(version) VALUES (8)"
-            )
+            connection.execute("INSERT OR IGNORE INTO schema_version(version) VALUES (8)")
             self._ensure_analytics_foundation(connection)
-            connection.execute(
-                "INSERT OR IGNORE INTO schema_version(version) VALUES (9)"
-            )
+            connection.execute("INSERT OR IGNORE INTO schema_version(version) VALUES (9)")
             self._ensure_resume_series_columns(connection)
-            connection.execute(
-                "INSERT OR IGNORE INTO schema_version(version) VALUES (10)"
-            )
+            connection.execute("INSERT OR IGNORE INTO schema_version(version) VALUES (10)")
 
     @staticmethod
     def _ensure_analytics_foundation(connection: sqlite3.Connection) -> None:
@@ -274,9 +254,7 @@ class Database:
 
     @staticmethod
     def _ensure_resume_series_columns(connection: sqlite3.Connection) -> None:
-        columns = {
-            row["name"] for row in connection.execute("PRAGMA table_info(resume_versions)")
-        }
+        columns = {row["name"] for row in connection.execute("PRAGMA table_info(resume_versions)")}
         if "series_id" not in columns:
             connection.execute(
                 "ALTER TABLE resume_versions ADD COLUMN series_id TEXT NOT NULL DEFAULT ''"
@@ -294,7 +272,11 @@ class Database:
         def root_id(resume_id: int) -> int:
             seen: set[int] = set()
             current = resume_id
-            while current in parents and parents[current] is not None and int(parents[current]) not in seen:
+            while (
+                current in parents
+                and parents[current] is not None
+                and int(parents[current]) not in seen
+            ):
                 seen.add(current)
                 current = int(parents[current])
             return current
@@ -349,9 +331,7 @@ class Database:
 
     @staticmethod
     def _ensure_resume_deletion_column(connection: sqlite3.Connection) -> None:
-        columns = {
-            row["name"] for row in connection.execute("PRAGMA table_info(resume_versions)")
-        }
+        columns = {row["name"] for row in connection.execute("PRAGMA table_info(resume_versions)")}
         if "deleted_at" not in columns:
             connection.execute("ALTER TABLE resume_versions ADD COLUMN deleted_at TEXT")
 
@@ -378,7 +358,7 @@ class Database:
         else:
             confirmed_fallback = "CURRENT_TIMESTAMP"
         connection.execute(
-            f"UPDATE vacancies SET description_confirmed_at = COALESCE(description_confirmed_at, {confirmed_fallback})"
+            f"UPDATE vacancies SET description_confirmed_at = COALESCE(description_confirmed_at, {confirmed_fallback})"  # nosec B608
         )
 
         resume_columns = {
@@ -389,9 +369,7 @@ class Database:
                 "ALTER TABLE resume_versions ADD COLUMN source_resume_id INTEGER REFERENCES resume_versions(id) ON DELETE SET NULL"
             )
 
-        ai_columns = {
-            row["name"] for row in connection.execute("PRAGMA table_info(ai_runs)")
-        }
+        ai_columns = {row["name"] for row in connection.execute("PRAGMA table_info(ai_runs)")}
         if "reasoning_effort" not in ai_columns:
             connection.execute("ALTER TABLE ai_runs ADD COLUMN reasoning_effort TEXT")
 
@@ -425,16 +403,12 @@ class Database:
 
     @staticmethod
     def _ensure_ats_provenance_columns(connection: sqlite3.Connection) -> None:
-        columns = {
-            row["name"] for row in connection.execute("PRAGMA table_info(vacancies)")
-        }
+        columns = {row["name"] for row in connection.execute("PRAGMA table_info(vacancies)")}
         if "description_revision" not in columns:
             connection.execute(
                 "ALTER TABLE vacancies ADD COLUMN description_revision INTEGER NOT NULL DEFAULT 0"
             )
-        columns = {
-            row["name"] for row in connection.execute("PRAGMA table_info(ats_analyses)")
-        }
+        columns = {row["name"] for row in connection.execute("PRAGMA table_info(ats_analyses)")}
         for name, column_type in (
             ("description_snapshot", "TEXT"),
             ("description_revision", "INTEGER"),
@@ -442,9 +416,7 @@ class Database:
             ("resume_version_at_analysis", "INTEGER"),
         ):
             if name not in columns:
-                connection.execute(
-                    f"ALTER TABLE ats_analyses ADD COLUMN {name} {column_type}"
-                )
+                connection.execute(f"ALTER TABLE ats_analyses ADD COLUMN {name} {column_type}")
         connection.execute(
             """
             UPDATE vacancies SET match_percent = NULL

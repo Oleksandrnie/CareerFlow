@@ -4,11 +4,13 @@ from __future__ import annotations
 
 from typing import Annotated
 
-from fastapi import APIRouter, File, Form, HTTPException, Request, Response, UploadFile
+from fastapi import APIRouter, File, HTTPException, Request, Response, UploadFile
 from fastapi.responses import FileResponse
 from pydantic import BaseModel
 
+from .routes_utils import read_limited_upload
 from .tracking import (
+    MAX_ATTACHMENT_BYTES,
     add_attachment,
     add_interview,
     add_note,
@@ -60,7 +62,9 @@ def get_timeline(request: Request, vacancy_id: int) -> list[dict]:
 @router.post("/status")
 def set_status(request: Request, vacancy_id: int, payload: StatusChange) -> dict:
     try:
-        return change_status(request.app.state.db, vacancy_id, payload.status, payload.note, payload.outcome)
+        return change_status(
+            request.app.state.db, vacancy_id, payload.status, payload.note, payload.outcome
+        )
     except (LookupError, ValueError) as exc:
         raise _translate_error(exc) from exc
 
@@ -77,8 +81,13 @@ def get_interviews(request: Request, vacancy_id: int) -> list[dict]:
 def create_interview(request: Request, vacancy_id: int, payload: InterviewCreate) -> dict:
     try:
         return add_interview(
-            request.app.state.db, vacancy_id, payload.interview_at,
-            payload.interview_type, payload.note, payload.result, payload.result_code,
+            request.app.state.db,
+            vacancy_id,
+            payload.interview_at,
+            payload.interview_type,
+            payload.note,
+            payload.result,
+            payload.result_code,
         )
     except (LookupError, ValueError) as exc:
         raise _translate_error(exc) from exc
@@ -137,7 +146,9 @@ async def create_attachment(
             request.app.state.settings.storage_dir,
             vacancy_id,
             file.filename or "attachment",
-            await file.read(),
+            await read_limited_upload(
+                file, MAX_ATTACHMENT_BYTES, "Attachment is larger than the 100 MB MVP limit"
+            ),
             file.content_type,
         )
     except (LookupError, ValueError) as exc:
