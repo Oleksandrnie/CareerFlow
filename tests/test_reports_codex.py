@@ -24,20 +24,31 @@ class ReportsAndCodexTest(unittest.TestCase):
     def setUp(self) -> None:
         self.temp_dir = tempfile.TemporaryDirectory()
         root = Path(self.temp_dir.name)
-        self.settings = Settings(root, root / "data", root / "storage", root / "data" / "test.db", "codex-test", 10)
+        self.settings = Settings(
+            root, root / "data", root / "storage", root / "data" / "test.db", "codex-test", 10
+        )
         self.context = TestClient(create_app(self.settings))
         self.client = self.context.__enter__()
         self.vacancy = self.client.post(
-            "/api/vacancies", data={"text": "Data Engineer\nCompany: Northwind\nMust know Python and SQL."}
+            "/api/vacancies",
+            data={"text": "Data Engineer\nCompany: Northwind\nMust know Python and SQL."},
         ).json()
         self.resume = self.client.post(
-            "/api/resumes", data={"kind": "vacancy", "vacancy_id": self.vacancy["id"], "text": "Python engineer using SQL.", "label": "Data version"}
+            "/api/resumes",
+            data={
+                "kind": "vacancy",
+                "vacancy_id": self.vacancy["id"],
+                "text": "Python engineer using SQL.",
+                "label": "Data version",
+            },
         ).json()
         self.client.post(
-            f"/api/vacancies/{self.vacancy['id']}/ats", json={"resume_version_id": self.resume["id"]}
+            f"/api/vacancies/{self.vacancy['id']}/ats",
+            json={"resume_version_id": self.resume["id"]},
         )
         self.client.post(
-            f"/api/vacancies/{self.vacancy['id']}/notes", json={"body": "Ask about the data platform"}
+            f"/api/vacancies/{self.vacancy['id']}/notes",
+            json={"body": "Ask about the data platform"},
         )
         self.client.post(
             f"/api/vacancies/{self.vacancy['id']}/attachments",
@@ -88,15 +99,19 @@ class ReportsAndCodexTest(unittest.TestCase):
         submitted = self.client.post(
             "/api/resumes",
             data={
-                "kind": "vacancy", "vacancy_id": self.vacancy["id"],
-                "text": "SUBMITTED_CV_DETAIL SQL", "label": "Submitted",
+                "kind": "vacancy",
+                "vacancy_id": self.vacancy["id"],
+                "text": "SUBMITTED_CV_DETAIL SQL",
+                "label": "Submitted",
             },
         ).json()
         latest = self.client.post(
             "/api/resumes",
             data={
-                "kind": "vacancy", "vacancy_id": self.vacancy["id"],
-                "text": "LATEST_UNSUBMITTED_CV_DETAIL", "label": "Draft",
+                "kind": "vacancy",
+                "vacancy_id": self.vacancy["id"],
+                "text": "LATEST_UNSUBMITTED_CV_DETAIL",
+                "label": "Draft",
             },
         ).json()
         self.client.post(f"/api/resumes/{submitted['id']}/submit")
@@ -114,10 +129,8 @@ class ReportsAndCodexTest(unittest.TestCase):
         vacancy = self.client.post(
             "/api/vacancies", data={"text": "Python Engineer\nRequired Python experience."}
         ).json()
-        secret = "PRIVATE_RESUME_TEXT Python experience in a confidential project."
-        resume = self.client.post(
-            "/api/resumes", data={"kind": "master", "text": secret}
-        ).json()
+        secret = "PRIVATE_RESUME_TEXT Python experience in a confidential project."  # pragma: allowlist secret
+        resume = self.client.post("/api/resumes", data={"kind": "master", "text": secret}).json()
         self.client.post(
             f"/api/vacancies/{vacancy['id']}/ats",
             json={"resume_version_id": resume["id"]},
@@ -134,9 +147,7 @@ class ReportsAndCodexTest(unittest.TestCase):
         self.assertEqual(downloaded.status_code, 200)
         self.assertNotIn(b"PRIVATE_RESUME_TEXT", downloaded.content)
 
-        fresh = self.client.post(
-            f"/api/vacancies/{vacancy['id']}/reports"
-        ).json()["markdown"]
+        fresh = self.client.post(f"/api/vacancies/{vacancy['id']}/reports").json()["markdown"]
         self.assertNotIn("PRIVATE_RESUME_TEXT", fresh)
         self.assertIn("resume version was deleted", fresh)
         self.assertIn("Resume-derived evidence is omitted", fresh)
@@ -148,7 +159,9 @@ class ReportsAndCodexTest(unittest.TestCase):
         def fake_runner(command, **kwargs):
             calls["command"] = command
             calls["kwargs"] = kwargs
-            return subprocess.CompletedProcess(command, 0, stdout="Actionable response\n", stderr="")
+            return subprocess.CompletedProcess(
+                command, 0, stdout="Actionable response\n", stderr=""
+            )
 
         result = run_codex(self.settings, "prompt", runner=fake_runner)
         self.assertEqual(result.response, "Actionable response")
@@ -169,14 +182,20 @@ class ReportsAndCodexTest(unittest.TestCase):
         before = self.client.get(f"/api/vacancies/{self.vacancy['id']}").json()
         response = self.client.post(
             f"/api/vacancies/{self.vacancy['id']}/ai-runs",
-            json={"action": "Prepare for interview", "prompt": "What should I prepare?", "model": "gpt-5.6-luna"},
+            json={
+                "action": "Prepare for interview",
+                "prompt": "What should I prepare?",
+                "model": "gpt-5.6-luna",
+            },
         )
         self.assertEqual(response.status_code, 201)
         self.assertEqual(response.json()["response"], "Prepare three STAR examples.")
         self.assertIn("CAREERFLOW CONTEXT", mocked_run.call_args.args[1])
         after = self.client.get(f"/api/vacancies/{self.vacancy['id']}").json()
         self.assertEqual(before["description"], after["description"])
-        self.assertEqual(len(self.client.get(f"/api/vacancies/{self.vacancy['id']}/ai-runs").json()), 1)
+        self.assertEqual(
+            len(self.client.get(f"/api/vacancies/{self.vacancy['id']}/ai-runs").json()), 1
+        )
 
     @patch("careerflow.routes_ai_reports.run_codex")
     def test_ai_history_returns_full_result_and_resolved_model(self, mocked_run) -> None:
@@ -202,9 +221,7 @@ class ReportsAndCodexTest(unittest.TestCase):
         self.assertEqual(self.client.get(f"{url}/{run['id']}").json(), run)
         self.assertEqual(self.client.get(url).json()[0], run)
 
-        other = self.client.post(
-            "/api/vacancies", data={"text": "Different role\nPython"}
-        ).json()
+        other = self.client.post("/api/vacancies", data={"text": "Different role\nPython"}).json()
         self.assertEqual(
             self.client.get(f"/api/vacancies/{other['id']}/ai-runs/{run['id']}").status_code,
             404,
@@ -244,9 +261,7 @@ class ReportsAndCodexTest(unittest.TestCase):
         self.assertEqual(
             sources["included_resume_ids"], sorted([self.resume["id"], analyzed["id"]])
         )
-        self.assertEqual(
-            sources["vacancy_description_revision"], vacancy["description_revision"]
-        )
+        self.assertEqual(sources["vacancy_description_revision"], vacancy["description_revision"])
         self.assertEqual(
             sources["vacancy_description_sha256"],
             sha256(vacancy["description"].encode("utf-8")).hexdigest(),
@@ -320,7 +335,9 @@ class ReportsAndCodexTest(unittest.TestCase):
         with self.assertRaises(ValueError):
             run_codex(self.settings, "prompt", model="bad model; rm")
 
-    def test_prompt_response_language_auto_is_unchanged_and_explicit_values_are_strict(self) -> None:
+    def test_prompt_response_language_auto_is_unchanged_and_explicit_values_are_strict(
+        self,
+    ) -> None:
         expected = "\n".join(
             [
                 "You are assisting with a job-search workspace.",
@@ -337,14 +354,10 @@ class ReportsAndCodexTest(unittest.TestCase):
             build_prompt("Analyze this role", "context", "Analyze vacancy"),
             expected,
         )
-        russian = build_prompt(
-            "Analyze this role", "context", "Analyze vacancy", "russian"
-        )
+        russian = build_prompt("Analyze this role", "context", "Analyze vacancy", "russian")
         self.assertIn("Write all natural-language output in Russian", russian)
         self.assertIn("Keep required JSON keys", russian)
-        english = build_prompt(
-            "Analyze this role", "context", "Analyze vacancy", "english"
-        )
+        english = build_prompt("Analyze this role", "context", "Analyze vacancy", "english")
         self.assertIn("Write all natural-language output in English", english)
         with self.assertRaises(ValueError):
             build_prompt("Analyze this role", "context", response_language="klingon")
@@ -379,15 +392,16 @@ class ReportsAndCodexTest(unittest.TestCase):
             '"strengths": ["..."], "gaps": ["..."]}',
             prompt,
         )
-        history = self.client.get(
-            f"/api/vacancies/{self.vacancy['id']}/ai-runs"
-        ).json()
+        history = self.client.get(f"/api/vacancies/{self.vacancy['id']}/ai-runs").json()
         self.assertEqual(history[0]["response_language"], "russian")
 
     def test_ai_match_parser_accepts_strict_score_only(self) -> None:
         self.assertEqual(parse_ai_match_response('{"match_percent": 74, "summary": "Good"}'), 74)
         self.assertEqual(parse_ai_match_response('```json\n{"match_percent": 50}\n```'), 50)
-        self.assertEqual(parse_ai_match_response('Here is the result:\n{"match_percent": 45, "summary": "ok"}'), 45)
+        self.assertEqual(
+            parse_ai_match_response('Here is the result:\n{"match_percent": 45, "summary": "ok"}'),
+            45,
+        )
         for response in (
             "not json",
             '{"match_percent": 101}',
@@ -408,7 +422,11 @@ class ReportsAndCodexTest(unittest.TestCase):
         before = self.client.get(f"/api/vacancies/{self.vacancy['id']}").json()
         response = self.client.post(
             f"/api/vacancies/{self.vacancy['id']}/ai-runs",
-            json={"action": "Match resume to vacancy", "prompt": "Compare resume and vacancy", "model": "gpt-5.6-luna"},
+            json={
+                "action": "Match resume to vacancy",
+                "prompt": "Compare resume and vacancy",
+                "model": "gpt-5.6-luna",
+            },
         )
         self.assertEqual(response.status_code, 201)
         self.assertEqual(response.json()["ai_match_percent"], 74)
@@ -491,10 +509,10 @@ class ReportsAndCodexTest(unittest.TestCase):
         sources = json.loads(run["context_sources_json"])
         self.assertEqual(sources["resume_version_id"], self.resume["id"])
         self.assertIsNotNone(sources["ats_analysis_id"])
-        self.assertEqual(set(sources["ai_run_ids"]), {
-            "Analyze vacancy", "Improve resume", "Match resume to vacancy",
-            "Review ATS analysis"
-        })
+        self.assertEqual(
+            set(sources["ai_run_ids"]),
+            {"Analyze vacancy", "Improve resume", "Match resume to vacancy", "Review ATS analysis"},
+        )
         self.assertEqual(sources["ats_inclusion_status"], "included")
         generated_prompt = mocked_run.call_args.args[1]
         self.assertIn("LATEST_IMPROVEMENT", generated_prompt)
@@ -511,9 +529,7 @@ class ReportsAndCodexTest(unittest.TestCase):
         self.assertIn("Do not invent or infer", generated_prompt)
         self.assertIn("return Markdown only", generated_prompt)
         self.assertEqual(
-            self.client.get(
-                f"/api/resumes?kind=vacancy&vacancy_id={self.vacancy['id']}"
-            ).json(),
+            self.client.get(f"/api/resumes?kind=vacancy&vacancy_id={self.vacancy['id']}").json(),
             before,
         )
 
@@ -525,9 +541,7 @@ class ReportsAndCodexTest(unittest.TestCase):
         from careerflow.codex import CodexResult
 
         mocked_catalog.return_value = {
-            "models": [
-                {"id": "gpt-5.6-sol", "name": "Sol", "efforts": ["medium", "high"]}
-            ],
+            "models": [{"id": "gpt-5.6-sol", "name": "Sol", "efforts": ["medium", "high"]}],
             "default_model": "gpt-5.6-sol",
             "default_effort": "medium",
             "source": "codex-cli",
@@ -562,9 +576,7 @@ class ReportsAndCodexTest(unittest.TestCase):
         self.assertNotIn("OLDER_MASTER_CONTENT", generated_prompt)
 
     @patch("careerflow.routes_ai_reports.run_codex")
-    def test_tailored_context_gates_ats_and_prior_ai_by_provenance(
-        self, mocked_run
-    ) -> None:
+    def test_tailored_context_gates_ats_and_prior_ai_by_provenance(self, mocked_run) -> None:
         from careerflow.codex import CodexResult
 
         analyzed = self.client.post(
@@ -641,9 +653,7 @@ class ReportsAndCodexTest(unittest.TestCase):
             )
         self.client.delete(f"/api/resumes/{deleted['id']}")
 
-        context, sources = build_tailored_resume_context(
-            database, self.vacancy["id"]
-        )
+        context, sources = build_tailored_resume_context(database, self.vacancy["id"])
         self.assertIsNone(sources["ats_analysis_id"])
         self.assertEqual(sources["ats_candidate_analysis_id"], latest_ats["id"])
         self.assertEqual(sources["ats_inclusion_status"], "omitted")
@@ -665,9 +675,7 @@ class ReportsAndCodexTest(unittest.TestCase):
         )
 
     @patch("careerflow.routes_ai_reports.run_codex")
-    def test_tailored_context_omits_runs_and_ats_after_vacancy_change(
-        self, mocked_run
-    ) -> None:
+    def test_tailored_context_omits_runs_and_ats_after_vacancy_change(self, mocked_run) -> None:
         from careerflow.codex import CodexResult
 
         mocked_run.return_value = CodexResult("OLD_VACANCY_ADVICE", ["codex"])
@@ -675,9 +683,7 @@ class ReportsAndCodexTest(unittest.TestCase):
             f"/api/vacancies/{self.vacancy['id']}/ai-runs",
             json={"action": "Improve resume", "prompt": "Suggest truthful improvements"},
         )
-        updated_description = (
-            "Data Engineer\nCompany: Northwind\nMust know Python, SQL, and Kafka."
-        )
+        updated_description = "Data Engineer\nCompany: Northwind\nMust know Python, SQL, and Kafka."
         updated = self.client.patch(
             f"/api/vacancies/{self.vacancy['id']}",
             json={"description": updated_description},
@@ -712,9 +718,7 @@ class ReportsAndCodexTest(unittest.TestCase):
                 ),
             )
 
-        context, sources = build_tailored_resume_context(
-            database, self.vacancy["id"]
-        )
+        context, sources = build_tailored_resume_context(database, self.vacancy["id"])
         self.assertIn("LEGACY_VACANCY_ANALYSIS", context)
         self.assertIn("Legacy run", context)
         self.assertIn("Analyze vacancy", sources["ai_run_ids"])
@@ -730,9 +734,7 @@ class ReportsAndCodexTest(unittest.TestCase):
                 (self.vacancy["id"],),
             )
         with self.assertRaisesRegex(ValueError, "Review and confirm"):
-            build_tailored_resume_context(
-                self.client.app.state.db, self.vacancy["id"]
-            )
+            build_tailored_resume_context(self.client.app.state.db, self.vacancy["id"])
 
     def test_tailored_resume_instructions_require_direct_analysis_and_safe_ats_use(self) -> None:
         instructions = tailored_resume_instructions()

@@ -109,12 +109,9 @@ jobs:
               capture_output=True,
           )
           paths = [path.decode() for path in result.stdout.split(b"\0") if path]
-          paths = [path for path in paths if path != ".secrets.baseline"]
           subprocess.run(
               [
                   "detect-secrets-hook",
-                  "--baseline",
-                  ".secrets.baseline",
                   "--no-verify",
                   *paths,
               ],

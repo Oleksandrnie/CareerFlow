@@ -44,9 +44,7 @@ class FoundationTest(unittest.TestCase):
         with sqlite3.connect(self.settings.database_path) as connection:
             tables = {
                 row[0]
-                for row in connection.execute(
-                    "SELECT name FROM sqlite_master WHERE type = 'table'"
-                )
+                for row in connection.execute("SELECT name FROM sqlite_master WHERE type = 'table'")
             }
         self.assertTrue(
             {
@@ -72,9 +70,9 @@ class FoundationTest(unittest.TestCase):
         with tempfile.TemporaryDirectory() as directory:
             root = Path(directory)
             (root / ".env").write_text(
-                "CAREERFLOW_CLEANING_CODEX_MODEL=gpt-from-file\n"
+                "CAREERFLOW_CLEANING_CODEX_MODEL=gpt-from-file # pragma: allowlist secret\n"
                 "CAREERFLOW_CLEANING_CODEX_EFFORT=high # local choice\n"
-                "CAREERFLOW_CLEANING_ESCALATION_CODEX_MODEL=gpt-escalation\n"
+                "CAREERFLOW_CLEANING_ESCALATION_CODEX_MODEL=gpt-escalation # pragma: allowlist secret\n"
                 "CAREERFLOW_CLEANING_ESCALATION_CODEX_EFFORT=xhigh\n",
                 encoding="utf-8",
             )
