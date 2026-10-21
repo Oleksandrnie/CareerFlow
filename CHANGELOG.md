@@ -4,6 +4,7 @@ Notable user-facing changes are recorded here. `0.1.0` is a proposed first publi
 
 ## Unreleased
 
+- Switch the project license to GNU GPL v3 or later (`GPL-3.0-or-later`).
 - Prepare public documentation, synthetic demo material, and GitHub quality gates.
 - Bound multipart file reads and reject cross-origin browser writes to the local API.
 

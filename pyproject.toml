@@ -1,5 +1,5 @@
 [build-system]
-requires = ["setuptools>=68"]
+requires = ["setuptools>=77"]
 build-backend = "setuptools.build_meta"
 
 [project]
@@ -7,7 +7,8 @@ name = "careerflow"
 version = "0.1.0"
 description = "Local-first workspace for managing a job search"
 readme = "README.md"
-license = "MIT"
+license = "GPL-3.0-or-later"
+license-files = ["LICENSE"]
 authors = [{ name = "Oleksandr Niemchenko" }]
 requires-python = ">=3.11"
 dependencies = [
@@ -27,7 +28,7 @@ dev = [
   "pip-audit>=2.10,<3",
   "pip>=26.1,<27",
   "ruff>=0.17,<1",
-  "setuptools>=68,<85",
+  "setuptools>=77,<85",
   "wheel>=0.45,<1",
 ]
 

@@ -128,6 +128,6 @@ The project is at an early MVP stage. Possible next steps include more import an
 
 ## License and author
 
-CareerFlow is released under the [MIT License](LICENSE). Copyright © 2026 Oleksandr Niemchenko.
+CareerFlow is released under the GNU General Public License, version 3 or (at your option) any later version (`GPL-3.0-or-later`). See [LICENSE](LICENSE) for the full text. Copyright © 2026 Oleksandr Niemchenko.
 
 Contributions are welcome under the same license. Start with [CONTRIBUTING.md](CONTRIBUTING.md); please use synthetic data in examples and bug reports.
