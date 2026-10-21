@@ -11,29 +11,109 @@ from .db import Database, insert_and_get_id
 
 
 STOP_WORDS = {
-    "about", "after", "also", "and", "are", "but", "can", "for", "from", "have",
-    "in", "into", "its", "job", "our", "role", "that", "the", "their", "this", "using",
-    "with", "will", "work", "you", "your", "для", "или", "как", "команда", "на",
-    "не", "опыт", "от", "по", "работа", "работы", "с", "со", "требования", "что", "это",
-    "мы", "наш", "наша", "наши", "нашего", "компания", "компании", "вакансия",
-    "вакансии", "будет", "будут", "который", "которая", "которые", "вас", "вам",
-    "ищем", "перед", "вами", "следующие", "задачи", "также", "этот", "эта", "эти",
+    "about",
+    "after",
+    "also",
+    "and",
+    "are",
+    "but",
+    "can",
+    "for",
+    "from",
+    "have",
+    "in",
+    "into",
+    "its",
+    "job",
+    "our",
+    "role",
+    "that",
+    "the",
+    "their",
+    "this",
+    "using",
+    "with",
+    "will",
+    "work",
+    "you",
+    "your",
+    "для",
+    "или",
+    "как",
+    "команда",
+    "на",
+    "не",
+    "опыт",
+    "от",
+    "по",
+    "работа",
+    "работы",
+    "с",
+    "со",
+    "требования",
+    "что",
+    "это",
+    "мы",
+    "наш",
+    "наша",
+    "наши",
+    "нашего",
+    "компания",
+    "компании",
+    "вакансия",
+    "вакансии",
+    "будет",
+    "будут",
+    "который",
+    "которая",
+    "которые",
+    "вас",
+    "вам",
+    "ищем",
+    "перед",
+    "вами",
+    "следующие",
+    "задачи",
+    "также",
+    "этот",
+    "эта",
+    "эти",
 }
 
 GENERIC_REQUIREMENT_WORDS = {
-    "ability", "experience", "expertise", "familiarity", "knowledge", "know",
-    "must", "need", "preferred", "proficiency", "required", "requirement",
-    "requirements", "skill", "skills", "year", "years", "yr", "yrs",
-    "знание", "знания", "навык", "навыки", "опыт", "требование", "требования",
+    "ability",
+    "experience",
+    "expertise",
+    "familiarity",
+    "knowledge",
+    "know",
+    "must",
+    "need",
+    "preferred",
+    "proficiency",
+    "required",
+    "requirement",
+    "requirements",
+    "skill",
+    "skills",
+    "year",
+    "years",
+    "yr",
+    "yrs",
+    "знание",
+    "знания",
+    "навык",
+    "навыки",
+    "опыт",
+    "требование",
+    "требования",
 }
 
 NEGATION = re.compile(
     r"(?i)\b(?:no|not|never|without|lack(?:ing|s)?|cannot|can't|don't|"
     r"нет|без|не|отсутств\w*)\b"
 )
-YEARS = re.compile(
-    r"(?i)\b(\d+(?:[.,]\d+)?)\s*\+?\s*(?:years?|yrs?|лет|года?|год)\b"
-)
+YEARS = re.compile(r"(?i)\b(\d+(?:[.,]\d+)?)\s*\+?\s*(?:years?|yrs?|лет|года?|год)\b")
 
 # These are high-confidence spelling/abbreviation equivalences, not general
 # semantic synonyms. Keep the list deliberately small so ATS remains
@@ -57,10 +137,38 @@ TECHNICAL_ALIASES = {
 }
 
 RUSSIAN_INFLECTION_SUFFIXES = (
-    "иями", "ями", "ами", "ого", "ему", "ому", "ее", "ие", "ые",
-    "ой", "ий", "ый", "ую", "юю", "ая", "яя", "ов", "ев", "ам",
-    "ям", "ом", "ем", "ах", "ях", "ы", "и", "а", "я", "у", "ю",
-    "е", "о",
+    "иями",
+    "ями",
+    "ами",
+    "ого",
+    "ему",
+    "ому",
+    "ее",
+    "ие",
+    "ые",
+    "ой",
+    "ий",
+    "ый",
+    "ую",
+    "юю",
+    "ая",
+    "яя",
+    "ов",
+    "ев",
+    "ам",
+    "ям",
+    "ом",
+    "ем",
+    "ах",
+    "ях",
+    "ы",
+    "и",
+    "а",
+    "я",
+    "у",
+    "ю",
+    "е",
+    "о",
 )
 
 
@@ -93,11 +201,11 @@ def _matching_forms(token: str) -> set[str]:
             forms.update({stem, f"{stem}e"})
         for suffix in ("ment", "tion", "sion"):
             if token.endswith(suffix) and len(token) - len(suffix) >= 4:
-                forms.add(token[:-len(suffix)])
+                forms.add(token[: -len(suffix)])
     elif re.search(r"[а-яё]", token):
         for suffix in RUSSIAN_INFLECTION_SUFFIXES:
             if token.endswith(suffix) and len(token) - len(suffix) >= 4:
-                forms.add(token[:-len(suffix)])
+                forms.add(token[: -len(suffix)])
 
     return forms
 
@@ -106,19 +214,15 @@ def _matched_tokens(required_tokens: set[str], candidate_tokens: set[str]) -> se
     """Return vacancy tokens supported by at least one resume token."""
     candidate_forms = (
         set().union(*(_matching_forms(token) for token in candidate_tokens))
-        if candidate_tokens else set()
+        if candidate_tokens
+        else set()
     )
-    return {
-        token for token in required_tokens
-        if _matching_forms(token) & candidate_forms
-    }
+    return {token for token in required_tokens if _matching_forms(token) & candidate_forms}
 
 
 def _tokens(text: str) -> list[str]:
     tokens: list[str] = []
-    for raw_token in re.findall(
-        r"[A-Za-zА-Яа-яЁё][A-Za-zА-Яа-яЁё0-9+#.\-/]{1,}", text
-    ):
+    for raw_token in re.findall(r"[A-Za-zА-Яа-яЁё][A-Za-zА-Яа-яЁё0-9+#.\-/]{1,}", text):
         # Keep meaningful in-token punctuation (for example C++, C#, Node.js,
         # and CI/CD), but do not let sentence punctuation change keyword identity.
         token = raw_token.lower().strip(".-/")
@@ -248,18 +352,14 @@ def analyze(vacancy_text: str, resume_text: str) -> dict:
             positive_sentences.append((sentence, sentence_tokens, stated_years, matched))
 
         overlap = (
-            set().union(*(
-                matched
-                for _, _, _, matched in positive_sentences
-            ))
-            if positive_sentences else set()
+            set().union(*(matched for _, _, _, matched in positive_sentences))
+            if positive_sentences
+            else set()
         )
         negative_overlap = (
-            set().union(*(
-                matched
-                for _, _, _, matched in negative_sentences
-            ))
-            if negative_sentences else set()
+            set().union(*(matched for _, _, _, matched in negative_sentences))
+            if negative_sentences
+            else set()
         )
         unresolved_negative = negative_overlap - overlap
         if positive_sentences:
@@ -268,11 +368,13 @@ def analyze(vacancy_text: str, resume_text: str) -> dict:
                 years_ok = required_years is None or (
                     bool(stated_years) and min(stated_years) >= required_years
                 )
-                evidence_candidates.append((
-                    (len(matched), int(years_ok)),
-                    sentence,
-                    years_ok,
-                ))
+                evidence_candidates.append(
+                    (
+                        (len(matched), int(years_ok)),
+                        sentence,
+                        years_ok,
+                    )
+                )
             _, best_evidence, best_years_ok = max(evidence_candidates, key=lambda item: item[0])
         elif negative_sentences:
             best_evidence, _, _, _ = max(
@@ -293,15 +395,21 @@ def analyze(vacancy_text: str, resume_text: str) -> dict:
         if classification == "covered" and (not best_evidence or not best_years_ok):
             classification = "partial"
         if unresolved_negative or best_negative:
-            interpretation = "Negative wording is present; this does not confirm the required experience"
+            interpretation = (
+                "Negative wording is present; this does not confirm the required experience"
+            )
         elif classification == "partial" and not best_years_ok:
             interpretation = "The required years are not evidenced by this resume sentence"
         elif classification == "covered":
             interpretation = "Evidence found in this resume version"
         elif classification == "partial":
-            interpretation = "Some related evidence is present; the requirement may be under-described"
+            interpretation = (
+                "Some related evidence is present; the requirement may be under-described"
+            )
         else:
-            interpretation = "Not evidenced in this resume version; this does not prove the experience is absent"
+            interpretation = (
+                "Not evidenced in this resume version; this does not prove the experience is absent"
+            )
         requirement_results.append(
             {
                 "requirement": requirement,
@@ -315,10 +423,14 @@ def analyze(vacancy_text: str, resume_text: str) -> dict:
 
     keyword_overlap = [word for word in keywords if word in evidenced_keywords]
     keyword_score = len(keyword_overlap) / max(1, len(keywords))
-    requirement_score = (
-        sum(1 if item["classification"] == "covered" else 0.5 if item["classification"] == "partial" else 0 for item in requirement_results)
-        / max(1, len(requirement_results))
-    )
+    requirement_score = sum(
+        1
+        if item["classification"] == "covered"
+        else 0.5
+        if item["classification"] == "partial"
+        else 0
+        for item in requirement_results
+    ) / max(1, len(requirement_results))
     match_percent = round((keyword_score * 0.4 + requirement_score * 0.6) * 100)
     return {
         "match_percent": max(0, min(100, match_percent)),
@@ -343,7 +455,9 @@ def run_analysis(database: Database, vacancy_id: int, resume_id: int) -> dict:
         if vacancy is None:
             raise LookupError("Vacancy not found")
         if not vacancy["description_confirmed_at"]:
-            raise ValueError("Review and confirm the cleaned vacancy description before running ATS")
+            raise ValueError(
+                "Review and confirm the cleaned vacancy description before running ATS"
+            )
         resume = connection.execute(
             "SELECT * FROM resume_versions WHERE id = ? AND deleted_at IS NULL",
             (resume_id,),
@@ -363,9 +477,14 @@ def run_analysis(database: Database, vacancy_id: int, resume_id: int) -> dict:
             ) VALUES (?, ?, ?, ?, ?, ?, ?, ?)
             """,
             (
-                vacancy_id, resume_id, result["match_percent"],
-                json.dumps(result, ensure_ascii=False), vacancy["description"],
-                vacancy["description_revision"], resume["kind"], resume["version"],
+                vacancy_id,
+                resume_id,
+                result["match_percent"],
+                json.dumps(result, ensure_ascii=False),
+                vacancy["description"],
+                vacancy["description_revision"],
+                resume["kind"],
+                resume["version"],
             ),
         )
         connection.execute(

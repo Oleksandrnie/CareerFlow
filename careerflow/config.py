@@ -56,9 +56,7 @@ class Settings:
         load_project_env(root)
         data_dir = Path(os.getenv("CAREERFLOW_DATA_DIR", root / "data")).resolve()
         storage_dir = Path(os.getenv("CAREERFLOW_STORAGE_DIR", root / "storage")).resolve()
-        database_path = Path(
-            os.getenv("CAREERFLOW_DATABASE", data_dir / "careerflow.db")
-        ).resolve()
+        database_path = Path(os.getenv("CAREERFLOW_DATABASE", data_dir / "careerflow.db")).resolve()
         return cls(
             project_root=root,
             data_dir=data_dir,

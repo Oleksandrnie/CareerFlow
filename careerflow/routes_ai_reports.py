@@ -50,7 +50,7 @@ def parse_ai_match_response(response: str) -> int | None:
         decoder = json.JSONDecoder()
         for match in re.finditer(r"\{", text):
             try:
-                candidate, _ = decoder.raw_decode(text[match.start():])
+                candidate, _ = decoder.raw_decode(text[match.start() :])
             except json.JSONDecodeError:
                 continue
             if isinstance(candidate, dict) and "match_percent" in candidate:
@@ -165,9 +165,7 @@ def execute_ai(request: Request, vacancy_id: int, payload: AiRequest) -> dict:
             )
             source_resume_id = context_sources["resume_version_id"]
         else:
-            context, context_sources = build_report_with_sources(
-                request.app.state.db, vacancy_id
-            )
+            context, context_sources = build_report_with_sources(request.app.state.db, vacancy_id)
             source_resume_id = context_sources["resume_version_id"]
     except (LookupError, ValueError) as exc:
         raise HTTPException(status_code=422, detail=str(exc)) from exc
@@ -193,9 +191,7 @@ def execute_ai(request: Request, vacancy_id: int, payload: AiRequest) -> dict:
         prompt += f"\n\n{tailored_resume_instructions()}"
     try:
         requested_model = (
-            TAILORED_RESUME_MODEL
-            if payload.action == TAILORED_RESUME_ACTION
-            else payload.model
+            TAILORED_RESUME_MODEL if payload.action == TAILORED_RESUME_ACTION else payload.model
         )
         requested_effort = (
             TAILORED_RESUME_EFFORT

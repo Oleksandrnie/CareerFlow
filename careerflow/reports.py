@@ -34,7 +34,9 @@ def _resume_changes(versions: list[dict]) -> list[str]:
             removed = sum(item.startswith("- ") for item in diff)
             detail += f", +{added}/-{removed} words vs previous version"
         marker = " — SUBMITTED" if version["is_submitted"] else ""
-        lines.append(f"- Vacancy Resume v{version['version']}: {version['label'] or 'No label'} ({detail}){marker}")
+        lines.append(
+            f"- Vacancy Resume v{version['version']}: {version['label'] or 'No label'} ({detail}){marker}"
+        )
         previous_words = words
     return lines
 
@@ -177,7 +179,9 @@ def _build_report_context(
             )
         for classification in ("covered", "partial", "missing"):
             lines.extend([f"### {classification.title()}", ""])
-            matching = [item for item in result["requirements"] if item["classification"] == classification]
+            matching = [
+                item for item in result["requirements"] if item["classification"] == classification
+            ]
             if not matching:
                 lines.append("- None")
             for item in matching:
@@ -214,11 +218,23 @@ def _build_report_context(
     if not attachments:
         lines.append("No attachments.")
     for attachment in attachments:
-        lines.append(f"- {attachment['filename']} ({attachment['media_type']}, {attachment['size_bytes']} bytes)")
+        lines.append(
+            f"- {attachment['filename']} ({attachment['media_type']}, {attachment['size_bytes']} bytes)"
+        )
         if attachment["is_text"]:
             try:
-                content = Path(attachment["stored_path"]).read_text(encoding="utf-8", errors="replace")
-                lines.extend(["", f"### Text: {attachment['filename']}", "", content[:MAX_TEXT_ATTACHMENT_CHARS], ""])
+                content = Path(attachment["stored_path"]).read_text(
+                    encoding="utf-8", errors="replace"
+                )
+                lines.extend(
+                    [
+                        "",
+                        f"### Text: {attachment['filename']}",
+                        "",
+                        content[:MAX_TEXT_ATTACHMENT_CHARS],
+                        "",
+                    ]
+                )
             except OSError:
                 lines.append("  - Text content is unavailable on disk.")
     included_resumes = [item for item in (selected, analyzed_resume) if item]
@@ -264,7 +280,13 @@ def save_report(
             "INSERT INTO timeline_events(vacancy_id, event_type, title, details) VALUES (?, 'report_generated', 'Markdown report generated', ?)",
             (vacancy_id, path.name),
         )
-    return {"id": report_id, "vacancy_id": vacancy_id, "filename": path.name, "stored_path": str(path), "markdown": markdown}
+    return {
+        "id": report_id,
+        "vacancy_id": vacancy_id,
+        "filename": path.name,
+        "stored_path": str(path),
+        "markdown": markdown,
+    }
 
 
 def get_report(database: Database, vacancy_id: int, report_id: int) -> dict:

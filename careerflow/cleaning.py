@@ -126,9 +126,7 @@ def _apply_local_safeguards(
     if len(local_by_id) != len(local) or {item["id"] for item in codex} != set(local_by_id):
         raise ValueError("Codex cleanup did not return the complete block set")
     return [
-        local_by_id[item["id"]]
-        if local_by_id[item["id"]]["classification"] == "remove"
-        else item
+        local_by_id[item["id"]] if local_by_id[item["id"]]["classification"] == "remove" else item
         for item in codex
     ]
 
@@ -324,9 +322,7 @@ def build_preview(
         ),
         "blocks": classified,
         "removed_blocks": removed,
-        "uncertain_blocks": [
-            item for item in classified if item["classification"] == "uncertain"
-        ],
+        "uncertain_blocks": [item for item in classified if item["classification"] == "uncertain"],
         "warnings": warnings,
         "diagnostics": diagnostics,
     }
