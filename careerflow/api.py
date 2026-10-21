@@ -14,6 +14,8 @@ from .config import Settings
 from .db import Database
 from .routes_ats import router as ats_router
 from .routes_ai_reports import router as ai_reports_router
+from .routes_analytics import router as analytics_router
+from .routes_codex import router as codex_router
 from .routes_resumes import router as resumes_router
 from .routes_tracking import router as tracking_router
 from .routes_vacancies import router as vacancies_router
@@ -36,6 +38,7 @@ def create_app(settings: Settings | None = None) -> FastAPI:
     )
     application.state.settings = resolved_settings
     application.state.db = database
+    application.state.url_imports = {}
     static_dir = Path(__file__).parent / "static"
     application.mount("/static", StaticFiles(directory=static_dir), name="static")
     application.include_router(vacancies_router)
@@ -43,6 +46,8 @@ def create_app(settings: Settings | None = None) -> FastAPI:
     application.include_router(ats_router)
     application.include_router(tracking_router)
     application.include_router(ai_reports_router)
+    application.include_router(analytics_router)
+    application.include_router(codex_router)
 
     @application.get("/api/health")
     def health() -> dict[str, str]:

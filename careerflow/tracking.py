@@ -8,12 +8,14 @@ from datetime import datetime
 from pathlib import Path
 from uuid import uuid4
 
-from .db import Database, insert_and_get_id
+from .db import Database, insert_and_get_id, insert_funnel_event
 from .files import safe_filename, write_bytes
 from .vacancies import get_vacancy
 
 
 STATUSES = {"Saved", "Applied", "Interview", "Waiting", "Offer", "Rejected"}
+OUTCOMES = {"offer_accepted", "offer_declined", "employer_rejected", "candidate_withdrew", "vacancy_closed", "no_response", "unknown"}
+INTERVIEW_RESULTS = {"scheduled", "passed", "failed", "cancelled", "unknown"}
 TEXT_ATTACHMENT_EXTENSIONS = {".txt", ".md", ".html", ".htm", ".json", ".csv"}
 MAX_ATTACHMENT_BYTES = 100 * 1024 * 1024
 INTERVIEW_TIMESTAMP = re.compile(
@@ -53,21 +55,34 @@ def timeline(database: Database, vacancy_id: int) -> list[dict]:
     )
 
 
-def change_status(database: Database, vacancy_id: int, status: str, note: str = "") -> dict:
+def change_status(database: Database, vacancy_id: int, status: str, note: str = "", outcome: str | None = None) -> dict:
     vacancy = _ensure_vacancy(database, vacancy_id)
     if status not in STATUSES:
         raise ValueError("Unsupported vacancy status")
+    if outcome is not None and outcome not in OUTCOMES:
+        raise ValueError("Unsupported vacancy outcome")
     if status == vacancy["status"] and not note.strip():
         return vacancy
     with database.transaction() as connection:
-        connection.execute(
-            "UPDATE vacancies SET status = ?, updated_at = CURRENT_TIMESTAMP WHERE id = ?",
-            (status, vacancy_id),
-        )
+        if outcome is None:
+            connection.execute(
+                "UPDATE vacancies SET status = ?, updated_at = CURRENT_TIMESTAMP WHERE id = ?",
+                (status, vacancy_id),
+            )
+        else:
+            connection.execute(
+                "UPDATE vacancies SET status = ?, outcome = ?, outcome_at = CURRENT_TIMESTAMP, updated_at = CURRENT_TIMESTAMP WHERE id = ?",
+                (status, outcome, vacancy_id),
+            )
         connection.execute(
             "INSERT INTO timeline_events(vacancy_id, event_type, title, details) VALUES (?, 'status_changed', ?, ?)",
             (vacancy_id, status, note.strip()),
         )
+        event_type = {"Applied": "application_submitted", "Offer": "offer_received"}.get(status)
+        if event_type:
+            insert_funnel_event(connection, vacancy_id, event_type, metadata={"status": status})
+        if outcome and outcome != "unknown":
+            insert_funnel_event(connection, vacancy_id, outcome)
     return get_vacancy(database, vacancy_id) or {}
 
 
@@ -78,8 +93,11 @@ def add_interview(
     interview_type: str,
     note: str,
     result: str,
+    result_code: str = "unknown",
 ) -> dict:
     interview_at = _validated_interview_at(interview_at)
+    if result_code not in INTERVIEW_RESULTS:
+        raise ValueError("Unsupported interview result code")
     with database.transaction(immediate=True) as connection:
         vacancy_exists = connection.execute(
             "SELECT 1 FROM vacancies WHERE id = ?", (vacancy_id,)
@@ -94,10 +112,10 @@ def add_interview(
         interview_id = insert_and_get_id(
             connection,
             """
-            INSERT INTO interviews(vacancy_id, sequence_number, interview_at, interview_type, note, result)
-            VALUES (?, ?, ?, ?, ?, ?)
+            INSERT INTO interviews(vacancy_id, sequence_number, interview_at, interview_type, note, result, result_code)
+            VALUES (?, ?, ?, ?, ?, ?, ?)
             """,
-            (vacancy_id, sequence, interview_at, interview_type.strip() or "Interview", note.strip(), result.strip()),
+            (vacancy_id, sequence, interview_at, interview_type.strip() or "Interview", note.strip(), result.strip(), result_code),
         )
         connection.execute(
             "UPDATE vacancies SET status = 'Interview', updated_at = CURRENT_TIMESTAMP WHERE id = ?",
@@ -115,6 +133,11 @@ def add_interview(
                 interview_at,
             ),
         )
+        insert_funnel_event(connection, vacancy_id, "interview_scheduled", occurred_at=interview_at, metadata={"interview_id": interview_id})
+        if result_code in {"passed", "failed"}:
+            insert_funnel_event(connection, vacancy_id, "interview_completed", occurred_at=interview_at, metadata={"interview_id": interview_id, "result_code": result_code})
+        elif result_code == "cancelled":
+            insert_funnel_event(connection, vacancy_id, "interview_cancelled", occurred_at=interview_at, metadata={"interview_id": interview_id})
     return database.fetch_one("SELECT * FROM interviews WHERE id = ?", (interview_id,)) or {}
 
 
