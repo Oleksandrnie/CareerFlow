@@ -85,10 +85,19 @@ def create_vacancy(
                 ?, ?, ?, ?, ?)
             """,
             (
-                inferred["title"], inferred["company"], inferred["salary"],
-                inferred["summary"], normalized, normalized_raw, cleaning_method,
-                cleaning_method, int(description_confirmed), (overrides or {}).get("source", ""),
-                source_type, stored_filename, str(original_path) if original_path else None,
+                inferred["title"],
+                inferred["company"],
+                inferred["salary"],
+                inferred["summary"],
+                normalized,
+                normalized_raw,
+                cleaning_method,
+                cleaning_method,
+                int(description_confirmed),
+                (overrides or {}).get("source", ""),
+                source_type,
+                stored_filename,
+                str(original_path) if original_path else None,
                 str(extracted_path),
             ),
         )
@@ -121,7 +130,7 @@ def get_vacancy(database: Database, vacancy_id: int) -> dict | None:
 def list_vacancies(database: Database, archived: bool = False) -> list[dict]:
     operator = "IS NOT NULL" if archived else "IS NULL"
     return database.fetch_all(
-        f"SELECT * FROM vacancies WHERE archived_at {operator} ORDER BY created_at DESC, id DESC"
+        f"SELECT * FROM vacancies WHERE archived_at {operator} ORDER BY created_at DESC, id DESC"  # nosec B608
     )
 
 
@@ -143,7 +152,7 @@ def update_vacancy(database: Database, vacancy_id: int, changes: dict[str, str])
         if "description" in selected and selected["description"] != current["description"]:
             assignments += ", description_revision = description_revision + 1, match_percent = NULL, ai_match_percent = NULL, ai_match_updated_at = NULL, description_confirmed_at = CURRENT_TIMESTAMP, description_cleaning_method = 'manual-edit', description_cleaned_at = CURRENT_TIMESTAMP"
         cursor = connection.execute(
-            f"UPDATE vacancies SET {assignments}, updated_at = CURRENT_TIMESTAMP WHERE id = ?",
+            f"UPDATE vacancies SET {assignments}, updated_at = CURRENT_TIMESTAMP WHERE id = ?",  # nosec B608
             (*selected.values(), vacancy_id),
         )
         if cursor.rowcount == 0:
@@ -186,7 +195,15 @@ def apply_clean_description(
                 updated_at = CURRENT_TIMESTAMP
             WHERE id = ?
             """,
-            (normalized, safe_method, int(changed), int(changed), int(changed), int(changed), vacancy_id),
+            (
+                normalized,
+                safe_method,
+                int(changed),
+                int(changed),
+                int(changed),
+                int(changed),
+                vacancy_id,
+            ),
         )
         connection.execute(
             """
@@ -195,7 +212,9 @@ def apply_clean_description(
             """,
             (
                 vacancy_id,
-                "Cleaned description confirmed" if current["description_cleaned_at"] is None else "Description cleaned again",
+                "Cleaned description confirmed"
+                if current["description_cleaned_at"] is None
+                else "Description cleaned again",
                 f"Method: {safe_method}" + (" · ATS requires rerun" if changed else ""),
             ),
         )
@@ -209,14 +228,18 @@ def set_archived(database: Database, vacancy_id: int, archived: bool) -> dict | 
     value = "CURRENT_TIMESTAMP" if archived else "NULL"
     with database.transaction() as connection:
         cursor = connection.execute(
-            f"UPDATE vacancies SET archived_at = {value}, updated_at = CURRENT_TIMESTAMP WHERE id = ?",
+            f"UPDATE vacancies SET archived_at = {value}, updated_at = CURRENT_TIMESTAMP WHERE id = ?",  # nosec B608
             (vacancy_id,),
         )
         if cursor.rowcount == 0:
             return None
         connection.execute(
             "INSERT INTO timeline_events(vacancy_id, event_type, title) VALUES (?, ?, ?)",
-            (vacancy_id, "archived" if archived else "restored", "Vacancy archived" if archived else "Vacancy restored"),
+            (
+                vacancy_id,
+                "archived" if archived else "restored",
+                "Vacancy archived" if archived else "Vacancy restored",
+            ),
         )
     return get_vacancy(database, vacancy_id)
 
@@ -271,12 +294,19 @@ def delete_vacancy(
                         label = CASE WHEN label = '' THEN ? ELSE label || ? END
                     WHERE id = ?
                     """,
-                    (next_master + offset, f"Preserved from {vacancy['title']}", f" · Preserved from {vacancy['title']}", resume["id"]),
+                    (
+                        next_master + offset,
+                        f"Preserved from {vacancy['title']}",
+                        f" · Preserved from {vacancy['title']}",
+                        resume["id"],
+                    ),
                 )
                 preserved += 1
         else:
             for resume in resumes:
-                paths_to_remove.extend([resume.get("original_path"), resume.get("extracted_text_path")])
+                paths_to_remove.extend(
+                    [resume.get("original_path"), resume.get("extracted_text_path")]
+                )
         connection.execute("DELETE FROM vacancies WHERE id = ?", (vacancy_id,))
 
     storage_root = storage_dir.resolve()

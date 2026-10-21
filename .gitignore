@@ -22,4 +22,12 @@ build/
 data/
 storage/
 .env
-
+.env.*
+!.env.example
+*.db
+*.db-*
+*.sqlite
+*.sqlite3
+*.sqlite-*
+*.sqlite3-*
+*.log

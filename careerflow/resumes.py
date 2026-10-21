@@ -60,8 +60,8 @@ def list_resumes(database: Database, kind: str, vacancy_id: int | None = None) -
         )
     else:
         rows = database.fetch_all(
-        f"{RESUME_WITH_SOURCE} WHERE child.kind = 'vacancy' AND child.vacancy_id = ? AND child.deleted_at IS NULL ORDER BY child.version DESC",
-        (vacancy_id,),
+            f"{RESUME_WITH_SOURCE} WHERE child.kind = 'vacancy' AND child.vacancy_id = ? AND child.deleted_at IS NULL ORDER BY child.version DESC",
+            (vacancy_id,),
         )
     return [_public_resume(row) for row in rows]
 
@@ -168,9 +168,17 @@ def create_resume(
                 ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
                 """,
                 (
-                    vacancy_id, kind, version, label.strip(), stored_filename,
-                    str(original_path) if original_path else None, str(extracted_path), normalized,
-                    source_resume_id, series_id, series_version,
+                    vacancy_id,
+                    kind,
+                    version,
+                    label.strip(),
+                    stored_filename,
+                    str(original_path) if original_path else None,
+                    str(extracted_path),
+                    normalized,
+                    source_resume_id,
+                    series_id,
+                    series_version,
                 ),
             )
             if vacancy_id is not None:
@@ -213,11 +221,16 @@ def _storage_folder_for_deletion(connection, storage_dir: Path, resume: dict) ->
     resolved_paths = [(name, path.resolve()) for name, path in stored_paths]
     if any(not path.is_relative_to(allowed_root) for _, path in resolved_paths):
         raise ValueError("Resume storage path is outside storage/resumes")
-    if any(name == "extracted_text_path" and path.name != "resume.md" for name, path in resolved_paths):
+    if any(
+        name == "extracted_text_path" and path.name != "resume.md" for name, path in resolved_paths
+    ):
         raise ValueError("Resume Markdown storage path is invalid")
     if resume.get("original_path"):
         filename = resume.get("original_filename")
-        if not filename or Path(resume["original_path"]).resolve().name != f"original-{safe_filename(filename)}":
+        if (
+            not filename
+            or Path(resume["original_path"]).resolve().name != f"original-{safe_filename(filename)}"
+        ):
             raise ValueError("Resume original storage path is invalid")
 
     folders = {path.parent for _, path in resolved_paths}
@@ -266,7 +279,7 @@ def _redact_stored_reports(
     report_root = (storage_dir / "reports").resolve()
     placeholders_sql = ",".join("?" for _ in vacancy_ids)
     report_rows = connection.execute(
-        f"SELECT stored_path FROM generated_reports WHERE vacancy_id IN ({placeholders_sql})",
+        f"SELECT stored_path FROM generated_reports WHERE vacancy_id IN ({placeholders_sql})",  # nosec B608
         tuple(sorted(vacancy_ids)),
     ).fetchall()
     redacted_count = 0
@@ -279,9 +292,7 @@ def _redact_stored_reports(
         markdown = path.read_text(encoding="utf-8", errors="replace")
         redacted = markdown
         if resume_text:
-            redacted = redacted.replace(
-                resume_text, "Resume content was deleted and redacted."
-            )
+            redacted = redacted.replace(resume_text, "Resume content was deleted and redacted.")
         for value in evidence_excerpts:
             redacted = redacted.replace(
                 f"  - Evidence: “{value}”",
@@ -336,9 +347,7 @@ def delete_resume(database: Database, storage_dir: Path, resume_id: int) -> dict
                 if evidence:
                     evidence_excerpts.append(evidence)
                     requirement["evidence"] = ""
-            scrubbed_results.append(
-                (json.dumps(result, ensure_ascii=False), int(analysis["id"]))
-            )
+            scrubbed_results.append((json.dumps(result, ensure_ascii=False), int(analysis["id"])))
         reports_redacted = _redact_stored_reports(
             connection, storage_dir, resume, evidence_excerpts
         )
@@ -441,7 +450,9 @@ def mark_submitted(database: Database, resume_id: int) -> dict:
             ),
         )
         insert_funnel_event(
-            connection, resume["vacancy_id"], "application_submitted",
+            connection,
+            resume["vacancy_id"],
+            "application_submitted",
             metadata={"resume_version_id": resume_id},
         )
     updated = get_resume(database, resume_id)

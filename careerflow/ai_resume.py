@@ -113,7 +113,7 @@ def _unavailable_resume_ids(database: Database, resume_ids: list[int]) -> list[i
         return []
     placeholders = ",".join("?" for _ in resume_ids)
     rows = database.fetch_all(
-        f"SELECT id, deleted_at FROM resume_versions WHERE id IN ({placeholders})",
+        f"SELECT id, deleted_at FROM resume_versions WHERE id IN ({placeholders})",  # nosec B608
         tuple(resume_ids),
     )
     states = {int(row["id"]): row["deleted_at"] for row in rows}
@@ -143,9 +143,7 @@ def _evaluate_run(
         "ats_analysis_id": _int_value(sources.get("ats_analysis_id")),
         "ats_resume_id": _int_value(sources.get("ats_resume_id")),
         "included_resume_ids": resume_ids,
-        "vacancy_description_revision": _int_value(
-            sources.get("vacancy_description_revision")
-        ),
+        "vacancy_description_revision": _int_value(sources.get("vacancy_description_revision")),
         "vacancy_description_sha256": (
             sources.get("vacancy_description_sha256")
             if isinstance(sources.get("vacancy_description_sha256"), str)
@@ -215,9 +213,7 @@ def _evaluate_run(
             ),
         )
         return metadata
-    foreign_resume_ids = [
-        resume_id for resume_id in resume_ids if resume_id != resume["id"]
-    ]
+    foreign_resume_ids = [resume_id for resume_id in resume_ids if resume_id != resume["id"]]
     if action in CANDIDATE_ACTIONS and foreign_resume_ids:
         metadata.update(
             included=False,
@@ -362,9 +358,7 @@ def build_tailored_resume_context(database: Database, vacancy_id: int) -> tuple[
         "resume_version_id": resume["id"],
         "resume_kind": resume["kind"],
         "resume_version": resume["version"],
-        "resume_selection": (
-            "submitted" if resume["is_submitted"] else f"latest_{resume['kind']}"
-        ),
+        "resume_selection": ("submitted" if resume["is_submitted"] else f"latest_{resume['kind']}"),
         "vacancy_id": vacancy["id"],
         "vacancy_description_revision": vacancy["description_revision"],
         "vacancy_description_sha256": _description_sha256(vacancy["description"]),
@@ -375,9 +369,7 @@ def build_tailored_resume_context(database: Database, vacancy_id: int) -> tuple[
         "ats_omission_reason": ats_omission_reason or None,
         "ats_resume_id": latest_ats["resume_version_id"] if latest_ats else None,
         "ai_run_ids": {
-            action: run["id"]
-            for action, run in runs.items()
-            if run_metadata[action]["included"]
+            action: run["id"] for action, run in runs.items() if run_metadata[action]["included"]
         },
         "ai_run_sources": run_metadata,
     }

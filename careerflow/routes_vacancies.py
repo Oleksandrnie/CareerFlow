@@ -7,9 +7,10 @@ from typing import Annotated, Literal
 from fastapi import APIRouter, File, Form, HTTPException, Request, UploadFile
 from pydantic import BaseModel
 
-from .files import ImportError as DocumentImportError
+from .files import MAX_UPLOAD_BYTES, ImportError as DocumentImportError
 from .cleaning import build_preview
 from .files import extract_vacancy_text, fetch_vacancy_url, normalize_text
+from .routes_utils import read_limited_upload
 from .vacancies import (
     apply_clean_description,
     create_vacancy,
@@ -79,7 +80,9 @@ async def add_vacancy(
     if url_import_token:
         cached = getattr(request.app.state, "url_imports", {}).pop(url_import_token, None)
         if cached is None:
-            raise HTTPException(status_code=422, detail="URL import preview expired. Parse the URL again.")
+            raise HTTPException(
+                status_code=422, detail="URL import preview expired. Parse the URL again."
+            )
         raw_description = cached["raw_description"]
         extracted = cached["candidate_text"]
         source_type = cached["source_type"]
@@ -93,9 +96,13 @@ async def add_vacancy(
         }
         inferred_method = "url-import"
     elif url.strip():
-        raise HTTPException(status_code=422, detail="Parse the vacancy URL before confirming the import")
+        raise HTTPException(
+            status_code=422, detail="Parse the vacancy URL before confirming the import"
+        )
     elif file and file.filename:
-        original_content = await file.read()
+        original_content = await read_limited_upload(
+            file, MAX_UPLOAD_BYTES, "File is larger than the 25 MB MVP limit"
+        )
         original_filename = file.filename
         try:
             extraction = extract_vacancy_text(file.filename, original_content)
@@ -151,7 +158,10 @@ async def preview_import(
         method = extraction.method
     elif file and file.filename:
         try:
-            extraction = extract_vacancy_text(file.filename, await file.read())
+            content = await read_limited_upload(
+                file, MAX_UPLOAD_BYTES, "File is larger than the 25 MB MVP limit"
+            )
+            extraction = extract_vacancy_text(file.filename, content)
         except DocumentImportError as exc:
             raise HTTPException(status_code=400, detail=str(exc)) from exc
         raw_description = extraction.raw_text
@@ -174,6 +184,7 @@ async def preview_import(
     response = {**preview, "source_type": source_type}
     if url.strip():
         import secrets
+
         token = secrets.token_urlsafe(24)
         extracted_fields = extraction.metadata.as_dict()
         inferred_fields = {
@@ -241,9 +252,7 @@ def preview_existing_description(
 
 
 @router.post("/{vacancy_id}/description/apply")
-def apply_description(
-    request: Request, vacancy_id: int, payload: CleaningApplyRequest
-) -> dict:
+def apply_description(request: Request, vacancy_id: int, payload: CleaningApplyRequest) -> dict:
     try:
         return apply_clean_description(
             request.app.state.db, vacancy_id, payload.description, payload.method
