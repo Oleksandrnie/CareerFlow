@@ -1,9 +1,11 @@
 from __future__ import annotations
 
+import os
 import sqlite3
 import tempfile
 import unittest
 from pathlib import Path
+from unittest.mock import patch
 
 from fastapi.testclient import TestClient
 
@@ -61,6 +63,31 @@ class FoundationTest(unittest.TestCase):
     def test_default_codex_profile_is_minimal(self) -> None:
         self.assertEqual(self.settings.codex_default_model, "gpt-5.6-luna")
         self.assertEqual(self.settings.codex_reasoning_effort, "low")
+        self.assertEqual(self.settings.codex_cleaning_model, "gpt-5.6-luna")
+        self.assertEqual(self.settings.codex_cleaning_effort, "low")
+        self.assertEqual(self.settings.codex_cleaning_escalation_model, "gpt-5.6-sol")
+        self.assertEqual(self.settings.codex_cleaning_escalation_effort, "medium")
+
+    def test_dotenv_configures_cleaning_profile_without_overriding_shell(self) -> None:
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            (root / ".env").write_text(
+                "CAREERFLOW_CLEANING_CODEX_MODEL=gpt-from-file\n"
+                "CAREERFLOW_CLEANING_CODEX_EFFORT=high # local choice\n"
+                "CAREERFLOW_CLEANING_ESCALATION_CODEX_MODEL=gpt-escalation\n"
+                "CAREERFLOW_CLEANING_ESCALATION_CODEX_EFFORT=xhigh\n",
+                encoding="utf-8",
+            )
+            with patch.dict(
+                os.environ,
+                {"CAREERFLOW_CLEANING_CODEX_MODEL": "gpt-from-shell"},
+                clear=True,
+            ):
+                settings = Settings.from_env(root)
+        self.assertEqual(settings.codex_cleaning_model, "gpt-from-shell")
+        self.assertEqual(settings.codex_cleaning_effort, "high")
+        self.assertEqual(settings.codex_cleaning_escalation_model, "gpt-escalation")
+        self.assertEqual(settings.codex_cleaning_escalation_effort, "xhigh")
 
     def test_root_reports_ready(self) -> None:
         response = self.client.get("/")

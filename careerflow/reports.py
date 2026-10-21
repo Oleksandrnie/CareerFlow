@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import difflib
+import hashlib
 from datetime import datetime, timezone
 from pathlib import Path
 
@@ -38,7 +39,9 @@ def _resume_changes(versions: list[dict]) -> list[str]:
     return lines
 
 
-def build_report(database: Database, vacancy_id: int) -> str:
+def _build_report_context(
+    database: Database, vacancy_id: int, *, include_raw: bool = False
+) -> tuple[str, dict]:
     vacancy = get_vacancy(database, vacancy_id)
     if vacancy is None:
         raise LookupError("Vacancy not found")
@@ -71,9 +74,17 @@ def build_report(database: Database, vacancy_id: int) -> str:
         "",
         vacancy["description"],
         "",
-        "## Resume context",
-        "",
     ]
+    if include_raw:
+        lines.extend(
+            [
+                "## Diagnostic raw vacancy description",
+                "",
+                vacancy["raw_description"] or vacancy["description"],
+                "",
+            ]
+        )
+    lines.extend(["## Resume context", ""])
     if selected:
         lines.extend(
             [
@@ -89,21 +100,31 @@ def build_report(database: Database, vacancy_id: int) -> str:
     else:
         lines.append("No vacancy-specific resume version has been added.")
 
-    if analyzed_resume and analysis:
-        analyzed_kind = analysis["resume_kind_at_analysis"] or analyzed_resume["kind"]
-        analyzed_version = analysis["resume_version_at_analysis"] or analyzed_resume["version"]
+    if analysis:
+        analyzed_kind = analysis["resume_kind_at_analysis"] or (
+            analyzed_resume["kind"] if analyzed_resume else "unknown"
+        )
+        analyzed_version = analysis["resume_version_at_analysis"] or (
+            analyzed_resume["version"] if analyzed_resume else "unknown"
+        )
         lines.extend(
             [
                 "",
                 "### Resume used for ATS analysis",
                 "",
-                f"{analyzed_kind.title()} Resume v{analyzed_version} (ID {analyzed_resume['id']}; {analyzed_resume['label'] or 'No label'}).",
+                f"{str(analyzed_kind).title()} Resume v{analyzed_version} (ID {analysis['resume_version_id']}).",
                 "",
             ]
         )
-        if selected and selected["id"] == analyzed_resume["id"]:
+        if analysis["resume_deleted"]:
+            lines.extend(
+                [
+                    "This resume version was deleted and its content was redacted.",
+                ]
+            )
+        elif analyzed_resume and selected and selected["id"] == analyzed_resume["id"]:
             lines.append("Same resume as the workflow version shown above.")
-        else:
+        elif analyzed_resume:
             lines.extend(
                 [
                     "This differs from the workflow resume shown above.",
@@ -147,6 +168,13 @@ def build_report(database: Database, vacancy_id: int) -> str:
                         "",
                     ]
                 )
+        if analysis["resume_deleted"]:
+            lines.extend(
+                [
+                    "Resume-derived evidence is omitted because the analyzed resume was deleted.",
+                    "",
+                ]
+            )
         for classification in ("covered", "partial", "missing"):
             lines.extend([f"### {classification.title()}", ""])
             matching = [item for item in result["requirements"] if item["classification"] == classification]
@@ -155,7 +183,7 @@ def build_report(database: Database, vacancy_id: int) -> str:
             for item in matching:
                 lines.append(f"- {item['requirement']}")
                 lines.append(f"  - Interpretation: {item['interpretation']}")
-                if item["evidence"]:
+                if item["evidence"] and not analysis["resume_deleted"]:
                     lines.append(f"  - Evidence: “{item['evidence']}”")
             lines.append("")
     else:
@@ -193,11 +221,35 @@ def build_report(database: Database, vacancy_id: int) -> str:
                 lines.extend(["", f"### Text: {attachment['filename']}", "", content[:MAX_TEXT_ATTACHMENT_CHARS], ""])
             except OSError:
                 lines.append("  - Text content is unavailable on disk.")
-    return "\n".join(lines).strip() + "\n"
+    included_resumes = [item for item in (selected, analyzed_resume) if item]
+    source_resume = selected or analyzed_resume
+    sources = {
+        "vacancy_description_revision": vacancy["description_revision"],
+        "vacancy_description_sha256": hashlib.sha256(
+            vacancy["description"].encode("utf-8")
+        ).hexdigest(),
+        "resume_version_id": source_resume["id"] if source_resume else None,
+        "workflow_resume_id": selected["id"] if selected else None,
+        "ats_analysis_id": analysis["id"] if analysis else None,
+        "ats_resume_id": analysis["resume_version_id"] if analysis else None,
+        "included_resume_ids": sorted({item["id"] for item in included_resumes}),
+    }
+    return "\n".join(lines).strip() + "\n", sources
 
 
-def save_report(database: Database, storage_dir: Path, vacancy_id: int) -> dict:
-    markdown = build_report(database, vacancy_id)
+def build_report(database: Database, vacancy_id: int, *, include_raw: bool = False) -> str:
+    return _build_report_context(database, vacancy_id, include_raw=include_raw)[0]
+
+
+def build_report_with_sources(database: Database, vacancy_id: int) -> tuple[str, dict]:
+    """Return AI report text and provenance from the same assembled inputs."""
+    return _build_report_context(database, vacancy_id)
+
+
+def save_report(
+    database: Database, storage_dir: Path, vacancy_id: int, *, include_raw: bool = False
+) -> dict:
+    markdown = build_report(database, vacancy_id, include_raw=include_raw)
     timestamp = datetime.now(timezone.utc).strftime("%Y%m%d-%H%M%S-%f")
     path = storage_dir / "reports" / str(vacancy_id) / f"careerflow-{vacancy_id}-{timestamp}.md"
     path.parent.mkdir(parents=True, exist_ok=True)
