@@ -7,8 +7,7 @@ import ipaddress
 from pathlib import Path
 from urllib.parse import urlsplit
 
-from fastapi import FastAPI
-from fastapi import Request
+from fastapi import FastAPI, Request
 from fastapi.responses import FileResponse, JSONResponse
 from fastapi.staticfiles import StaticFiles
 
@@ -22,6 +21,8 @@ from .routes_codex import router as codex_router
 from .routes_resumes import router as resumes_router
 from .routes_tracking import router as tracking_router
 from .routes_vacancies import router as vacancies_router
+
+MAX_REQUEST_BODY_BYTES = 101 * 1024 * 1024
 
 
 def _is_local_request_host(host: str | None) -> bool:
@@ -103,12 +104,33 @@ def create_app(settings: Settings | None = None) -> FastAPI:
                 request_size = int(content_length)
             except ValueError:
                 return JSONResponse(status_code=400, content={"detail": "Invalid Content-Length"})
-            if request_size < 0 or request_size > 101 * 1024 * 1024:
+            if request_size < 0 or request_size > MAX_REQUEST_BODY_BYTES:
                 return JSONResponse(
                     status_code=413,
                     content={"detail": "Request body is larger than the 101 MB limit"},
                 )
-        return await call_next(request)
+        original_receive = request._receive
+        received_bytes = 0
+        request_too_large = False
+
+        async def receive_with_limit():
+            nonlocal received_bytes, request_too_large
+            message = await original_receive()
+            if message["type"] == "http.request":
+                received_bytes += len(message.get("body", b""))
+                if received_bytes > MAX_REQUEST_BODY_BYTES:
+                    request_too_large = True
+                    return {"type": "http.request", "body": b"", "more_body": False}
+            return message
+
+        request._receive = receive_with_limit
+        response = await call_next(request)
+        if request_too_large:
+            return JSONResponse(
+                status_code=413,
+                content={"detail": "Request body is larger than the 101 MB limit"},
+            )
+        return response
 
     static_dir = Path(__file__).parent / "static"
     application.mount("/static", StaticFiles(directory=static_dir), name="static")

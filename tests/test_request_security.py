@@ -68,6 +68,22 @@ class LocalRequestSecurityTest(unittest.TestCase):
 
         self.assertEqual(response.status_code, 413)
 
+    @patch("careerflow.api.MAX_REQUEST_BODY_BYTES", 8)
+    def test_chunked_oversized_request_is_rejected_while_streaming(self) -> None:
+        body = (
+            b"--test-boundary\r\n"
+            b'Content-Disposition: form-data; name="text"\r\n\r\n'
+            b"Synthetic job posting\r\n"
+            b"--test-boundary--\r\n"
+        )
+        response = self.client.post(
+            "/api/vacancies",
+            content=iter([body]),
+            headers={"Content-Type": "multipart/form-data; boundary=test-boundary"},
+        )
+
+        self.assertEqual(response.status_code, 413)
+
     @patch("careerflow.routes_vacancies.MAX_UPLOAD_BYTES", 8)
     def test_vacancy_upload_is_bounded_before_file_extraction(self) -> None:
         response = self.client.post(
