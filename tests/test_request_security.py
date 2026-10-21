@@ -1,10 +1,12 @@
 from __future__ import annotations
 
+import asyncio
 import tempfile
 import unittest
 from pathlib import Path
 from unittest.mock import patch
 
+import httpx
 from fastapi.testclient import TestClient
 
 from careerflow.api import create_app
@@ -83,6 +85,35 @@ class LocalRequestSecurityTest(unittest.TestCase):
         )
 
         self.assertEqual(response.status_code, 413)
+
+    def test_chunked_oversized_json_does_not_mutate_vacancy(self) -> None:
+        vacancy = self.client.post(
+            "/api/vacancies",
+            data={"text": "Synthetic job posting", "title": "Original title"},
+        ).json()
+        payload = b'{"title":"Updated title"}'
+
+        async def send_chunked_request() -> httpx.Response:
+            async def body_chunks():
+                yield payload
+                yield b" " * 16
+
+            transport = httpx.ASGITransport(app=self.context.app)
+            async with httpx.AsyncClient(
+                transport=transport, base_url="http://testserver"
+            ) as async_client:
+                return await async_client.patch(
+                    f"/api/vacancies/{vacancy['id']}",
+                    content=body_chunks(),
+                    headers={"Content-Type": "application/json"},
+                )
+
+        with patch("careerflow.api.MAX_REQUEST_BODY_BYTES", len(payload)):
+            response = asyncio.run(send_chunked_request())
+
+        self.assertEqual(response.status_code, 413)
+        persisted = self.client.get(f"/api/vacancies/{vacancy['id']}").json()
+        self.assertEqual(persisted["title"], "Original title")
 
     @patch("careerflow.routes_vacancies.MAX_UPLOAD_BYTES", 8)
     def test_vacancy_upload_is_bounded_before_file_extraction(self) -> None:

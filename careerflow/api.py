@@ -25,6 +25,10 @@ from .routes_vacancies import router as vacancies_router
 MAX_REQUEST_BODY_BYTES = 101 * 1024 * 1024
 
 
+class _RequestBodyTooLarge(Exception):
+    """Abort request parsing when the streaming body limit is exceeded."""
+
+
 def _is_local_request_host(host: str | None) -> bool:
     if not host:
         return False
@@ -120,11 +124,17 @@ def create_app(settings: Settings | None = None) -> FastAPI:
                 received_bytes += len(message.get("body", b""))
                 if received_bytes > MAX_REQUEST_BODY_BYTES:
                     request_too_large = True
-                    return {"type": "http.request", "body": b"", "more_body": False}
+                    raise _RequestBodyTooLarge
             return message
 
         request._receive = receive_with_limit
-        response = await call_next(request)
+        try:
+            response = await call_next(request)
+        except _RequestBodyTooLarge:
+            return JSONResponse(
+                status_code=413,
+                content={"detail": "Request body is larger than the 101 MB limit"},
+            )
         if request_too_large:
             return JSONResponse(
                 status_code=413,
