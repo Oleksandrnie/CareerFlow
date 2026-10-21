@@ -251,6 +251,216 @@ class Database:
             connection.execute(
                 "UPDATE vacancies SET analytics_eligible = 0, archived_at = COALESCE(archived_at, CURRENT_TIMESTAMP)"
             )
+            self._ensure_track_two_columns(connection)
+            self._ensure_resume_source_guards(connection)
+            connection.execute(
+                "INSERT OR IGNORE INTO schema_version(version) VALUES (4)"
+            )
+            self._ensure_resume_deletion_column(connection)
+            connection.execute(
+                "INSERT OR IGNORE INTO schema_version(version) VALUES (5)"
+            )
+            self._ensure_ai_match_columns(connection)
+            connection.execute(
+                "INSERT OR IGNORE INTO schema_version(version) VALUES (6)"
+            )
+            self._ensure_ai_run_context_columns(connection)
+            connection.execute(
+                "INSERT OR IGNORE INTO schema_version(version) VALUES (7)"
+            )
+            self._ensure_ai_run_response_language_column(connection)
+            connection.execute(
+                "INSERT OR IGNORE INTO schema_version(version) VALUES (8)"
+            )
+            self._ensure_analytics_foundation(connection)
+            connection.execute(
+                "INSERT OR IGNORE INTO schema_version(version) VALUES (9)"
+            )
+            self._ensure_resume_series_columns(connection)
+            connection.execute(
+                "INSERT OR IGNORE INTO schema_version(version) VALUES (10)"
+            )
+
+    @staticmethod
+    def _ensure_analytics_foundation(connection: sqlite3.Connection) -> None:
+        vacancy_columns = {
+            row["name"] for row in connection.execute("PRAGMA table_info(vacancies)")
+        }
+        if "analytics_eligible" not in vacancy_columns:
+            connection.execute(
+                "ALTER TABLE vacancies ADD COLUMN analytics_eligible INTEGER NOT NULL DEFAULT 1"
+            )
+        if "outcome" not in vacancy_columns:
+            connection.execute("ALTER TABLE vacancies ADD COLUMN outcome TEXT")
+        if "outcome_at" not in vacancy_columns:
+            connection.execute("ALTER TABLE vacancies ADD COLUMN outcome_at TEXT")
+
+        interview_columns = {
+            row["name"] for row in connection.execute("PRAGMA table_info(interviews)")
+        }
+        if "result_code" not in interview_columns:
+            connection.execute(
+                "ALTER TABLE interviews ADD COLUMN result_code TEXT NOT NULL DEFAULT 'unknown'"
+            )
+
+        already_migrated = connection.execute(
+            "SELECT 1 FROM schema_version WHERE version = 9"
+        ).fetchone()
+        if already_migrated is None:
+            connection.execute(
+                "UPDATE vacancies SET analytics_eligible = 0, archived_at = COALESCE(archived_at, CURRENT_TIMESTAMP)"
+            )
+
+    @staticmethod
+    def _ensure_resume_series_columns(connection: sqlite3.Connection) -> None:
+        columns = {
+            row["name"] for row in connection.execute("PRAGMA table_info(resume_versions)")
+        }
+        if "series_id" not in columns:
+            connection.execute(
+                "ALTER TABLE resume_versions ADD COLUMN series_id TEXT NOT NULL DEFAULT ''"
+            )
+        if "series_version" not in columns:
+            connection.execute(
+                "ALTER TABLE resume_versions ADD COLUMN series_version INTEGER NOT NULL DEFAULT 0"
+            )
+
+        rows = connection.execute(
+            "SELECT id, kind, vacancy_id, version, source_resume_id, series_id, series_version FROM resume_versions ORDER BY id"
+        ).fetchall()
+        parents = {int(row["id"]): row["source_resume_id"] for row in rows}
+
+        def root_id(resume_id: int) -> int:
+            seen: set[int] = set()
+            current = resume_id
+            while current in parents and parents[current] is not None and int(parents[current]) not in seen:
+                seen.add(current)
+                current = int(parents[current])
+            return current
+
+        for row in rows:
+            current_series = str(row["series_id"] or "").strip()
+            if current_series:
+                series_id = current_series
+            elif row["vacancy_id"] is not None and row["kind"] == "vacancy":
+                series_id = f"legacy-vacancy-{int(row['vacancy_id'])}"
+            else:
+                series_id = f"legacy-resume-{root_id(int(row['id']))}"
+            series_version = int(row["series_version"] or 0) or int(row["version"])
+            if current_series != series_id or int(row["series_version"] or 0) != series_version:
+                connection.execute(
+                    "UPDATE resume_versions SET series_id = ?, series_version = ? WHERE id = ?",
+                    (series_id, series_version, int(row["id"])),
+                )
+        connection.execute(
+            """
+            CREATE UNIQUE INDEX IF NOT EXISTS unique_resume_series_version
+            ON resume_versions(kind, vacancy_id, series_id, series_version)
+            """
+        )
+
+    @staticmethod
+    def _ensure_ai_run_response_language_column(connection: sqlite3.Connection) -> None:
+        columns = {row["name"] for row in connection.execute("PRAGMA table_info(ai_runs)")}
+        if "response_language" not in columns:
+            connection.execute(
+                "ALTER TABLE ai_runs ADD COLUMN response_language TEXT NOT NULL DEFAULT 'auto'"
+            )
+
+    @staticmethod
+    def _ensure_ai_run_context_columns(connection: sqlite3.Connection) -> None:
+        columns = {row["name"] for row in connection.execute("PRAGMA table_info(ai_runs)")}
+        for name, definition in (
+            ("action", "TEXT NOT NULL DEFAULT ''"),
+            ("source_resume_id", "INTEGER REFERENCES resume_versions(id) ON DELETE SET NULL"),
+            ("context_sources_json", "TEXT NOT NULL DEFAULT '{}'"),
+        ):
+            if name not in columns:
+                connection.execute(f"ALTER TABLE ai_runs ADD COLUMN {name} {definition}")
+
+    @staticmethod
+    def _ensure_ai_match_columns(connection: sqlite3.Connection) -> None:
+        columns = {row["name"] for row in connection.execute("PRAGMA table_info(vacancies)")}
+        if "ai_match_percent" not in columns:
+            connection.execute("ALTER TABLE vacancies ADD COLUMN ai_match_percent INTEGER")
+        if "ai_match_updated_at" not in columns:
+            connection.execute("ALTER TABLE vacancies ADD COLUMN ai_match_updated_at TEXT")
+
+    @staticmethod
+    def _ensure_resume_deletion_column(connection: sqlite3.Connection) -> None:
+        columns = {
+            row["name"] for row in connection.execute("PRAGMA table_info(resume_versions)")
+        }
+        if "deleted_at" not in columns:
+            connection.execute("ALTER TABLE resume_versions ADD COLUMN deleted_at TEXT")
+
+    @staticmethod
+    def _ensure_track_two_columns(connection: sqlite3.Connection) -> None:
+        vacancy_columns = {
+            row["name"] for row in connection.execute("PRAGMA table_info(vacancies)")
+        }
+        for name, definition in (
+            ("raw_description", "TEXT"),
+            ("description_cleaning_method", "TEXT"),
+            ("description_cleaned_at", "TEXT"),
+            ("description_confirmed_at", "TEXT"),
+        ):
+            if name not in vacancy_columns:
+                connection.execute(f"ALTER TABLE vacancies ADD COLUMN {name} {definition}")
+        connection.execute(
+            "UPDATE vacancies SET raw_description = description WHERE raw_description IS NULL OR raw_description = ''"
+        )
+        if "created_at" in vacancy_columns:
+            confirmed_fallback = "created_at"
+        elif "updated_at" in vacancy_columns:
+            confirmed_fallback = "updated_at"
+        else:
+            confirmed_fallback = "CURRENT_TIMESTAMP"
+        connection.execute(
+            f"UPDATE vacancies SET description_confirmed_at = COALESCE(description_confirmed_at, {confirmed_fallback})"
+        )
+
+        resume_columns = {
+            row["name"] for row in connection.execute("PRAGMA table_info(resume_versions)")
+        }
+        if "source_resume_id" not in resume_columns:
+            connection.execute(
+                "ALTER TABLE resume_versions ADD COLUMN source_resume_id INTEGER REFERENCES resume_versions(id) ON DELETE SET NULL"
+            )
+
+        ai_columns = {
+            row["name"] for row in connection.execute("PRAGMA table_info(ai_runs)")
+        }
+        if "reasoning_effort" not in ai_columns:
+            connection.execute("ALTER TABLE ai_runs ADD COLUMN reasoning_effort TEXT")
+
+    @staticmethod
+    def _ensure_resume_source_guards(connection: sqlite3.Connection) -> None:
+        connection.executescript(
+            """
+            CREATE TRIGGER IF NOT EXISTS prevent_resume_source_cycle_insert
+            BEFORE INSERT ON resume_versions
+            WHEN NEW.source_resume_id IS NOT NULL AND NEW.id = NEW.source_resume_id
+            BEGIN
+                SELECT RAISE(ABORT, 'Resume source cycle is not allowed');
+            END;
+
+            CREATE TRIGGER IF NOT EXISTS prevent_resume_source_cycle_update
+            BEFORE UPDATE OF source_resume_id ON resume_versions
+            WHEN NEW.source_resume_id IS NOT NULL
+            BEGIN
+                WITH RECURSIVE ancestors(id, source_resume_id) AS (
+                    SELECT id, source_resume_id FROM resume_versions WHERE id = NEW.source_resume_id
+                    UNION ALL
+                    SELECT parent.id, parent.source_resume_id
+                    FROM resume_versions AS parent
+                    JOIN ancestors ON parent.id = ancestors.source_resume_id
+                )
+                SELECT RAISE(ABORT, 'Resume source cycle is not allowed')
+                FROM ancestors WHERE id = NEW.id;
+            END;
+            """
+        )
 
     @staticmethod
     def _ensure_resume_series_columns(connection: sqlite3.Connection) -> None:
