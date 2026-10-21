@@ -56,6 +56,7 @@ const appLayout = document.querySelector("#app-layout");
 const newVacancyButton = document.querySelector("#new-vacancy");
 const themeToggle = document.querySelector("#theme-toggle");
 const dialog = document.querySelector("#import-dialog");
+const deleteVacancyDialog = document.querySelector("#delete-vacancy-dialog");
 const analyticsHelp = document.querySelector("#analytics-help");
 const form = document.querySelector("#import-form");
 const fileInput = document.querySelector("#vacancy-file");
@@ -86,6 +87,8 @@ const RU = {
   "Vacancy stage": "Этап вакансии", "Added": "Добавлена", "ATS": "ATS", "AI": "AI", "Heuristic ATS text-match score, not a probability of getting the job": "Эвристическая оценка совпадения ATS, не вероятность получения работы",
   "Overview": "Обзор", "Resume": "Резюме", "Timeline": "История", "Notes": "Заметки", "Files": "Файлы", "AI / Codex": "AI / Codex",
   "Export .md": "Экспорт .md", "Edit": "Изменить", "Restore": "Восстановить", "Archive": "Архивировать", "Delete": "Удалить",
+  "PERMANENT ACTION": "НЕОБРАТИМОЕ ДЕЙСТВИЕ", "Delete vacancy?": "Удалить вакансию?", "Delete vacancy": "Удалить вакансию", "Delete vacancy, keep CVs": "Удалить вакансию, сохранить CV", "Delete vacancy and CVs": "Удалить вакансию и CV",
+  "This vacancy has": "У этой вакансии", "CV version(s). Choose whether to preserve them in the Master Resume library or delete them.": "версий CV. Выберите, сохранить их в библиотеке главных резюме или удалить.", "This permanently deletes the vacancy, its history, and stored files.": "Вакансия, её история и сохранённые файлы будут удалены без возможности восстановления.",
   "SALARY": "ЗАРПЛАТА", "SOURCE": "ИСТОЧНИК", "Not specified": "Не указана", "Summary": "Краткое описание", "No summary": "Описание отсутствует",
   "Confirmed vacancy description": "Подтверждённое описание вакансии", "Used for ATS and Codex context. The original import remains preserved.": "Используется для ATS и контекста Codex. Исходный импорт сохраняется.",
   "Use Codex for this review": "Использовать Codex для этой проверки", "Only when selected; vacancy text will be sent to the local Codex CLI.": "Только при выборе; текст вакансии будет передан локальному Codex CLI.", "Clean description": "Очистить описание", "Review the proposed text before confirming. Original vacancy content remains unchanged.": "Проверьте текст перед подтверждением. Исходное содержимое вакансии не изменится.",
@@ -991,17 +994,40 @@ async function toggleArchive(vacancy) {
   toast(action === "archive" ? "Vacancy archived" : "Vacancy restored");
 }
 
+function chooseVacancyDeletionPolicy(resumeCount) {
+  return new Promise(resolve => {
+    const message = deleteVacancyDialog.querySelector("#delete-vacancy-message");
+    const error = deleteVacancyDialog.querySelector("#delete-vacancy-error");
+    const cancel = deleteVacancyDialog.querySelector("[data-delete-vacancy-cancel]");
+    const keep = deleteVacancyDialog.querySelector("[data-delete-vacancy-keep]");
+    const removeAll = deleteVacancyDialog.querySelector("[data-delete-vacancy-all]");
+    let settled = false;
+    const finish = policy => {
+      if (settled) return;
+      settled = true;
+      deleteVacancyDialog.close();
+      resolve(policy);
+    };
+    error.textContent = "";
+    keep.hidden = resumeCount === 0;
+    removeAll.textContent = translateText(resumeCount ? "Delete vacancy and CVs" : "Delete vacancy");
+    message.textContent = resumeCount
+      ? `${translateText("This vacancy has")} ${resumeCount} ${translateText("CV version(s). Choose whether to preserve them in the Master Resume library or delete them.")}`
+      : translateText("This permanently deletes the vacancy, its history, and stored files.");
+    cancel.onclick = () => finish(null);
+    keep.onclick = () => finish("preserve_resumes");
+    removeAll.onclick = () => finish("delete_all");
+    deleteVacancyDialog.oncancel = event => { event.preventDefault(); finish(null); };
+    deleteVacancyDialog.showModal();
+  });
+}
+
 async function removeVacancy(vacancy) {
   const selectionEpoch = state.selectionEpoch;
   const versions = await api(`/api/resumes?kind=vacancy&vacancy_id=${vacancy.id}`);
   if (selectionEpoch !== state.selectionEpoch || state.selected?.id !== vacancy.id) return;
-  let policy = "delete_all";
-  if (versions.length) {
-    const answer = window.prompt(`This vacancy has ${versions.length} CV version(s). Type KEEP to preserve them in the Master Resume library, DELETE to remove everything, or Cancel to stop.`);
-    if (answer === null) return;
-    if (answer.trim().toUpperCase() === "KEEP") policy = "preserve_resumes";
-    else if (answer.trim().toUpperCase() !== "DELETE") { toast("Deletion cancelled"); return; }
-  } else if (!window.confirm("Permanently delete this vacancy and all of its history and files?")) return;
+  const policy = await chooseVacancyDeletionPolicy(versions.length);
+  if (!policy) { toast("Deletion cancelled"); return; }
   await api(`/api/vacancies/${vacancy.id}?resume_policy=${policy}`, { method: "DELETE" });
   if (selectionEpoch === state.selectionEpoch && state.selected?.id === vacancy.id) renderEmpty();
   await loadVacancies();

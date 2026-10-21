@@ -890,6 +890,27 @@ async function testResponsiveSidebarStaysOpenWhenArchiveFilterChanges() {
   assert.equal(app.run("state.sidebarOpen"), true);
 }
 
+async function testVacancyDeletionUsesInAppPolicyDialog() {
+  const app = harness();
+  app.window.prompt = () => { throw new Error("prompt must not be used"); };
+  app.run(`renderVacancy(${JSON.stringify(first)})`);
+  app.routes.set("GET /api/resumes?kind=vacancy&vacancy_id=1", [{ id: 51 }, { id: 52 }]);
+  app.routes.set("DELETE /api/vacancies/1?resume_policy=preserve_resumes", { deleted: 1 });
+  app.routes.set("GET /api/vacancies?archived=false", []);
+
+  const deletion = app.run("removeVacancy(state.selected)");
+  await new Promise(resolve => setTimeout(resolve, 0));
+  const dialog = app.run("deleteVacancyDialog");
+  assert.equal(dialog.open, true);
+  assert.match(dialog.querySelector("#delete-vacancy-message").textContent, /2/);
+  assert.equal(dialog.querySelector("[data-delete-vacancy-keep]").hidden, false);
+  dialog.querySelector("[data-delete-vacancy-keep]").onclick();
+  await deletion;
+
+  assert.equal(dialog.open, false);
+  assert.equal(app.calls.filter(call => call === "DELETE /api/vacancies/1?resume_policy=preserve_resumes").length, 1);
+}
+
 async function testMutationFailuresAndDuplicateRecovery() {
   const app = harness();
   app.run(`renderVacancy(${JSON.stringify(first)})`);
@@ -948,6 +969,7 @@ async function testMutationFailuresAndDuplicateRecovery() {
   await testAiResponseLanguageSubmission();
   await testResponsiveSidebarToggleClosesAfterSelection();
   await testResponsiveSidebarStaysOpenWhenArchiveFilterChanges();
+  await testVacancyDeletionUsesInAppPolicyDialog();
   await testMutationFailuresAndDuplicateRecovery();
   process.stdout.write("SPA workflow regressions passed\n");
 })().catch(error => {
