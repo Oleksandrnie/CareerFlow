@@ -1,0 +1,123 @@
+name: CI
+
+on:
+  pull_request:
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ci-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  quality:
+    name: Python ${{ matrix.python-version }}
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        python-version: ["3.11", "3.12", "3.13", "3.14", "3.15"]
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          fetch-depth: 0
+
+      - name: Set up Python
+        uses: actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97 # v7.0.0
+        with:
+          python-version: ${{ matrix.python-version }}
+
+      - name: Set up Node.js
+        uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
+        with:
+          node-version: 24
+
+      - name: Install hash-locked dependencies and project
+        run: |
+          python -m pip install --disable-pip-version-check --require-hashes -r requirements-dev.lock
+          python -m pip install --disable-pip-version-check --no-deps --no-build-isolation -e .
+
+      - name: Check Python syntax and tests
+        run: |
+          python -m compileall -q careerflow tests run.py
+          python -m unittest discover -s tests -v
+
+      - name: Check browser contracts
+        run: |
+          node --check careerflow/static/app.js
+          node tests/test_analytics_ui.cjs
+          node tests/test_ats_ui.cjs
+          node tests/test_responsive_ui.cjs
+          node tests/test_spa_workflows.cjs
+
+      - name: Check lint and changed-file formatting
+        env:
+          BASE_SHA: ${{ github.event.pull_request.base.sha || github.event.before }}
+        run: |
+          ruff check careerflow tests run.py
+          base="$BASE_SHA"
+          if [ -z "$base" ] || ! git cat-file -e "$base^{commit}" 2>/dev/null; then
+            base="HEAD^"
+          fi
+          mapfile -t python_files < <(git diff --name-only "$base" HEAD -- '*.py')
+          if [ "${#python_files[@]}" -gt 0 ]; then
+            ruff format --check -- "${python_files[@]}"
+          fi
+
+      - name: Build source and wheel distributions
+        if: matrix.python-version == '3.11'
+        run: python -m build --no-isolation
+
+  security:
+    name: Security and dependency checks
+    runs-on: ubuntu-latest
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          fetch-depth: 0
+
+      - name: Set up Python
+        uses: actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97 # v7.0.0
+        with:
+          python-version: "3.15"
+
+      - name: Install hash-locked dependencies and project
+        run: |
+          python -m pip install --disable-pip-version-check --require-hashes -r requirements-dev.lock
+          python -m pip install --disable-pip-version-check --no-deps --no-build-isolation -e .
+
+      - name: Run Bandit
+        run: bandit -r careerflow run.py -ll
+
+      - name: Audit installed dependencies
+        run: pip-audit --local
+
+      - name: Check tracked and non-ignored files for new secrets
+        run: |
+          python - <<'PY'
+          import subprocess
+
+          result = subprocess.run(
+              ["git", "ls-files", "-z", "--cached", "--others", "--exclude-standard"],
+              check=True,
+              capture_output=True,
+          )
+          paths = [path.decode() for path in result.stdout.split(b"\0") if path]
+          paths = [path for path in paths if path != ".secrets.baseline"]
+          subprocess.run(
+              [
+                  "detect-secrets-hook",
+                  "--baseline",
+                  ".secrets.baseline",
+                  "--no-verify",
+                  *paths,
+              ],
+              check=True,
+          )
+          PY
