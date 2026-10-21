@@ -70,7 +70,14 @@ def _validate_public_url(value: str) -> str:
         raise ImportError("The vacancy URL host could not be resolved") from exc
     for address in addresses:
         ip = ipaddress.ip_address(address)
-        if ip.is_private or ip.is_loopback or ip.is_link_local or ip.is_multicast or ip.is_reserved or ip.is_unspecified:
+        if (
+            ip.is_private
+            or ip.is_loopback
+            or ip.is_link_local
+            or ip.is_multicast
+            or ip.is_reserved
+            or ip.is_unspecified
+        ):
             raise ImportError("The vacancy URL points to a blocked internal address")
     return parsed.geturl()
 
@@ -92,7 +99,13 @@ def fetch_vacancy_url(value: str) -> tuple[str, str, bytes, VacancyExtraction]:
     url = _validate_public_url(value)
     handler = _SafeRedirectHandler()
     opener = build_opener(handler)
-    request = Request(url, headers={"Accept": "text/html,application/xhtml+xml", "User-Agent": "CareerFlow vacancy importer"})
+    request = Request(
+        url,
+        headers={
+            "Accept": "text/html,application/xhtml+xml",
+            "User-Agent": "CareerFlow vacancy importer",
+        },
+    )
     try:
         with opener.open(request, timeout=URL_FETCH_TIMEOUT_SECONDS) as response:
             final_url = _validate_public_url(response.geturl())
@@ -147,7 +160,22 @@ class _VacancyHTMLParser(HTMLParser):
     """Collect generic visible text and site-independent structured candidates."""
 
     _BLOCK_TAGS = {"p", "div", "br", "li", "h1", "h2", "h3", "h4", "tr", "section"}
-    _VOID_TAGS = {"area", "base", "br", "col", "embed", "hr", "img", "input", "link", "meta", "param", "source", "track", "wbr"}
+    _VOID_TAGS = {
+        "area",
+        "base",
+        "br",
+        "col",
+        "embed",
+        "hr",
+        "img",
+        "input",
+        "link",
+        "meta",
+        "param",
+        "source",
+        "track",
+        "wbr",
+    }
     _HIDDEN_TAGS = {"script", "style", "noscript", "svg"}
     _SUPPRESSED_TAGS = {"header", "footer", "nav", "aside", "form", "button"}
     _SUPPRESSED_HINT = re.compile(
@@ -189,7 +217,9 @@ class _VacancyHTMLParser(HTMLParser):
             (attributes.get("id", ""), attributes.get("class", ""), attributes.get("role", ""))
         )
         hidden = tag in self._HIDDEN_TAGS
-        suppressed = tag in self._SUPPRESSED_TAGS or bool(self._SUPPRESSED_HINT.search(combined_hint))
+        suppressed = tag in self._SUPPRESSED_TAGS or bool(
+            self._SUPPRESSED_HINT.search(combined_hint)
+        )
         micro_job = "schema.org/jobposting" in attributes.get("itemtype", "").lower()
         rdfa_job = "jobposting" in attributes.get("typeof", "").lower()
         keys: list[str] = []
@@ -226,10 +256,15 @@ class _VacancyHTMLParser(HTMLParser):
             script_type = attributes.get("type", "").lower()
             script_id = attributes.get("id", "").lower()
             if script_type in {"application/ld+json", "application/json"} or script_id in {
-                "__next_data__", "__nuxt_data__", "initial_state", "preloaded_state"
+                "__next_data__",
+                "__nuxt_data__",
+                "initial_state",
+                "preloaded_state",
             }:
                 self._json_script = []
-                self._json_script_kind = "json-ld" if script_type == "application/ld+json" else "spa"
+                self._json_script_kind = (
+                    "json-ld" if script_type == "application/ld+json" else "spa"
+                )
         if tag in self._BLOCK_TAGS:
             self._append_boundary()
 
@@ -244,7 +279,11 @@ class _VacancyHTMLParser(HTMLParser):
         if tag == "script" and self._json_script is not None:
             payload = "".join(self._json_script).strip()
             if payload:
-                target = self.json_ld_payloads if self._json_script_kind == "json-ld" else self.spa_payloads
+                target = (
+                    self.json_ld_payloads
+                    if self._json_script_kind == "json-ld"
+                    else self.spa_payloads
+                )
                 target.append(payload)
             self._json_script = None
             self._json_script_kind = ""
@@ -389,7 +428,11 @@ def extract_vacancy_html(content: bytes) -> VacancyExtraction:
                 description = posting.get("description")
                 if isinstance(description, str):
                     structured.append(
-                        ("json-ld", _html_fragment_text(description), _job_posting_metadata(posting))
+                        (
+                            "json-ld",
+                            _html_fragment_text(description),
+                            _job_posting_metadata(posting),
+                        )
                     )
         except (json.JSONDecodeError, TypeError, ValueError):
             continue

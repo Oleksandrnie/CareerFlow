@@ -31,7 +31,9 @@ class HtmlExtractionTest(unittest.TestCase):
             """
         )
         self.assertEqual(extraction.method, "json-ld")
-        self.assertEqual(extraction.candidate_text, 'Backend Engineer\nPython & SQL at "Example Corp"')
+        self.assertEqual(
+            extraction.candidate_text, 'Backend Engineer\nPython & SQL at "Example Corp"'
+        )
         self.assertEqual(extraction.metadata.title, "Backend Engineer")
         self.assertEqual(extraction.metadata.company, "Example Corp")
         self.assertEqual(extraction.metadata.salary, "80000–100000 EUR YEAR")
@@ -66,7 +68,7 @@ class HtmlExtractionTest(unittest.TestCase):
                 "Go engineer",
             ),
             (
-                b'<main><nav>Search jobs</nav><h1>Platform Engineer</h1><p>Build reliable systems</p><button>Apply now</button></main>',
+                b"<main><nav>Search jobs</nav><h1>Platform Engineer</h1><p>Build reliable systems</p><button>Apply now</button></main>",
                 "main",
                 "Platform Engineer",
             ),
@@ -75,7 +77,7 @@ class HtmlExtractionTest(unittest.TestCase):
                 "probable-container",
                 "Data Engineer",
             ),
-            (b'<div><h1>QA Engineer</h1><p>Test releases</p></div>', "visible-text", "QA Engineer"),
+            (b"<div><h1>QA Engineer</h1><p>Test releases</p></div>", "visible-text", "QA Engineer"),
         )
         for html, method, marker in cases:
             with self.subTest(method=method):
@@ -143,8 +145,7 @@ class CleaningClassificationTest(unittest.TestCase):
             observed["model"] = settings.codex_default_model
             observed["effort"] = settings.codex_reasoning_effort
             return CodexResult(
-                '[{"id":"b1","classification":"remove"},'
-                '{"id":"b2","classification":"keep"}]',
+                '[{"id":"b1","classification":"remove"},{"id":"b2","classification":"keep"}]',
                 ["codex"],
             )
 
@@ -158,8 +159,7 @@ class CleaningClassificationTest(unittest.TestCase):
         def fake_runner(settings, prompt):
             observed.append((settings.codex_default_model, settings.codex_reasoning_effort))
             return CodexResult(
-                '[{"id":"b1","classification":"remove"},'
-                '{"id":"b2","classification":"keep"}]',
+                '[{"id":"b1","classification":"remove"},{"id":"b2","classification":"keep"}]',
                 ["codex"],
             )
 
@@ -219,9 +219,7 @@ class CleaningClassificationTest(unittest.TestCase):
             raise CodexError("CLI is busy")
 
         def invalid_classification(settings, prompt):
-            return CodexResult(
-                '[{"id":"unknown","classification":"remove"}]', ["codex"]
-            )
+            return CodexResult('[{"id":"unknown","classification":"remove"}]', ["codex"])
 
         failures = (cli_failure, invalid_classification)
         for runner in failures:
@@ -238,9 +236,7 @@ class CleaningClassificationTest(unittest.TestCase):
                 self.assertTrue(preview["diagnostics"]["fallback_used"])
                 self.assertEqual(preview["diagnostics"]["codex_profile"], "primary")
                 self.assertTrue(preview["diagnostics"]["escalation_available"])
-                self.assertEqual(
-                    preview["diagnostics"]["escalation_model"], "gpt-5.6-sol"
-                )
+                self.assertEqual(preview["diagnostics"]["escalation_model"], "gpt-5.6-sol")
                 self.assertEqual(preview["diagnostics"]["escalation_effort"], "medium")
                 self.assertIn("Review uncertain blocks", preview["warnings"][0])
 
@@ -425,7 +421,9 @@ class CleaningApiTest(unittest.TestCase):
         self.assertEqual(fetch_url.call_count, 1)
 
     def test_url_preview_rejects_unsupported_scheme_before_fetch(self) -> None:
-        response = self.client.post("/api/vacancies/import-preview", data={"url": "ftp://example.test/job"})
+        response = self.client.post(
+            "/api/vacancies/import-preview", data={"url": "ftp://example.test/job"}
+        )
         self.assertEqual(response.status_code, 422)
         self.assertIn("HTTP or HTTPS", response.json()["detail"])
 
@@ -436,10 +434,7 @@ class CleaningApiTest(unittest.TestCase):
 
         def classification(settings, blocks, *, codex_profile, runner):
             self.assertEqual(codex_profile, "escalation")
-            return [
-                {**block, "classification": "keep", "reason": "test"}
-                for block in blocks
-            ]
+            return [{**block, "classification": "keep", "reason": "test"} for block in blocks]
 
         with patch(
             "careerflow.cleaning.classify_blocks_with_codex", side_effect=classification
@@ -562,12 +557,8 @@ class CleaningApiTest(unittest.TestCase):
         self.assertIn("Apply now", diagnostic)
 
     def test_ats_is_blocked_until_description_is_confirmed(self) -> None:
-        vacancy = self.client.post(
-            "/api/vacancies", data={"text": "Required Python"}
-        ).json()
-        resume = self.client.post(
-            "/api/resumes", data={"kind": "master", "text": "Python"}
-        ).json()
+        vacancy = self.client.post("/api/vacancies", data={"text": "Required Python"}).json()
+        resume = self.client.post("/api/resumes", data={"kind": "master", "text": "Python"}).json()
         with self.context.app.state.db.transaction() as connection:
             connection.execute(
                 "UPDATE vacancies SET description_confirmed_at = NULL WHERE id = ?",

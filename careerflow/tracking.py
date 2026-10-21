@@ -14,7 +14,15 @@ from .vacancies import get_vacancy
 
 
 STATUSES = {"Saved", "Applied", "Interview", "Waiting", "Offer", "Rejected"}
-OUTCOMES = {"offer_accepted", "offer_declined", "employer_rejected", "candidate_withdrew", "vacancy_closed", "no_response", "unknown"}
+OUTCOMES = {
+    "offer_accepted",
+    "offer_declined",
+    "employer_rejected",
+    "candidate_withdrew",
+    "vacancy_closed",
+    "no_response",
+    "unknown",
+}
 INTERVIEW_RESULTS = {"scheduled", "passed", "failed", "cancelled", "unknown"}
 TEXT_ATTACHMENT_EXTENSIONS = {".txt", ".md", ".html", ".htm", ".json", ".csv"}
 MAX_ATTACHMENT_BYTES = 100 * 1024 * 1024
@@ -27,7 +35,9 @@ INTERVIEW_OFFSET = re.compile(r"[+-](\d{2}):(\d{2})$")
 def _validated_interview_at(value: str) -> str:
     timestamp = value.strip()
     if not INTERVIEW_TIMESTAMP.fullmatch(timestamp):
-        raise ValueError("Interview date must be an ISO 8601 datetime (YYYY-MM-DDTHH:MM, optionally with Z or timezone offset)")
+        raise ValueError(
+            "Interview date must be an ISO 8601 datetime (YYYY-MM-DDTHH:MM, optionally with Z or timezone offset)"
+        )
     offset = INTERVIEW_OFFSET.search(timestamp)
     if offset:
         hours, minutes = (int(part) for part in offset.groups())
@@ -55,7 +65,9 @@ def timeline(database: Database, vacancy_id: int) -> list[dict]:
     )
 
 
-def change_status(database: Database, vacancy_id: int, status: str, note: str = "", outcome: str | None = None) -> dict:
+def change_status(
+    database: Database, vacancy_id: int, status: str, note: str = "", outcome: str | None = None
+) -> dict:
     vacancy = _ensure_vacancy(database, vacancy_id)
     if status not in STATUSES:
         raise ValueError("Unsupported vacancy status")
@@ -115,7 +127,15 @@ def add_interview(
             INSERT INTO interviews(vacancy_id, sequence_number, interview_at, interview_type, note, result, result_code)
             VALUES (?, ?, ?, ?, ?, ?, ?)
             """,
-            (vacancy_id, sequence, interview_at, interview_type.strip() or "Interview", note.strip(), result.strip(), result_code),
+            (
+                vacancy_id,
+                sequence,
+                interview_at,
+                interview_type.strip() or "Interview",
+                note.strip(),
+                result.strip(),
+                result_code,
+            ),
         )
         connection.execute(
             "UPDATE vacancies SET status = 'Interview', updated_at = CURRENT_TIMESTAMP WHERE id = ?",
@@ -133,11 +153,29 @@ def add_interview(
                 interview_at,
             ),
         )
-        insert_funnel_event(connection, vacancy_id, "interview_scheduled", occurred_at=interview_at, metadata={"interview_id": interview_id})
+        insert_funnel_event(
+            connection,
+            vacancy_id,
+            "interview_scheduled",
+            occurred_at=interview_at,
+            metadata={"interview_id": interview_id},
+        )
         if result_code in {"passed", "failed"}:
-            insert_funnel_event(connection, vacancy_id, "interview_completed", occurred_at=interview_at, metadata={"interview_id": interview_id, "result_code": result_code})
+            insert_funnel_event(
+                connection,
+                vacancy_id,
+                "interview_completed",
+                occurred_at=interview_at,
+                metadata={"interview_id": interview_id, "result_code": result_code},
+            )
         elif result_code == "cancelled":
-            insert_funnel_event(connection, vacancy_id, "interview_cancelled", occurred_at=interview_at, metadata={"interview_id": interview_id})
+            insert_funnel_event(
+                connection,
+                vacancy_id,
+                "interview_cancelled",
+                occurred_at=interview_at,
+                metadata={"interview_id": interview_id},
+            )
     return database.fetch_one("SELECT * FROM interviews WHERE id = ?", (interview_id,)) or {}
 
 
@@ -163,7 +201,9 @@ def add_note(database: Database, vacancy_id: int, body: str) -> dict:
         raise ValueError("Note cannot be empty")
     with database.transaction() as connection:
         note_id = insert_and_get_id(
-            connection, "INSERT INTO notes(vacancy_id, body) VALUES (?, ?)", (vacancy_id, body.strip())
+            connection,
+            "INSERT INTO notes(vacancy_id, body) VALUES (?, ?)",
+            (vacancy_id, body.strip()),
         )
         connection.execute(
             "INSERT INTO timeline_events(vacancy_id, event_type, title) VALUES (?, 'note_added', 'Note added')",
@@ -227,7 +267,10 @@ def add_attachment(
     path = storage_dir / "attachments" / str(vacancy_id) / uuid4().hex / cleaned
     write_bytes(path, content)
     resolved_media = media_type or mimetypes.guess_type(cleaned)[0] or "application/octet-stream"
-    is_text = int(Path(cleaned).suffix.lower() in TEXT_ATTACHMENT_EXTENSIONS or resolved_media.startswith("text/"))
+    is_text = int(
+        Path(cleaned).suffix.lower() in TEXT_ATTACHMENT_EXTENSIONS
+        or resolved_media.startswith("text/")
+    )
     with database.transaction() as connection:
         attachment_id = insert_and_get_id(
             connection,

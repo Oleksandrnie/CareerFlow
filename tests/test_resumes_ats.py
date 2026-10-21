@@ -17,13 +17,17 @@ class ResumeAndAtsTest(unittest.TestCase):
     def setUp(self) -> None:
         self.temp_dir = tempfile.TemporaryDirectory()
         root = Path(self.temp_dir.name)
-        settings = Settings(root, root / "data", root / "storage", root / "data" / "test.db", "codex", 10)
+        settings = Settings(
+            root, root / "data", root / "storage", root / "data" / "test.db", "codex", 10
+        )
         self.settings = settings
         self.context = TestClient(create_app(settings))
         self.client = self.context.__enter__()
         vacancy_response = self.client.post(
             "/api/vacancies",
-            data={"text": "Backend Engineer\nRequired: 3 years Python experience.\nMust know SQL and Docker.\nKubernetes experience is preferred."},
+            data={
+                "text": "Backend Engineer\nRequired: 3 years Python experience.\nMust know SQL and Docker.\nKubernetes experience is preferred."
+            },
         )
         self.vacancy = vacancy_response.json()
 
@@ -34,18 +38,32 @@ class ResumeAndAtsTest(unittest.TestCase):
     def test_master_clone_version_and_submitted_marker(self) -> None:
         master = self.client.post(
             "/api/resumes",
-            data={"kind": "master", "label": "Base CV", "text": "Python engineer. SQL APIs. Docker production workloads."},
+            data={
+                "kind": "master",
+                "label": "Base CV",
+                "text": "Python engineer. SQL APIs. Docker production workloads.",
+            },
         )
         self.assertEqual(master.status_code, 201)
         self.assertEqual(master.json()["version"], 1)
 
         first = self.client.post(
             "/api/resumes",
-            data={"kind": "vacancy", "vacancy_id": self.vacancy["id"], "source_resume_id": master.json()["id"], "label": "Tailored"},
+            data={
+                "kind": "vacancy",
+                "vacancy_id": self.vacancy["id"],
+                "source_resume_id": master.json()["id"],
+                "label": "Tailored",
+            },
         )
         second = self.client.post(
             "/api/resumes",
-            data={"kind": "vacancy", "vacancy_id": self.vacancy["id"], "text": "Python SQL Docker Kubernetes", "label": "Final"},
+            data={
+                "kind": "vacancy",
+                "vacancy_id": self.vacancy["id"],
+                "text": "Python SQL Docker Kubernetes",
+                "label": "Final",
+            },
         )
         self.assertEqual(first.json()["version"], 1)
         self.assertEqual(first.json()["source_resume_id"], master.json()["id"])
@@ -53,10 +71,14 @@ class ResumeAndAtsTest(unittest.TestCase):
         self.assertEqual(first.json()["source_version"], 1)
         self.assertEqual(first.json()["content_text"], master.json()["content_text"])
         self.assertEqual(second.json()["version"], 2)
-        self.assertEqual(self.client.post(f"/api/resumes/{first.json()['id']}/submit").status_code, 200)
+        self.assertEqual(
+            self.client.post(f"/api/resumes/{first.json()['id']}/submit").status_code, 200
+        )
         submitted = self.client.post(f"/api/resumes/{second.json()['id']}/submit").json()
         self.assertEqual(submitted["is_submitted"], 1)
-        versions = self.client.get(f"/api/resumes?kind=vacancy&vacancy_id={self.vacancy['id']}").json()
+        versions = self.client.get(
+            f"/api/resumes?kind=vacancy&vacancy_id={self.vacancy['id']}"
+        ).json()
         self.assertEqual([item["version"] for item in versions], [2, 1])
         self.assertEqual(sum(item["is_submitted"] for item in versions), 1)
 
@@ -252,9 +274,7 @@ class ResumeAndAtsTest(unittest.TestCase):
             with self.subTest(url=url):
                 self.assertEqual(method(url).status_code, 404)
         self.assertEqual(
-            self.client.get(
-                f"/api/resumes?kind=vacancy&vacancy_id={self.vacancy['id']}"
-            ).json(),
+            self.client.get(f"/api/resumes?kind=vacancy&vacancy_id={self.vacancy['id']}").json(),
             [],
         )
 
@@ -310,12 +330,8 @@ class ResumeAndAtsTest(unittest.TestCase):
                 self.assertEqual(self.client.post("/api/resumes", data=data).status_code, 404)
 
     def test_delete_rejects_unsafe_or_shared_storage_folder(self) -> None:
-        first = self.client.post(
-            "/api/resumes", data={"kind": "master", "text": "First"}
-        ).json()
-        second = self.client.post(
-            "/api/resumes", data={"kind": "master", "text": "Second"}
-        ).json()
+        first = self.client.post("/api/resumes", data={"kind": "master", "text": "First"}).json()
+        second = self.client.post("/api/resumes", data={"kind": "master", "text": "Second"}).json()
         database = self.context.app.state.db
         with database.transaction() as connection:
             connection.execute(
@@ -339,7 +355,10 @@ class ResumeAndAtsTest(unittest.TestCase):
     def test_ats_analysis_persists_evidence_and_updates_match(self) -> None:
         resume = self.client.post(
             "/api/resumes",
-            data={"kind": "master", "text": "Five years building Python APIs. Used SQL and Docker in production."},
+            data={
+                "kind": "master",
+                "text": "Five years building Python APIs. Used SQL and Docker in production.",
+            },
         ).json()
         response = self.client.post(
             f"/api/vacancies/{self.vacancy['id']}/ats",
@@ -365,9 +384,7 @@ class ResumeAndAtsTest(unittest.TestCase):
             "/api/resumes", data={"kind": "master", "text": "Python engineer"}
         ).json()
         url = f"/api/vacancies/{self.vacancy['id']}"
-        original = self.client.post(
-            f"{url}/ats", json={"resume_version_id": resume["id"]}
-        ).json()
+        original = self.client.post(f"{url}/ats", json={"resume_version_id": resume["id"]}).json()
 
         metadata_edit = self.client.patch(url, json={"company": "Northwind"}).json()
         self.assertEqual(metadata_edit["match_percent"], original["match_percent"])
@@ -389,16 +406,14 @@ class ResumeAndAtsTest(unittest.TestCase):
         self.assertIn("Vacancy description analyzed at that time", report)
         self.assertIn(self.vacancy["description"], report)
 
-        fresh = self.client.post(
-            f"{url}/ats", json={"resume_version_id": resume["id"]}
-        ).json()
+        fresh = self.client.post(f"{url}/ats", json={"resume_version_id": resume["id"]}).json()
         self.assertFalse(fresh["is_stale"])
         self.assertEqual(fresh["description_snapshot"], changed["description"])
-        self.assertEqual(
-            self.client.get(url).json()["match_percent"], fresh["match_percent"]
-        )
+        self.assertEqual(self.client.get(url).json()["match_percent"], fresh["match_percent"])
 
-    def test_delete_preserves_ats_history_scrubs_evidence_and_only_clears_current_match(self) -> None:
+    def test_delete_preserves_ats_history_scrubs_evidence_and_only_clears_current_match(
+        self,
+    ) -> None:
         older_resume = self.client.post(
             "/api/resumes",
             data={"kind": "master", "text": "Five years Python and SQL experience."},
@@ -434,14 +449,10 @@ class ResumeAndAtsTest(unittest.TestCase):
         self.assertIsNone(
             self.client.get(f"/api/vacancies/{self.vacancy['id']}").json()["match_percent"]
         )
-        historical = self.client.get(
-            f"/api/vacancies/{self.vacancy['id']}/ats"
-        ).json()
+        historical = self.client.get(f"/api/vacancies/{self.vacancy['id']}/ats").json()
         self.assertTrue(historical["resume_deleted"])
         self.assertTrue(historical["is_stale"])
-        self.assertTrue(
-            all(not item["evidence"] for item in historical["result"]["requirements"])
-        )
+        self.assertTrue(all(not item["evidence"] for item in historical["result"]["requirements"]))
         blocked = self.client.post(
             f"/api/vacancies/{self.vacancy['id']}/ats",
             json={"resume_version_id": current_resume["id"]},
@@ -707,7 +718,11 @@ class AtsLegacyMigrationTest(unittest.TestCase):
             database.initialize()
             database.initialize()
 
-            self.assertIsNone(database.fetch_one("SELECT match_percent FROM vacancies WHERE id = 1")["match_percent"])
+            self.assertIsNone(
+                database.fetch_one("SELECT match_percent FROM vacancies WHERE id = 1")[
+                    "match_percent"
+                ]
+            )
             analysis = latest_analysis(database, 1)
             self.assertIsNotNone(analysis)
             self.assertTrue(analysis["is_stale"])
@@ -722,19 +737,16 @@ class AtsLegacyMigrationTest(unittest.TestCase):
             resume = database.fetch_one("SELECT * FROM resume_versions WHERE id = 1")
             self.assertIsNone(resume["source_resume_id"])
             self.assertIsNone(resume["deleted_at"])
-            ai_columns = {
-                row["name"]
-                for row in database.fetch_all("PRAGMA table_info(ai_runs)")
-            }
+            ai_columns = {row["name"] for row in database.fetch_all("PRAGMA table_info(ai_runs)")}
             self.assertIn("reasoning_effort", ai_columns)
             self.assertIn("action", ai_columns)
             self.assertIn("source_resume_id", ai_columns)
             self.assertIn("context_sources_json", ai_columns)
             self.assertIn("response_language", ai_columns)
             self.assertEqual(
-                database.fetch_one(
-                    "SELECT response_language FROM ai_runs WHERE id = 1"
-                )["response_language"],
+                database.fetch_one("SELECT response_language FROM ai_runs WHERE id = 1")[
+                    "response_language"
+                ],
                 "auto",
             )
 

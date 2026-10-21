@@ -59,7 +59,12 @@ class ConcurrentIntegrityTest(unittest.TestCase):
 
         self.assertEqual(sorted(item["version"] for item in created), [1] * count)
         self.assertEqual(
-            [row["version"] for row in self.database.fetch_all("SELECT version FROM resume_versions WHERE kind = 'master' ORDER BY version")],
+            [
+                row["version"]
+                for row in self.database.fetch_all(
+                    "SELECT version FROM resume_versions WHERE kind = 'master' ORDER BY version"
+                )
+            ],
             list(range(1, count + 1)),
         )
 
@@ -80,9 +85,7 @@ class ConcurrentIntegrityTest(unittest.TestCase):
 
         self.assertEqual(sorted(item["version"] for item in created), list(range(1, count + 1)))
         stored_files = list(
-            (self.storage_dir / "resumes" / f"vacancy-{self.vacancy['id']}").glob(
-                "*/resume.md"
-            )
+            (self.storage_dir / "resumes" / f"vacancy-{self.vacancy['id']}").glob("*/resume.md")
         )
         self.assertEqual(len(stored_files), count)
         self.assertEqual(len(list_resumes(self.database, "vacancy", self.vacancy["id"])), count)
@@ -153,7 +156,12 @@ class ConcurrentIntegrityTest(unittest.TestCase):
         masters = list_resumes(self.database, "master")
         self.assertEqual(sorted(item["version"] for item in masters), [1] * (count * 2))
         self.assertEqual(
-            [row["version"] for row in self.database.fetch_all("SELECT version FROM resume_versions WHERE kind = 'master' ORDER BY version")],
+            [
+                row["version"]
+                for row in self.database.fetch_all(
+                    "SELECT version FROM resume_versions WHERE kind = 'master' ORDER BY version"
+                )
+            ],
             list(range(1, count * 2 + 1)),
         )
         self.assertTrue(all(Path(item["extracted_text_path"]).is_file() for item in masters))
@@ -161,12 +169,15 @@ class ConcurrentIntegrityTest(unittest.TestCase):
     def test_failed_resume_allocation_removes_new_resume_folder(self) -> None:
         failed_folder = self.storage_dir / "resumes" / "master" / "failed-allocation"
 
-        with patch(
-            "careerflow.resumes.uuid4",
-            return_value=SimpleNamespace(hex="failed-allocation"),
-        ), patch(
-            "careerflow.resumes.insert_and_get_id",
-            side_effect=sqlite3.IntegrityError("injected allocation failure"),
+        with (
+            patch(
+                "careerflow.resumes.uuid4",
+                return_value=SimpleNamespace(hex="failed-allocation"),
+            ),
+            patch(
+                "careerflow.resumes.insert_and_get_id",
+                side_effect=sqlite3.IntegrityError("injected allocation failure"),
+            ),
         ):
             with self.assertRaises(sqlite3.IntegrityError):
                 create_resume(
@@ -196,9 +207,7 @@ class MasterVersionMigrationTest(unittest.TestCase):
                     """,
                     [(1, "First"), (1, "Duplicate"), (3, "Existing third")],
                 )
-                connection.execute(
-                    "INSERT OR IGNORE INTO schema_version(version) VALUES (1)"
-                )
+                connection.execute("INSERT OR IGNORE INTO schema_version(version) VALUES (1)")
 
             database.initialize()
 

@@ -16,7 +16,9 @@ class VacancyApiTest(unittest.TestCase):
     def setUp(self) -> None:
         self.temp_dir = tempfile.TemporaryDirectory()
         root = Path(self.temp_dir.name)
-        settings = Settings(root, root / "data", root / "storage", root / "data" / "test.db", "codex", 10)
+        settings = Settings(
+            root, root / "data", root / "storage", root / "data" / "test.db", "codex", 10
+        )
         self.context = TestClient(create_app(settings))
         self.client = self.context.__enter__()
         self.settings = settings
@@ -46,10 +48,14 @@ class VacancyApiTest(unittest.TestCase):
         self.assertEqual(updated.status_code, 200)
         self.assertEqual(updated.json()["company"], "Acme International")
 
-        self.assertEqual(self.client.post(f"/api/vacancies/{vacancy['id']}/archive").status_code, 200)
+        self.assertEqual(
+            self.client.post(f"/api/vacancies/{vacancy['id']}/archive").status_code, 200
+        )
         self.assertEqual(self.client.get("/api/vacancies").json(), [])
         self.assertEqual(len(self.client.get("/api/vacancies?archived=true").json()), 1)
-        self.assertEqual(self.client.post(f"/api/vacancies/{vacancy['id']}/restore").status_code, 200)
+        self.assertEqual(
+            self.client.post(f"/api/vacancies/{vacancy['id']}/restore").status_code, 200
+        )
         self.assertEqual(len(self.client.get("/api/vacancies").json()), 1)
 
     def test_description_patch_rejects_empty_text_without_mutation(self) -> None:
@@ -61,9 +67,7 @@ class VacancyApiTest(unittest.TestCase):
         self.assertEqual(rejected.status_code, 422)
         self.assertEqual(self.client.get(url).json()["description"], vacancy["description"])
 
-        updated = self.client.patch(
-            url, json={"description": "  Required Python\n\n  SQL  "}
-        )
+        updated = self.client.patch(url, json={"description": "  Required Python\n\n  SQL  "})
         self.assertEqual(updated.status_code, 200)
         self.assertEqual(updated.json()["description"], "Required Python\nSQL")
 
