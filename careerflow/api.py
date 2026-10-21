@@ -52,6 +52,7 @@ def _origin_matches_request(origin_value: str, request: Request) -> bool:
         return False
     return (
         origin.scheme.lower() in {"http", "https"}
+        and origin.scheme.lower() == request.url.scheme.lower()
         and origin_host is not None
         and origin_host.lower() == (request.url.hostname or "").lower()
         and origin_port == request_port

@@ -45,6 +45,16 @@ class LocalRequestSecurityTest(unittest.TestCase):
         self.assertEqual(response.status_code, 201)
         self.assertEqual(len(self.client.get("/api/vacancies").json()), 1)
 
+    def test_cross_scheme_origin_is_rejected_even_when_ports_match(self) -> None:
+        response = self.client.post(
+            "/api/vacancies",
+            data={"text": "Synthetic job posting"},
+            headers={"Origin": "https://testserver:80"},
+        )
+
+        self.assertEqual(response.status_code, 403)
+        self.assertEqual(self.client.get("/api/vacancies").json(), [])
+
     def test_public_hostnames_are_rejected(self) -> None:
         response = self.client.get("/api/health", headers={"Host": "attacker.example"})
 
