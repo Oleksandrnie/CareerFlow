@@ -33,7 +33,7 @@ The project uses Python 3.11 or newer, FastAPI, SQLite from the Python standard 
 
 ## Quick start
 
-Requirements: Python 3.11 or newer. For AI actions, install and authenticate the Codex CLI separately; the core application does not require it.
+Requirements: Python 3.11 or newer. To use the **AI / Codex** module, install the Codex CLI separately and complete its local sign-in before starting CareerFlow. CareerFlow uses the CLI's existing authentication; it does not sign in or store Codex credentials. If the CLI is missing or not authenticated, AI actions are unavailable, while the rest of the local application continues to work.
 
 ```sh
 git clone https://github.com/Oleksandrnie/CareerFlow.git
