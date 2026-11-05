@@ -592,7 +592,6 @@ button:focus-visible, input:focus-visible, textarea:focus-visible, select:focus-
 .sidebar-head { gap: 12px; margin-bottom: 18px; }
 .sidebar-head h2 { font-size: 16px; font-weight: 720; }
 .archive-toggle { min-height: 32px; padding: 4px 8px; border-radius: 8px; }
-.archive-toggle:hover { background: var(--content-bg); }
 .vacancy-list { gap: 6px; }
 .vacancy-card { padding: 13px; border: 1px solid transparent; border-radius: var(--radius-card); }
 .vacancy-card:hover { background: var(--content-bg); border-color: var(--line); }
