@@ -31,6 +31,7 @@ function fakeElement(tagName = "DIV") {
     setAttribute(name, value) { this[name] = String(value); },
     getAttribute(name) { return this[name] ?? null; },
     removeAttribute(name) { delete this[name]; },
+    remove() { this.removed = true; },
     showModal() { this.open = true; },
     close() { this.open = false; },
     reset() { this.fields = {}; },
