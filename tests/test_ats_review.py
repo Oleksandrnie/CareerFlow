@@ -85,6 +85,7 @@ class AtsReviewTest(unittest.TestCase):
                 json={
                     "assessment_kind": "manager_audit",
                     "resume_version_id": self.master["id"],
+                    "vacancy_id": self.vacancy["id"],
                     "locale": "en",
                 },
             )
@@ -96,6 +97,7 @@ class AtsReviewTest(unittest.TestCase):
         self.assertIn("L1: L1 evidence: led a product delivery team.", prompt)
         self.assertNotIn("SECRET_OTHER_RESUME", prompt)
         self.assertNotIn(self.vacancy["description"], prompt)
+        self.assertIsNone(response.json()["vacancy_id"], "manager audit history is not vacancy-scoped")
 
         deleted = self.client.delete(f"/api/resumes/{self.master['id']}")
         self.assertEqual(deleted.status_code, 200, deleted.text)
@@ -156,6 +158,8 @@ class AtsReviewTest(unittest.TestCase):
         ).json()
         self.assertTrue(history[0]["description_changed"])
         self.assertTrue(history[0]["is_stale"])
+        self.assertEqual(history[0]["vacancy_id"], self.vacancy["id"])
+        self.assertTrue(history[0]["vacancy_title"])
 
 
 if __name__ == "__main__":

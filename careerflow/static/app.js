@@ -1205,7 +1205,10 @@ async function renderAts(vacancy, view = null) {
       if (Number(resumeSelect.value) !== resumeId) return;
       assessmentHistory.innerHTML = assessments.length ? assessments.map(item => {
         const title = item.assessment_kind === "manager_audit" ? "Manager resume audit" : "Vacancy requirement match";
-        return `<article class="ats-assessment"><div class="section-head"><div><strong>${title} · ${escapeHtml(item.model)}</strong><p class="muted">${escapeHtml(item.resume_kind)} resume v${item.resume_version} · ${escapeHtml(item.locale)} · ${escapeHtml(item.rubric_version)} · ${escapeHtml(item.created_at)}${item.is_stale ? " · Historical result; source changed or was deleted" : ""}</p></div></div>${renderAssessmentResult(item)}</article>`;
+        const vacancyLabel = item.assessment_kind === "vacancy_match"
+          ? ` · ${item.vacancy_title ? escapeHtml(item.vacancy_title) : `Vacancy #${item.vacancy_id}`}${item.vacancy_company ? ` — ${escapeHtml(item.vacancy_company)}` : ""}`
+          : "";
+        return `<article class="ats-assessment"><div class="section-head"><div><strong>${title} · ${escapeHtml(item.model)}</strong><p class="muted">${escapeHtml(item.resume_kind)} resume v${item.resume_version}${vacancyLabel} · ${escapeHtml(item.locale)} · ${escapeHtml(item.rubric_version)} · ${escapeHtml(item.created_at)}${item.is_stale ? " · Historical result; source changed or was deleted" : ""}</p></div></div>${renderAssessmentResult(item)}</article>`;
       }).join("") : `<p class="muted">No Codex assessments for this resume version yet.</p>`;
     };
     if (resumeSelect) {

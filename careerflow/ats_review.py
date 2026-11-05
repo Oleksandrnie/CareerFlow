@@ -162,7 +162,8 @@ def list_assessments(
         f"""SELECT a.*, r.deleted_at AS resume_deleted_at,
                    r.content_text AS current_resume_text,
                    v.description AS current_description,
-                   v.description_revision AS current_description_revision
+                   v.description_revision AS current_description_revision,
+                   v.title AS vacancy_title, v.company AS vacancy_company
             FROM ats_assessments a
             LEFT JOIN resume_versions r ON r.id = a.resume_version_id
             LEFT JOIN vacancies v ON v.id = a.vacancy_id
@@ -213,7 +214,13 @@ def create_assessment(
                 raise ValueError("Review and confirm the vacancy description before matching")
     catalog = load_model_catalog(settings)
     selected_model, selected_effort = validate_model_effort(catalog, model, reasoning_effort)
-    prompt = _assessment_prompt(kind, locale, _line_referenced_resume(resume["content_text"]), vacancy)
+    prompt_vacancy = vacancy if kind == "vacancy_match" else None
+    prompt = _assessment_prompt(
+        kind,
+        locale,
+        _line_referenced_resume(resume["content_text"]),
+        prompt_vacancy,
+    )
     context = "This is a user-requested resume assessment. Use only the explicitly selected resume and, for vacancy matching, the confirmed description included in the user request."
     response_language = "russian" if locale == "ru" else "english"
     final_prompt = build_prompt(prompt, context, kind, response_language)
