@@ -72,6 +72,10 @@ function harness(storage = new Map()) {
   const listeners = new Map();
   const workspace = fakeElement();
   const themeToggle = fakeElement("BUTTON");
+  const sidebarToggle = fakeElement("BUTTON");
+  const vacancySidebar = fakeElement("ASIDE");
+  vacancySidebar.inert = false;
+  const appLayout = fakeElement("MAIN");
   const documentElement = fakeElement("HTML");
   documentElement.style = {};
   let panel = fakeElement();
@@ -82,6 +86,9 @@ function harness(storage = new Map()) {
   function rootElement(selector) {
     if (selector === "#workspace") return workspace;
     if (selector === "#content-panel") return panel;
+    if (selector === "#app-layout") return appLayout;
+    if (selector === "#sidebar-toggle") return sidebarToggle;
+    if (selector === "#vacancy-sidebar") return vacancySidebar;
     if (selector === "#import-form") {
       if (!root.has(selector)) root.set(selector, fakeElement("FORM"));
       return root.get(selector);
@@ -130,6 +137,7 @@ function harness(storage = new Map()) {
       if (selector === "#content-panel") return panel;
       if (selector === "#workspace") return workspace;
       if (selector === "#theme-toggle") return themeToggle;
+      if (["#app-layout", "#sidebar-toggle", "#vacancy-sidebar"].includes(selector)) return rootElement(selector);
       if (selector === "[data-interview-count]") return workspace.querySelector(selector);
       if (selector.startsWith("#") && ["#vacancy-list", "#import-dialog", "#import-form", "#import-review", "#import-error", "#vacancy-file", "#drop-zone", "#selected-file", "#show-archived", "#new-vacancy", "#toast", "#status-selector", "#archive-vacancy", "#delete-vacancy", "#edit-overview", "#export-report"].includes(selector)) return rootElement(selector);
       return panel.querySelector(selector);
@@ -163,7 +171,31 @@ function harness(storage = new Map()) {
   routes.set("GET /api/vacancies?archived=false", []);
   routes.set("GET /api/codex/models", { models: [{ id: "gpt-5.6-luna", name: "Luna", efforts: ["low", "medium"] }], default_model: "gpt-5.6-luna", default_effort: "low", source: "codex-cli", warning: "" });
   let reloadCount = 0;
-  const window = { confirm: () => true, prompt: () => "DELETE", location: { reload() { reloadCount += 1; } }, scrollY: 0 };
+  let viewportWidth = 1200;
+  const sidebarViewportListeners = new Set();
+  const window = {
+    confirm: () => true,
+    prompt: () => "DELETE",
+    location: { reload() { reloadCount += 1; } },
+    scrollY: 0,
+    matchMedia(query) {
+      const maxWidth = Number(query.match(/max-width:\s*(\d+)px/)?.[1] || 0);
+      return {
+        matches: maxWidth > 0 && viewportWidth <= maxWidth,
+        addEventListener(name, callback) {
+          if (name === "change" && maxWidth === 900) sidebarViewportListeners.add(callback);
+        },
+      };
+    },
+    setViewport(width) {
+      const wasCompact = viewportWidth <= 900;
+      viewportWidth = width;
+      const isCompact = viewportWidth <= 900;
+      if (wasCompact !== isCompact) {
+        sidebarViewportListeners.forEach(callback => callback({ matches: isCompact, media: "(max-width: 900px)" }));
+      }
+    },
+  };
   const localStorage = {
     getItem(key) { return storage.get(key) ?? null; },
     setItem(key, value) { storage.set(key, String(value)); },
@@ -174,7 +206,7 @@ function harness(storage = new Map()) {
   return {
     context, document, routes, calls, listeners,
     get panel() { return panel; },
-    workspace, themeToggle, documentElement,
+    workspace, themeToggle, sidebarToggle, vacancySidebar, appLayout, documentElement,
     run(code) { return vm.runInContext(code, context); },
     window,
     get reloadCount() { return reloadCount; },
@@ -936,10 +968,13 @@ async function testResponsiveSidebarToggleClosesAfterSelection() {
   assert.equal(app.run("state.sidebarOpen"), true, "desktop vacancy list starts open");
   app.run(`renderVacancy(${JSON.stringify(first)})`);
   assert.equal(app.run("state.sidebarOpen"), false, "selecting a vacancy hides the desktop list");
+  assert.match(app.workspace.innerHTML, /<h2 class="vacancy-title" tabindex="-1">First role<\/h2>/);
   const click = app.listeners.get("click");
   const toggleTarget = { closest: selector => selector === "#sidebar-toggle" ? {} : null };
   await click({ target: toggleTarget });
   assert.equal(app.run("state.sidebarOpen"), true);
+  await click({ target: { closest: () => null } });
+  assert.equal(app.run("state.sidebarOpen"), true, "clicking outside does not close the desktop panel");
   app.routes.set("GET /api/vacancies/1", first);
   const vacancyCard = {
     dataset: { id: "1" },
@@ -947,6 +982,7 @@ async function testResponsiveSidebarToggleClosesAfterSelection() {
   };
   await click({ target: vacancyCard });
   assert.equal(app.run("state.sidebarOpen"), false);
+  assert.equal(app.workspace.querySelector(".workspace-head .vacancy-title").focused, true);
   await click({ target: toggleTarget });
   assert.equal(app.run("state.sidebarOpen"), true);
   const secondCard = {
@@ -957,6 +993,36 @@ async function testResponsiveSidebarToggleClosesAfterSelection() {
   await click({ target: secondCard });
   assert.equal(app.run("state.selected.id"), 2);
   assert.equal(app.run("state.sidebarOpen"), false);
+}
+
+async function testSidebarResizeAndCompactDismissal() {
+  const app = harness();
+  assert.equal(app.sidebarToggle.hidden, false);
+  assert.equal(app.run("state.sidebarOpen"), true);
+
+  app.run('setSection("analytics")');
+  assert.equal(app.sidebarToggle.hidden, true);
+  assert.equal(app.run("state.sidebarOpen"), false);
+
+  app.window.setViewport(700);
+  assert.equal(app.sidebarToggle.hidden, false, "compact sections expose the drawer button after resize");
+  assert.equal(app.run("state.sidebarOpen"), false);
+  await app.listeners.get("click")({ target: { closest: selector => selector === "#sidebar-toggle" ? {} : null } });
+  assert.equal(app.run("state.sidebarOpen"), true);
+  await app.listeners.get("click")({ target: { closest: () => null } });
+  assert.equal(app.run("state.sidebarOpen"), false, "outside clicks dismiss the compact drawer");
+
+  app.window.setViewport(1200);
+  assert.equal(app.sidebarToggle.hidden, true, "desktop sections hide the drawer button after resize");
+  assert.equal(app.run("state.sidebarOpen"), false);
+
+  app.run('setSection("vacancies")');
+  assert.equal(app.sidebarToggle.hidden, false);
+  assert.equal(app.run("state.sidebarOpen"), true);
+  app.window.setViewport(700);
+  assert.equal(app.run("state.sidebarOpen"), false, "compact viewport starts with the drawer closed");
+  app.window.setViewport(1200);
+  assert.equal(app.run("state.sidebarOpen"), true, "desktop vacancy list reopens when no vacancy is selected");
 }
 
 async function testResponsiveSidebarStaysOpenWhenArchiveFilterChanges() {
@@ -1041,6 +1107,7 @@ async function testMutationFailuresAndDuplicateRecovery() {
   await testResumePreviewAndEditableCopy();
   await testResponsiveSidebarToggleClosesAfterSelection();
   await testResponsiveSidebarStaysOpenWhenArchiveFilterChanges();
+  await testSidebarResizeAndCompactDismissal();
   await testStageFourMasterCrmAndAtsAcceptance();
   await testMasterResumeWorkspaceAndSave();
   await testImportPreviewEditConfirmAndRecovery();

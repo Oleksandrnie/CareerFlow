@@ -612,8 +612,8 @@ button:focus-visible, input:focus-visible, textarea:focus-visible, select:focus-
   .sidebar-toggle { display: inline-grid; place-items: center; }
   .layout { grid-template-columns: minmax(270px, 310px) minmax(0, 1fr); transition: grid-template-columns 240ms cubic-bezier(.16, 1, .3, 1); }
   .layout.sidebar-collapsed { grid-template-columns: minmax(0, 0fr) minmax(0, 1fr); }
-  .layout:not(.master-mode) .sidebar { min-width: 0; overflow: hidden; transition: opacity 160ms ease, padding 240ms cubic-bezier(.16, 1, .3, 1), border-color 240ms ease; }
-  .layout.sidebar-collapsed:not(.master-mode) .sidebar { padding-right: 0; padding-left: 0; border-right-width: 0; opacity: 0; pointer-events: none; }
+  .layout:not(.master-mode) .sidebar { min-width: 0; overflow-x: hidden; overflow-y: auto; transition: opacity 160ms ease, padding 240ms cubic-bezier(.16, 1, .3, 1), border-color 240ms ease; }
+  .layout.sidebar-collapsed:not(.master-mode) .sidebar { overflow: hidden; padding-right: 0; padding-left: 0; border-right-width: 0; opacity: 0; pointer-events: none; }
   .layout.master-mode { grid-template-columns: minmax(0, 1fr); }
 }
 

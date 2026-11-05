@@ -260,13 +260,7 @@ function setSection(section) {
   });
   topbar?.setAttribute?.("data-section", section);
   appLayout.classList.toggle("master-mode", section !== "vacancies");
-  const isCompactViewport = typeof window !== "undefined" && typeof window.matchMedia === "function" && window.matchMedia("(max-width: 900px)").matches;
-  setSidebarOpen(section === "vacancies" && !state.selected && !isCompactViewport);
-  if (sidebarToggle) {
-    sidebarToggle.hidden = section !== "vacancies" && !isCompactViewport;
-    sidebarToggle.disabled = false;
-    sidebarToggle.setAttribute?.("aria-label", translateText(state.sidebarOpen ? "Close vacancy list" : "Open vacancy list"));
-  }
+  syncResponsiveSidebar();
   newVacancyButton.hidden = false;
 }
 
@@ -350,6 +344,24 @@ function setSidebarOpen(open) {
   appLayout.classList.toggle("sidebar-collapsed", !isOpen);
   vacancySidebar?.setAttribute?.("aria-hidden", String(!isOpen));
   if (vacancySidebar && "inert" in vacancySidebar) vacancySidebar.inert = !isOpen;
+}
+
+function syncResponsiveSidebar() {
+  const isCompactViewport = typeof window !== "undefined" && typeof window.matchMedia === "function" && window.matchMedia("(max-width: 900px)").matches;
+  if (sidebarToggle) {
+    sidebarToggle.hidden = state.section !== "vacancies" && !isCompactViewport;
+    sidebarToggle.disabled = false;
+  }
+  setSidebarOpen(state.section === "vacancies" && !state.selected && !isCompactViewport);
+}
+
+if (typeof window !== "undefined" && typeof window.matchMedia === "function") {
+  const sidebarViewport = window.matchMedia("(max-width: 900px)");
+  if (typeof sidebarViewport.addEventListener === "function") {
+    sidebarViewport.addEventListener("change", syncResponsiveSidebar);
+  } else {
+    sidebarViewport.addListener?.(syncResponsiveSidebar);
+  }
 }
 
 async function showVacancies() {
@@ -647,7 +659,7 @@ function renderVacancy(vacancy) {
   renderList();
   workspace.innerHTML = `
     <div class="workspace-head">
-      <div><p class="workspace-status badge ${statusTone(vacancy.status)}">${escapeHtml(vacancy.status)}</p><h2 class="vacancy-title">${escapeHtml(compactVacancyTitle(vacancy.title))}</h2><p class="muted">${escapeHtml(vacancy.company || "Company not set")} · Added ${new Date(vacancy.created_at + "Z").toLocaleDateString()}</p></div>
+      <div><p class="workspace-status badge ${statusTone(vacancy.status)}">${escapeHtml(vacancy.status)}</p><h2 class="vacancy-title" tabindex="-1">${escapeHtml(compactVacancyTitle(vacancy.title))}</h2><p class="muted">${escapeHtml(vacancy.company || "Company not set")} · Added ${new Date(vacancy.created_at + "Z").toLocaleDateString()}</p></div>
       <div class="actions"><button id="export-report" class="secondary">Export .md</button><button id="edit-overview" class="secondary">Edit</button><button id="archive-vacancy" class="secondary">${vacancy.archived_at ? "Restore" : "Archive"}</button><button id="delete-vacancy" class="danger">Delete</button></div>
     </div>
     ${stageBar(vacancy)}
@@ -1376,7 +1388,8 @@ function closeDialog() { dialog.close(); form.reset(); resetImportReview(); sele
 
 document.addEventListener("click", async event => {
   if (event.target.closest("[data-close-analytics-help]")) { analyticsHelp?.close(); return; }
-  if (state.sidebarOpen && !event.target.closest("#vacancy-sidebar") && !event.target.closest("#sidebar-toggle")) {
+  const isCompactViewport = typeof window !== "undefined" && typeof window.matchMedia === "function" && window.matchMedia("(max-width: 900px)").matches;
+  if (isCompactViewport && state.sidebarOpen && !event.target.closest("#vacancy-sidebar") && !event.target.closest("#sidebar-toggle")) {
     setSidebarOpen(false);
   }
   if (event.target.closest("#sidebar-toggle")) {
@@ -1427,6 +1440,7 @@ document.addEventListener("click", async event => {
       const vacancy = await api(`/api/vacancies/${card.dataset.id}`);
       if (selectionEpoch === state.selectionEpoch) {
         renderVacancy(vacancy);
+        workspace.querySelector(".workspace-head .vacancy-title")?.focus?.();
       }
     } catch (error) { if (selectionEpoch === state.selectionEpoch) showError(error); }
   }
