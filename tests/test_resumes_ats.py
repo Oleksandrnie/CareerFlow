@@ -729,7 +729,7 @@ class AtsLegacyMigrationTest(unittest.TestCase):
             self.assertIsNone(analysis["description_snapshot"])
             self.assertEqual(
                 database.fetch_one("SELECT MAX(version) AS version FROM schema_version")["version"],
-                10,
+                11,
             )
             vacancy = database.fetch_one("SELECT * FROM vacancies WHERE id = 1")
             self.assertEqual(vacancy["raw_description"], vacancy["description"])

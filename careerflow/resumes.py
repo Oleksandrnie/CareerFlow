@@ -319,6 +319,12 @@ def delete_resume(database: Database, storage_dir: Path, resume_id: int) -> dict
                 (resume_id,),
             ).fetchone()[0]
         )
+        assessment_count = int(
+            connection.execute(
+                "SELECT COUNT(*) FROM ats_assessments WHERE resume_version_id = ?",
+                (resume_id,),
+            ).fetchone()[0]
+        )
         if resume["deleted_at"] is not None:
             return {
                 "id": resume_id,
@@ -329,6 +335,7 @@ def delete_resume(database: Database, storage_dir: Path, resume_id: int) -> dict
                 "already_deleted": True,
                 "files_removed": False,
                 "ats_analyses_preserved": analysis_count,
+                "ats_assessments_redacted": assessment_count,
                 "current_matches_cleared": 0,
                 "reports_redacted": 0,
             }
@@ -386,6 +393,19 @@ def delete_resume(database: Database, storage_dir: Path, resume_id: int) -> dict
                 "UPDATE ats_analyses SET result_json = ? WHERE id = ?",
                 scrubbed_results,
             )
+        if assessment_count:
+            connection.execute(
+                """UPDATE ats_assessments
+                   SET result_json = ?, response = '', redacted_at = CURRENT_TIMESTAMP
+                   WHERE resume_version_id = ? AND redacted_at IS NULL""",
+                (
+                    json.dumps(
+                        {"redacted": True, "message": "Resume content was deleted; assessment evidence was removed."},
+                        ensure_ascii=False,
+                    ),
+                    resume_id,
+                ),
+            )
         if current_vacancy_ids:
             connection.executemany(
                 "UPDATE vacancies SET match_percent = NULL, updated_at = CURRENT_TIMESTAMP WHERE id = ?",
@@ -418,6 +438,7 @@ def delete_resume(database: Database, storage_dir: Path, resume_id: int) -> dict
             "already_deleted": False,
             "files_removed": files_removed,
             "ats_analyses_preserved": analysis_count,
+            "ats_assessments_redacted": assessment_count,
             "current_matches_cleared": len(current_vacancy_ids),
             "reports_redacted": reports_redacted,
         }

@@ -10,6 +10,8 @@ function element(selector) {
     textContent: "",
     classList: { add() {}, remove() {}, toggle() {} },
     addEventListener() {},
+    querySelector: selector => element(selector),
+    querySelectorAll: () => [],
   });
   return elements.get(selector);
 }
@@ -40,7 +42,9 @@ const analysis = {
 const responses = {
   "/api/vacancies?archived=undefined": [],
   "/api/resumes?kind=vacancy&vacancy_id=1": [{ id: 43, kind: "vacancy", version: 1, label: "Latest" }],
+  "/api/resumes?kind=master": [],
   "/api/vacancies/1/ats": analysis,
+  "/api/ats/assessments?resume_version_id=43": [],
 };
 const context = vm.createContext({
   document,
@@ -56,11 +60,13 @@ vm.runInContext(source, context);
 (async () => {
   await vm.runInContext("renderAts({id: 1, description_confirmed_at: '2026-09-26'})", context);
   const html = element("#content-panel").innerHTML;
-  assert.match(html, /value="43" selected/);
+  assert.match(html, /value="43"[^>]*selected/);
   assert.match(html, /Historical ATS text match — rerun analysis/);
   assert.match(html, /Vacancy Resume v1 \(ID 43\)/);
   assert.match(html, /This result is historical/);
   assert.match(html, /not a probability of getting the job or a definitive assessment of suitability/);
+  assert.match(html, /data-run-assessment="manager_audit"/);
+  assert.match(html, /data-run-assessment="vacancy_match"/);
   process.stdout.write("ATS UI provenance contract passed\n");
 })().catch(error => {
   process.stderr.write(`${error.stack}\n`);

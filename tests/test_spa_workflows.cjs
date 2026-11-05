@@ -43,6 +43,7 @@ function fakeElement(tagName = "DIV") {
       }
       return children.get(selector);
     },
+    querySelectorAll() { return []; },
     get innerHTML() { return this.html ?? html; },
     set innerHTML(value) {
       for (const [form] of String(value).matchAll(/<form\b[^>]*>[\s\S]*?<\/form>/g)) {
@@ -565,10 +566,10 @@ async function testStageFourMasterCrmAndAtsAcceptance() {
   app.run('state.selected.description_confirmed_at = "2026-09-21"');
   app.routes.set("GET /api/vacancies/1/ats", null);
   await app.run('openTab("ATS", state.selected)');
-  assert.match(app.panel.innerHTML, /ATS analysis requires a resume/);
-  assert.match(app.panel.innerHTML, /data-open-resume/);
+  assert.match(app.panel.innerHTML, /Master Resume v3 — Canonical/);
+  assert.match(app.panel.innerHTML, /data-run-assessment="manager_audit"/);
   const atsWorkspace = app.panel.innerHTML;
-  assert.equal((atsWorkspace.match(/data-open-resume/g) || []).length, 2);
+  assert.match(atsWorkspace, /data-run-assessment="vacancy_match"/);
   assert.match(fs.readFileSync(path.join(__dirname, "../careerflow/static/app.js"), "utf8"), /not an employer decision and not a Codex analysis/);
 
   app.run("state.selected.description_confirmed_at = null");
@@ -852,12 +853,12 @@ async function testSavedAiDetailAndLateRun() {
   assert.match(app.panel.innerHTML, /name="response_language" id="ai-response-language"/);
   assert.match(app.panel.innerHTML, /value="auto" selected>Auto<\/option><option value="russian">Russian<\/option><option value="english">English/);
   assert.match(app.panel.innerHTML, /gpt-5\.6-luna · low · Russian/);
-  assert.match(app.panel.innerHTML, /Match resume to vacancy/);
-  app.panel.querySelector("#ai-action").value = "Match resume to vacancy";
+  assert.match(app.panel.innerHTML, /Review ATS analysis/);
+  app.panel.querySelector("#ai-action").value = "Improve resume";
   app.panel.querySelector("#ai-action").onchange({ target: app.panel.querySelector("#ai-action") });
-  assert.match(app.panel.querySelector("#ai-prompt").value, /confirmed vacancy requirements/i);
+  assert.match(app.panel.querySelector("#ai-prompt").value, /truthful improvements/i);
   await app.run('setLocale("ru")');
-  assert.match(app.panel.querySelector("#ai-prompt").value, /Сопоставь выбранное резюме/);
+  assert.match(app.panel.querySelector("#ai-prompt").value, /Предложи правдивые улучшения/);
   app.panel.querySelector("#ai-prompt").value = "My custom prompt";
   app.panel.querySelector("#ai-prompt").oninput({ target: app.panel.querySelector("#ai-prompt") });
   await app.run('setLocale("en")');

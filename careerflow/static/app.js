@@ -82,10 +82,6 @@ const AI_PROMPT_CATALOG = {
     en: "Review the local ATS comparison. Flag false positives, weak evidence, and requirements that are not evidenced. Cite the relevant resume lines. Missing evidence does not mean the candidate lacks the skill. Suggest truthful wording improvements only.",
     ru: "Проверь локальное сравнение ATS. Отметь ложные совпадения, слабые подтверждения и требования, для которых нет свидетельств. Ссылайся на соответствующие строки резюме. Отсутствие подтверждения не означает отсутствия навыка. Предлагай только правдивые улучшения формулировок.",
   },
-  "Match resume to vacancy": {
-    en: "Compare the selected resume with the confirmed vacancy requirements. For each requirement, report covered, partial, or not evidenced, explain why, and cite exact resume evidence. Missing evidence does not mean the candidate lacks the skill. If input is insufficient, say so instead of inventing a score. Return JSON with summary, requirements, strengths, and gaps; include a score only when its basis is explicit.",
-    ru: "Сопоставь выбранное резюме с подтверждёнными требованиями вакансии. Для каждого требования укажи: подтверждено, частично подтверждено или не подтверждено; объясни вывод и приведи точные фрагменты резюме. Отсутствие подтверждения не означает отсутствия навыка. Если данных недостаточно, сообщи об этом вместо выдуманного балла. Верни JSON с полями summary, requirements, strengths и gaps; указывай оценку только при явном описании её основания.",
-  },
   "Create tailored resume": {
     en: "Create a vacancy-tailored Markdown resume from the selected source resume and confirmed vacancy description. Use only candidate facts present in the source. Keep claims, metrics, skills, dates, and responsibilities truthful; never invent or infer them. Preserve the source resume's language unless I explicitly request another language.",
     ru: "Создай Markdown-резюме под подтверждённое описание вакансии на основе выбранного исходного резюме. Используй только факты о кандидате из исходника. Не выдумывай и не додумывай достижения, метрики, навыки, даты или обязанности. Сохрани язык исходного резюме, если я явно не попрошу другой.",
@@ -122,6 +118,7 @@ const RU = {
   "No archived vacancies.": "Архивных вакансий нет.", "No vacancies yet.": "Вакансий пока нет.", "Company not set": "Компания не указана", "Salary not specified": "Зарплата не указана", "No summary yet": "Описание пока отсутствует",
   "Saved": "Сохранена", "Applied": "Отклик отправлен", "Interview": "Собеседование", "Waiting": "Ожидание", "Offer": "Оффер", "Rejected": "Отказ",
   "Vacancy stage": "Этап вакансии", "Added": "Добавлена", "ATS": "ATS", "AI": "AI", "Heuristic ATS text-match score, not a probability of getting the job": "Эвристическая оценка совпадения ATS, не вероятность получения работы",
+  "ATS and resume review": "ATS и аудит резюме", "EVIDENCE-BASED REVIEW": "ПРОВЕРКА ПО СВИДЕТЕЛЬСТВАМ", "Run local comparison": "Запустить локальное сравнение", "Run local comparison again": "Повторить локальное сравнение", "Vacancy Resume": "Резюме вакансии", "Resume version": "Версия резюме", "Evidence-based Codex review": "Проверка резюме через Codex", "Audit this resume": "Провести аудит резюме", "Match against vacancy": "Сопоставить с вакансией", "Manager audit checks role clarity, evidence, seniority signals, and common resume risk patterns. Vacancy match cites resume lines against this vacancy. Neither produces a hiring probability.": "Аудит проверяет ясность роли, подтверждённость результатов, сигналы уровня и типичные риски резюме. Сопоставление связывает требования вакансии со строками резюме. Ни одна проверка не оценивает вероятность найма.", "Local keyword coverage is a limited text comparison. Codex review is explicit, uses only the selected resume and confirmed vacancy text for matching, and does not change a resume automatically.": "Локальное совпадение ключевых слов — ограниченное текстовое сравнение. Проверка Codex запускается явно и использует только выбранное резюме, а для сопоставления — подтверждённый текст вакансии. Резюме автоматически не меняется.", "Manager resume audit": "Аудит резюме руководителя", "Vacancy requirement match": "Сопоставление с требованиями вакансии", "Historical result; source changed or was deleted": "Исторический результат: источник изменён или удалён", "Resume risk checks": "Проверка рисков резюме", "Priority improvements": "Приоритетные улучшения", "Resume evidence:": "Свидетельства в резюме:", "Resume content was deleted; assessment evidence was removed.": "Данные резюме удалены; свидетельства оценки очищены.", "No Codex assessments for this resume version yet.": "Для этой версии резюме пока нет оценок Codex.", "Codex returned an unreadable assessment. No score was saved.": "Codex вернул нераспознанную оценку. Числовая оценка не сохранена.", "covered": "подтверждено", "partial": "частично", "not_evidenced": "не подтверждено", "insufficient_input": "недостаточно данных", "present": "обнаружено", "clear": "не обнаружено", "unrated": "не оценено",
   "Overview": "Обзор", "Resume": "Резюме", "Timeline": "История", "Notes": "Заметки", "Files": "Файлы", "AI / Codex": "AI / Codex",
   "Export .md": "Экспорт .md", "Edit": "Изменить", "Restore": "Восстановить", "Archive": "Архивировать", "Delete": "Удалить",
   "PERMANENT ACTION": "НЕОБРАТИМОЕ ДЕЙСТВИЕ", "Delete vacancy?": "Удалить вакансию?", "Delete vacancy": "Удалить вакансию", "Delete vacancy, keep CVs": "Удалить вакансию, сохранить CV", "Delete vacancy and CVs": "Удалить вакансию и CV",
@@ -1129,15 +1126,51 @@ function atsResult(analysis, vacancy = null) {
     <h4>Keywords</h4><div class="tag-list">${result.keywords.map(word => `<span class="tag ${result.covered_keywords.includes(word) ? "hit" : ""}">${escapeHtml(word)}</span>`).join("")}</div>`;
 }
 
+function renderAssessmentResult(assessment) {
+  if (assessment.redacted_at) return `<p class="muted">Resume content was deleted; assessment evidence was removed.</p>`;
+  const result = assessment.result || {};
+  if (result.response_format_error) return `<p class="error">Codex returned an unreadable assessment. No score was saved.</p>`;
+  const refs = value => Array.isArray(value) ? value.join(", ") : String(value || "");
+  const list = value => Array.isArray(value) && value.length
+    ? `<ul>${value.map(item => `<li>${escapeHtml(String(item))}</li>`).join("")}</ul>`
+    : `<p class="muted">—</p>`;
+  const summary = result.overall_summary ? `<p>${escapeHtml(String(result.overall_summary))}</p>` : "";
+  if (assessment.assessment_kind === "vacancy_match" && Array.isArray(result.requirements)) {
+    return `${summary}<div class="item-list">${result.requirements.map(item => {
+      const status = item.status || "not_evidenced";
+      const statusClass = ({ covered: "covered", partial: "partial", not_evidenced: "missing" })[status] || "";
+      return `<article class="requirement ${statusClass}"><span class="badge">${escapeHtml(status)}</span><strong>${escapeHtml(item.requirement || "Requirement")}</strong>${item.vacancy_quote ? `<blockquote>${escapeHtml(item.vacancy_quote)}</blockquote>` : ""}<p>${escapeHtml(item.explanation || "")}</p>${refs(item.resume_line_refs) ? `<small class="muted">Resume evidence: ${escapeHtml(refs(item.resume_line_refs))}</small>` : ""}</article>`;
+    }).join("")}</div><div class="ai-readable-columns"><div><h4>Strengths</h4>${list(result.strengths)}</div><div><h4>Gaps</h4>${list(result.gaps)}</div></div>${Array.isArray(result.limitations) && result.limitations.length ? `<h4>Limitations</h4>${list(result.limitations)}` : ""}`;
+  }
+  if (assessment.assessment_kind === "manager_audit") {
+    const flags = Array.isArray(result.anti_persona_flags) ? result.anti_persona_flags : [];
+    const improvements = Array.isArray(result.priority_improvements) ? result.priority_improvements : [];
+    const evidence = Array.isArray(result.evidence_review) ? result.evidence_review : [];
+    const quickRead = Array.isArray(result.ten_second_read) ? result.ten_second_read : [];
+    const family = result.role_family;
+    const familyText = family && typeof family === "object"
+      ? `${family.claimed_family || "—"} (${family.claimed_grade || "—"}) → ${family.supported_family || "—"} (${family.supported_grade || "—"})${family.mismatch ? " · mismatch" : ""}`
+      : String(family || "—");
+    const scores = result.scores && typeof result.scores === "object"
+      ? Object.entries(result.scores).map(([axis, score]) => `<div><span>${escapeHtml(axis)}</span><strong>${escapeHtml(Number(score).toFixed(2))}</strong></div>`).join("")
+      : "";
+    return `${summary}<p><strong>Role family:</strong> ${escapeHtml(familyText)} · <strong>Grade inflation:</strong> ${escapeHtml(JSON.stringify(result.grade_inflation || "—"))}</p><h4>Overall resume score · ${escapeHtml(result.overall_score_percent ?? "—")}%</h4>${scores ? `<div class="metric-grid ats-score-grid">${scores}</div><p class="muted">${escapeHtml(JSON.stringify(result.weighted_sum || ""))}</p>` : ""}<h4>Resume risk checks</h4><div class="item-list">${flags.map(item => `<article class="item-row"><div><span class="badge">${escapeHtml(item.status || "unrated")}</span><strong>${escapeHtml(item.name || "Check")}</strong><p>${escapeHtml(item.explanation || "")}</p><small class="muted">${escapeHtml(refs(item.line_refs))}</small></div></article>`).join("")}</div><h4>Evidence and achievement review</h4><div class="item-list">${evidence.map(item => `<article class="item-row"><div><strong>${escapeHtml(item.line_ref || "Resume line")} · ${escapeHtml(item.xyz_verdict || item.category || "evidence")}</strong><p>${escapeHtml(item.quote || "")}</p><p>${escapeHtml(item.xyz_assessment || "")}${item.attribution ? ` · ${escapeHtml(item.attribution)}` : ""}</p></div></article>`).join("") || `<p class="muted">—</p>`}</div><h4>10-second recruiter read</h4><div class="item-list">${quickRead.map(item => `<article class="item-row"><div><strong>${escapeHtml(item.check || "Check")}</strong><p>${escapeHtml(item.result || "")}</p><small class="muted">${escapeHtml(refs(item.line_refs))}</small></div></article>`).join("")}</div><h4>Priority improvements</h4><div class="item-list">${improvements.map(item => `<article class="item-row"><div><strong>${escapeHtml(item.issue || "Improvement")}</strong><p>${escapeHtml(item.direction || item.recommendation || "")}</p><small class="muted">${escapeHtml(refs(item.line_refs))}</small></div></article>`).join("") || `<p class="muted">—</p>`}</div>${Array.isArray(result.limitations) && result.limitations.length ? `<h4>Limitations</h4>${list(result.limitations)}` : ""}`;
+  }
+  return `<pre class="ai-response">${escapeHtml(JSON.stringify(result, null, 2))}</pre>`;
+}
+
 async function renderAts(vacancy, view = null) {
   const panel = document.querySelector("#content-panel");
   panel.innerHTML = `<p class="muted">Loading ATS workspace…</p>`;
   try {
-    const [versions, latest] = await Promise.all([
+    const [vacancyVersions, masterVersions, latest] = await Promise.all([
       api(`/api/resumes?kind=vacancy&vacancy_id=${vacancy.id}`),
+      api("/api/resumes?kind=master"),
       api(`/api/vacancies/${vacancy.id}/ats`),
     ]);
     if (!isCurrentView(view)) return;
+    const versions = [...vacancyVersions, ...masterVersions];
+    const selectedResumeId = latest?.resume_version_id || versions[0]?.id;
     let emptyState = "";
     if (!vacancy.description_confirmed_at) {
       emptyState = `<div class="empty-inline"><h3>Review the cleaned vacancy description before running ATS.</h3><button type="button" class="secondary" data-review-description>Review description</button></div>`;
@@ -1146,7 +1179,7 @@ async function renderAts(vacancy, view = null) {
     } else if (!latest) {
       emptyState = `<div class="empty-inline"><h3>Select a resume version and run ATS analysis.</h3><p>ATS is a local text comparison, not an employer decision and not a Codex analysis.</p></div>`;
     }
-    panel.innerHTML = `<div class="section-head ats-head"><div><p class="eyebrow">EVIDENCE-BASED LOCAL COMPARISON</p><h3>ATS analysis</h3></div>${versions.length ? `<div class="actions"><select id="ats-resume">${versions.map(item => `<option value="${item.id}" ${latest && item.id === latest.resume_version_id ? "selected" : ""}>Vacancy Resume v${item.version} — ${escapeHtml(item.label || "Untitled")}</option>`).join("")}</select><button id="run-ats" class="primary" ${vacancy.description_confirmed_at ? "" : "disabled"}>${latest?.is_stale ? "Run again" : "Run analysis"}</button></div>` : ""}</div><p class="error" id="ats-error"></p>${emptyState}<div id="ats-result">${atsResult(latest, vacancy)}</div>`;
+    panel.innerHTML = `<div class="section-head ats-head"><div><p class="eyebrow">EVIDENCE-BASED REVIEW</p><h3>ATS and resume review</h3></div>${versions.length ? `<div class="actions"><select id="ats-resume" aria-label="Resume version">${versions.map(item => `<option value="${item.id}" data-resume-kind="${item.kind}" ${item.id === selectedResumeId ? "selected" : ""}>${item.kind === "master" ? "Master Resume" : "Vacancy Resume"} v${item.version} — ${escapeHtml(item.label || "Untitled")}</option>`).join("")}</select><button id="run-ats" class="secondary" ${vacancy.description_confirmed_at ? "" : "disabled"}>${latest?.is_stale ? "Run local comparison again" : "Run local comparison"}</button></div>` : ""}</div><p class="muted">Local keyword coverage is a limited text comparison. Codex review is explicit, uses only the selected resume and confirmed vacancy text for matching, and does not change a resume automatically.</p><p class="error" id="ats-error"></p>${emptyState}<div id="ats-result">${atsResult(latest, vacancy)}</div>${versions.length ? `<section class="ats-manager-review"><h3>Evidence-based Codex review</h3><p>Manager audit checks role clarity, evidence, seniority signals, and common resume risk patterns. Vacancy match cites resume lines against this vacancy. Neither produces a hiring probability.</p><div class="actions"><button class="secondary" type="button" data-run-assessment="manager_audit">Audit this resume</button><button class="primary" type="button" data-run-assessment="vacancy_match" ${vacancy.description_confirmed_at ? "" : "disabled"}>Match against vacancy</button></div><p class="error" id="assessment-error"></p><div id="ats-assessment-history" class="item-list"></div></section>` : ""}`;
     document.querySelectorAll("[data-open-resume]").forEach(button => button.onclick = () => openTab("Resume", vacancy));
     const reviewButton = document.querySelector("[data-review-description]");
     if (reviewButton) reviewButton.onclick = () => openTab("Overview", vacancy);
@@ -1162,6 +1195,46 @@ async function renderAts(vacancy, view = null) {
         if (isCurrentView(view)) { document.querySelector("#ats-result").innerHTML = atsResult(analysis); toast("ATS analysis completed"); }
       }, errorTarget, view);
     };
+    const resumeSelect = panel.querySelector("#ats-resume");
+    const assessmentHistory = panel.querySelector("#ats-assessment-history");
+    const refreshAssessmentHistory = async () => {
+      if (!resumeSelect || !assessmentHistory) return;
+      const resumeId = Number(resumeSelect.value);
+      const assessments = await api(`/api/ats/assessments?resume_version_id=${resumeId}`);
+      if (!isCurrentView(view)) return;
+      if (Number(resumeSelect.value) !== resumeId) return;
+      assessmentHistory.innerHTML = assessments.length ? assessments.map(item => {
+        const title = item.assessment_kind === "manager_audit" ? "Manager resume audit" : "Vacancy requirement match";
+        return `<article class="ats-assessment"><div class="section-head"><div><strong>${title} · ${escapeHtml(item.model)}</strong><p class="muted">${escapeHtml(item.resume_kind)} resume v${item.resume_version} · ${escapeHtml(item.locale)} · ${escapeHtml(item.rubric_version)} · ${escapeHtml(item.created_at)}${item.is_stale ? " · Historical result; source changed or was deleted" : ""}</p></div></div>${renderAssessmentResult(item)}</article>`;
+      }).join("") : `<p class="muted">No Codex assessments for this resume version yet.</p>`;
+    };
+    if (resumeSelect) {
+      resumeSelect.onchange = () => refreshAssessmentHistory().catch(error => { assessmentHistory.textContent = error.message; });
+      refreshAssessmentHistory().catch(error => { assessmentHistory.textContent = error.message; });
+    }
+    panel.querySelectorAll("[data-run-assessment]").forEach(button => {
+      button.onclick = async () => {
+        const errorTarget = panel.querySelector("#assessment-error");
+        errorTarget.textContent = "";
+        await runAction(button, async () => {
+          const assessment = await api("/api/ats/assessments", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({
+              assessment_kind: button.dataset.runAssessment,
+              resume_version_id: Number(resumeSelect.value),
+              vacancy_id: vacancy.id,
+              locale: state.locale,
+            }),
+          });
+          if (!isCurrentView(view)) return;
+          if (assessment.status === "invalid_response") errorTarget.textContent = "Codex returned an unreadable assessment. No score was saved.";
+          await refreshAssessmentHistory();
+          if (button.dataset.runAssessment === "vacancy_match") toast("Vacancy review saved as historical assessment");
+          else toast("Resume audit saved as historical assessment");
+        }, errorTarget, view);
+      };
+    });
   } catch (error) { if (isCurrentView(view)) panel.innerHTML = `<p class="error">${escapeHtml(error.message)}</p>`; }
 }
 
