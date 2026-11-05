@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import ipaddress
 import os
 from pathlib import Path
 import threading
@@ -12,13 +13,21 @@ import uvicorn
 from careerflow.config import load_project_env
 
 
+def _browser_host(host: str) -> str:
+    try:
+        address = ipaddress.ip_address(host.strip("[]"))
+    except ValueError:
+        return host
+    return "127.0.0.1" if address.is_unspecified else host
+
+
 if __name__ == "__main__":
     load_project_env(Path(__file__).resolve().parent)
     host = os.getenv("CAREERFLOW_HOST", "127.0.0.1")
     port = int(os.getenv("CAREERFLOW_PORT", "8000"))
     open_browser = os.getenv("CAREERFLOW_OPEN_BROWSER", "1").strip().lower()
     if open_browser not in {"0", "false", "no", "off"}:
-        browser_host = "127.0.0.1" if host in {"0.0.0.0", "::", "[::]"} else host
+        browser_host = _browser_host(host)
         if ":" in browser_host and not browser_host.startswith("["):
             browser_host = f"[{browser_host}]"
         url = f"http://{browser_host}:{port}"
