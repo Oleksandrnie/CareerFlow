@@ -5,6 +5,9 @@ const path = require("node:path");
 const root = path.resolve(__dirname, "..");
 const app = fs.readFileSync(path.join(root, "careerflow/static/app.js"), "utf8");
 const css = fs.readFileSync(path.join(root, "careerflow/static/app.css"), "utf8");
+const index = fs.readFileSync(path.join(root, "careerflow/static/index.html"), "utf8");
+
+assert.match(index, /<dialog id="analytics-help" aria-labelledby="analytics-help-title">[\s\S]*?<h2 id="analytics-help-title">How analytics works<\/h2>/);
 
 for (const label of [
   'added: "Добавлено"',
@@ -21,15 +24,17 @@ assert.match(app, /analyticsLabel\(item\.stage\)/);
 assert.match(app, /analyticsLabel\(item\.transition\)/);
 assert.match(app, /analyticsLabel\(key\)/);
 assert.match(app, /window\.matchMedia\?\.\("\(max-width: 600px\)"\)\.matches/);
-assert.match(app, /sidebarToggle\.hidden = false/);
+assert.match(app, /sidebarToggle\.hidden = state\.section !== "vacancies" && !isCompactViewport/);
+assert.match(app, /sidebarViewport\.addEventListener\("change", syncResponsiveSidebar\)/);
 assert.match(app, /sidebarToggle\.disabled = false/);
-assert.match(app, /state\.locale === "ru" && state\.section === "analytics"/);
+assert.match(app, /const analyticsContext = state\.section === "analytics" \?/);
+assert.match(app, /if \(analyticsContext\) \{[\s\S]*?return renderAnalytics\(analyticsContext\)/);
 assert.match(css, /\.analytics-head \{[^}]*grid-template-columns: minmax\(0, 1fr\) 38px;[^}]*min-height: 92px;/);
 assert.match(css, /\.analytics-head \.help-button \{[^}]*width: 38px;[^}]*border-radius: 50%;/);
 assert.match(css, /\.analytics-help-shell \{[^}]*padding: 24px;/);
 assert.match(css, /\.standalone-head \{ max-width: none; margin: 0 0 22px; \}/);
 assert.match(css, /\.analytics-date\[hidden\] \{ display: none !important; \}/);
-assert.match(css, /\.sidebar-toggle\[hidden\] \{ visibility: hidden; pointer-events: none; \}/);
+assert.match(css, /\.sidebar-toggle\[hidden\] \{ display: none !important; visibility: hidden; pointer-events: none; \}/);
 assert.match(css, /\.topbar\.header-nav-hidden \.primary-nav \{ display: flex;/);
 
 console.log("Analytics mobile UI contract passed");

@@ -72,6 +72,7 @@ let lastWorkspaceScrollTop = 0;
 const RU = {
   "LOCAL CAREER WORKSPACE": "ЛОКАЛЬНОЕ ПРОСТРАНСТВО ПОИСКА РАБОТЫ",
   "Primary navigation": "Основная навигация",
+  "Vacancy sections": "Разделы вакансии",
   "Vacancies": "Вакансии", "Master Resume": "Главное резюме", "Analytics": "Аналитика", "+ Add vacancy": "+ Добавить вакансию", "LOCAL PROCESS ANALYTICS": "ЛОКАЛЬНАЯ АНАЛИТИКА ПРОЦЕССА", "Activity uses event dates; funnel uses vacancies added in the selected period.": "Активность считается по датам событий, а воронка — по вакансиям, добавленным в выбранном периоде.", "How analytics works": "Как работает аналитика", "Got it": "Понятно", "Period": "Период", "Grouping": "Группировка", "From": "От", "To": "До", "All time": "Всё время", "Current month": "Текущий месяц", "Last 3 months": "Последние 3 месяца", "Current year": "Текущий год", "Custom range": "Произвольный диапазон", "By month": "По месяцам", "By week": "По неделям", "Vacancies added": "Добавлено вакансий", "Applications sent": "Отправлено откликов", "Vacancies with interview": "Вакансий с интервью", "Interviews completed": "Проведено интервью", "Offers received": "Получено офферов", "Rejections received": "Получено отказов", "Active processes": "Активных процессов", "Successfully completed": "Успешно завершено", "Job-search funnel": "Воронка поиска работы", "Conversions": "Конверсии", "Transition": "Переход", "Base": "База", "Reached": "Достигли", "Conversion": "Конверсия", "Final outcomes": "Конечные результаты", "Activity trend": "Динамика активности", "Added / applications / interviews": "Добавлено / отклики / интервью", "Vacancies": "Вакансии", "Applications": "Отклики", "Interviews": "Интервью", "No activity in this period.": "В этом периоде активности нет.", "CareerFlow calculates analytics from recorded structured events. Mark submitted resumes, interview results, offers and final outcomes for accurate statistics.": "CareerFlow считает аналитику по зафиксированным структурированным событиям. Отмечайте отправленные резюме, результаты интервью, офферы и конечные исходы.", "Activity cards and the trend use events that happened within the selected period. The funnel and conversion table use vacancies added within that period and inspect their full history.": "Карточки активности и динамика используют события выбранного периода. Воронка и таблица конверсий учитывают вакансии, добавленные в этот период, и анализируют всю их историю.", "Several interview rounds count as several activity events, but as one vacancy in the funnel. Legacy vacancies archived during the analytics migration are intentionally excluded.": "Несколько раундов интервью считаются отдельными событиями активности, но одной вакансией в воронке. Архивные вакансии, созданные до миграции аналитики, намеренно исключены.", "Incomplete data": "Неполные данные",
   "Archived": "Архив", "Build your job-search workspace": "Создайте рабочее пространство для поиска работы",
   "Add a vacancy by pasting its text or dropping a TXT, HTML, PDF, or DOCX file.": "Добавьте вакансию: вставьте текст или перетащите файл TXT, HTML, PDF или DOCX.",
@@ -109,74 +110,162 @@ const RU = {
   "Review description": "Проверить описание", "Preparing preview…": "Подготовка предпросмотра…", "Vacancy imported": "Вакансия импортирована", "Deletion cancelled": "Удаление отменено", "Vacancy deleted": "Вакансия удалена", "Vacancy archived": "Вакансия отправлена в архив", "Vacancy restored": "Вакансия восстановлена", "Vacancy updated": "Вакансия обновлена", "Status changed to": "Статус изменён на", "Invalid value": "Недопустимое значение", "Request failed": "Запрос не выполнен", "Error": "Ошибка"
 };
 
+const ENGLISH_FROM_RUSSIAN = new Map(Object.entries(RU).map(([english, russian]) => [russian, english]));
+
 function translateText(value) {
-  if (state.locale !== "ru") return value;
   const trimmed = value.trim();
-  if (RU[trimmed]) return value.replace(trimmed, RU[trimmed]);
+  if (state.locale === "ru") {
+    if (RU[trimmed]) return value.replace(trimmed, RU[trimmed]);
+    return value
+      .replace(/\bAdded\b/g, RU.Added)
+      .replace(/\bATS (\d+%)/g, `${RU.ATS} $1`)
+      .replace(/Company not set/g, RU["Company not set"])
+      .replace(/Salary not specified/g, RU["Salary not specified"])
+      .replace(/No summary yet/g, RU["No summary yet"])
+      .replace(/Only when selected; vacancy text will be sent to the local Codex CLI\./g, RU["Only when selected; vacancy text will be sent to the local Codex CLI."])
+      .replace(/Status changed to (.+)/g, (_, status) => `${RU["Status changed to"]} ${RU[status] || status}`)
+      .replace(/Interview ·/g, `${RU.Interview} ·`)
+      .replace(/Based on (Master Resume|Vacancy Resume) v(\d+)/g, (_, kind, version) => `${RU[`Based on ${kind}`]} v${version}`)
+      .replace(/(Add interview) #(\d+)/g, (_, label, number) => `${RU[label]} #${number}`);
+  }
+  if (ENGLISH_FROM_RUSSIAN.has(trimmed)) return value.replace(trimmed, ENGLISH_FROM_RUSSIAN.get(trimmed));
   return value
-    .replace(/\bAdded\b/g, RU.Added)
-    .replace(/\bATS (\d+%)/g, `${RU.ATS} $1`)
-    .replace(/Company not set/g, RU["Company not set"])
-    .replace(/Salary not specified/g, RU["Salary not specified"])
-    .replace(/No summary yet/g, RU["No summary yet"])
-    .replace(/Only when selected; vacancy text will be sent to the local Codex CLI\./g, RU["Only when selected; vacancy text will be sent to the local Codex CLI."])
-    .replace(/Status changed to (.+)/g, (_, status) => `${RU["Status changed to"]} ${RU[status] || status}`)
-    .replace(/Interview ·/g, `${RU.Interview} ·`)
-    .replace(/Based on (Master Resume|Vacancy Resume) v(\d+)/g, (_, kind, version) => `${RU[`Based on ${kind}`]} v${version}`)
-    .replace(/(Add interview) #(\d+)/g, (_, label, number) => `${RU[label]} #${number}`);
+    .replace(/Статус изменён на (.+)/g, (_, status) => `Status changed to ${ENGLISH_FROM_RUSSIAN.get(status) || status}`)
+    .replace(/Собеседование ·/g, "Interview ·")
+    .replace(/На основе (главного резюме|резюме вакансии) v(\d+)/g, (_, kind, version) => `Based on ${kind === "главного резюме" ? "Master Resume" : "Vacancy Resume"} v${version}`)
+    .replace(/Добавить собеседование #(\d+)/g, (_, number) => `Add interview #${number}`);
 }
 
+const localizedText = new WeakMap();
+const localizedAttributes = new WeakMap();
+
 function applyLocale(root = document.body) {
-  if (!root || state.locale !== "ru") return;
+  if (!root) return;
   const walker = document.createTreeWalker?.(root, typeof NodeFilter === "undefined" ? 4 : NodeFilter.SHOW_TEXT);
   if (walker) {
     let node;
     while ((node = walker.nextNode())) {
       const parent = node.parentElement;
       if (!parent || parent.closest("textarea, pre, blockquote, .overview-text, .markdown-preview, .ai-response, .tag")) continue;
-      node.nodeValue = translateText(node.nodeValue);
+      const previous = localizedText.get(node);
+      const source = previous && node.nodeValue === previous.translated ? previous.source : node.nodeValue;
+      const translated = translateText(source);
+      localizedText.set(node, { source, translated });
+      if (node.nodeValue !== translated) node.nodeValue = translated;
     }
   }
   root.querySelectorAll?.("[placeholder], [title], [aria-label]").forEach(element => {
     for (const attribute of ["placeholder", "title", "aria-label"]) {
-      if (element.hasAttribute(attribute)) element.setAttribute(attribute, translateText(element.getAttribute(attribute)));
+      if (!element.hasAttribute(attribute)) continue;
+      const previous = localizedAttributes.get(element)?.[attribute];
+      const current = element.getAttribute(attribute);
+      const source = previous && current === previous.translated ? previous.source : current;
+      const translated = translateText(source);
+      const attributes = localizedAttributes.get(element) || {};
+      attributes[attribute] = { source, translated };
+      localizedAttributes.set(element, attributes);
+      if (current !== translated) element.setAttribute(attribute, translated);
     }
   });
 }
 
+let uiTransitionTimer = null;
+
+function runUiTransition(action) {
+  if (window.matchMedia?.("(prefers-reduced-motion: reduce)").matches) {
+    action();
+    return;
+  }
+
+  window.clearTimeout?.(uiTransitionTimer);
+  document.querySelector(".ui-transition-skeleton")?.remove();
+  const skeleton = document.createElement?.("div");
+  if (!skeleton?.classList || !skeleton.style || typeof document.body?.append !== "function") {
+    action();
+    return;
+  }
+  const bounds = typeof workspace?.getBoundingClientRect === "function" ? workspace.getBoundingClientRect() : null;
+  skeleton.className = "ui-transition-skeleton";
+  skeleton.setAttribute("aria-hidden", "true");
+  if (bounds) {
+    skeleton.style.top = `${Math.max(0, bounds.top)}px`;
+    skeleton.style.left = `${Math.max(0, bounds.left)}px`;
+    skeleton.style.width = `${Math.max(0, bounds.width)}px`;
+    skeleton.style.height = `${Math.max(0, bounds.height)}px`;
+  }
+  skeleton.innerHTML = '<span class="transition-skeleton-shape transition-skeleton-heading"></span><span class="transition-skeleton-shape transition-skeleton-line"></span><span class="transition-skeleton-shape transition-skeleton-card"></span><span class="transition-skeleton-shape transition-skeleton-card transition-skeleton-card-secondary"></span>';
+  document.body.append(skeleton);
+  document.documentElement.classList.add("ui-transitioning");
+  void document.documentElement.offsetWidth;
+  skeleton.classList.add("is-active");
+
+  const startedAt = performance.now();
+  const finishTransition = () => {
+    uiTransitionTimer = window.setTimeout(() => {
+      document.documentElement.classList.remove("ui-transitioning");
+      skeleton.classList.remove("is-active");
+      uiTransitionTimer = window.setTimeout(() => skeleton.remove(), 180);
+    }, Math.max(0, 460 - (performance.now() - startedAt)));
+  };
+  try {
+    Promise.resolve(action()).finally(finishTransition).catch(() => {});
+  } catch (error) {
+    finishTransition();
+    throw error;
+  }
+}
+
 function setTheme(theme) {
   state.theme = theme === "dark" ? "dark" : "light";
+  // Update only the theme surface and control so open work, drafts, and scroll state stay in place.
   if (document.documentElement) {
     document.documentElement.dataset.theme = state.theme;
     if (document.documentElement.style) document.documentElement.style.colorScheme = state.theme;
   }
   if (themeToggle) {
     const darkTheme = state.theme === "dark";
-    themeToggle.textContent = darkTheme ? "☀" : "☾";
+    themeToggle.innerHTML = darkTheme
+      ? '<svg aria-hidden="true" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="4"/><path d="M12 2v2m0 16v2M4.93 4.93l1.42 1.42m11.3 11.3 1.42 1.42M2 12h2m16 0h2M4.93 19.07l1.42-1.42m11.3-11.3 1.42-1.42"/></svg>'
+      : '<svg aria-hidden="true" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M20.2 15.4A8.5 8.5 0 0 1 8.6 3.8 8.5 8.5 0 1 0 20.2 15.4Z"/></svg>';
     const label = darkTheme ? "Switch to light theme" : "Switch to dark theme";
     themeToggle.setAttribute?.("aria-label", translateText(label));
     themeToggle.setAttribute?.("title", translateText(label));
+    themeToggle.setAttribute?.("aria-pressed", String(darkTheme));
   }
   try { localStorage.setItem("careerflow-theme", state.theme); } catch (_) { /* Ignore unavailable storage. */ }
 }
 
+const RU_LOCALE_FLAG = '<svg class="locale-flag" aria-hidden="true" viewBox="0 0 24 16"><defs><clipPath id="flag-ru-clip"><rect width="24" height="16" rx="2"/></clipPath></defs><g clip-path="url(#flag-ru-clip)"><rect width="24" height="16" fill="#fff"/><rect y="5.333" width="24" height="5.334" fill="#0039a6"/><rect y="10.667" width="24" height="5.333" fill="#d52b1e"/></g><rect x=".35" y=".35" width="23.3" height="15.3" rx="1.7" fill="none" stroke="#171923" stroke-opacity=".16" stroke-width=".7"/></svg>';
+const US_LOCALE_FLAG = '<svg class="locale-flag" aria-hidden="true" viewBox="0 0 24 16"><defs><clipPath id="flag-us-clip"><rect width="24" height="16" rx="2"/></clipPath></defs><g clip-path="url(#flag-us-clip)"><rect width="24" height="16" fill="#fff"/><path fill="#b22234" d="M0 0h24v1.231H0zM0 2.462h24v1.231H0zM0 4.923h24v1.231H0zM0 7.385h24v1.231H0zM0 9.846h24v1.231H0zM0 12.308h24v1.231H0zM0 14.769h24v1.231H0z"/><rect width="12.5" height="8.62" fill="#3c3b6e"/><g fill="#fff"><circle cx="1.4" cy="1.1" r=".34"/><circle cx="3.7" cy="1.1" r=".34"/><circle cx="6" cy="1.1" r=".34"/><circle cx="8.3" cy="1.1" r=".34"/><circle cx="10.6" cy="1.1" r=".34"/><circle cx="2.55" cy="2.75" r=".34"/><circle cx="4.85" cy="2.75" r=".34"/><circle cx="7.15" cy="2.75" r=".34"/><circle cx="9.45" cy="2.75" r=".34"/><circle cx="1.4" cy="4.4" r=".34"/><circle cx="3.7" cy="4.4" r=".34"/><circle cx="6" cy="4.4" r=".34"/><circle cx="8.3" cy="4.4" r=".34"/><circle cx="10.6" cy="4.4" r=".34"/><circle cx="2.55" cy="6.05" r=".34"/><circle cx="4.85" cy="6.05" r=".34"/><circle cx="7.15" cy="6.05" r=".34"/><circle cx="9.45" cy="6.05" r=".34"/><circle cx="1.4" cy="7.7" r=".34"/><circle cx="3.7" cy="7.7" r=".34"/><circle cx="6" cy="7.7" r=".34"/><circle cx="8.3" cy="7.7" r=".34"/><circle cx="10.6" cy="7.7" r=".34"/></g></g><rect x=".35" y=".35" width="23.3" height="15.3" rx="1.7" fill="none" stroke="#171923" stroke-opacity=".16" stroke-width=".7"/></svg>';
+
 function setLocale(locale) {
+  const analyticsContext = state.section === "analytics" ? {
+    period: workspace.querySelector("#analytics-period")?.value || "",
+    bucket: workspace.querySelector("#analytics-bucket")?.value || "month",
+    from: workspace.querySelector("#analytics-from")?.value || "",
+    to: workspace.querySelector("#analytics-to")?.value || "",
+    scrollTop: workspace.scrollTop,
+  } : null;
   state.locale = locale === "ru" ? "ru" : "en";
   try { localStorage.setItem("careerflow-locale", state.locale); } catch (_) { /* Ignore unavailable storage. */ }
   if (document.documentElement) document.documentElement.lang = state.locale;
+  applyLocale();
   if (localeToggle) {
-    localeToggle.textContent = state.locale === "ru" ? "eng" : "ru";
-    localeToggle.setAttribute("aria-label", state.locale === "ru" ? "Switch language to English" : "Переключить язык на русский");
+    const nextLocaleLabel = state.locale === "ru" ? "Переключить язык на английский (США)" : "Switch language to Russian";
+    localeToggle.innerHTML = state.locale === "ru" ? RU_LOCALE_FLAG : US_LOCALE_FLAG;
+    localeToggle.setAttribute("aria-label", nextLocaleLabel);
+    localeToggle.setAttribute("title", nextLocaleLabel);
   }
-  if (state.locale === "ru") applyLocale();
-  else window.location.reload();
-  if (state.locale === "ru" && state.section === "analytics") {
-    renderAnalytics().catch(error => showError(error));
+  if (analyticsContext) {
+    return renderAnalytics(analyticsContext)
+      .then(() => { workspace.scrollTop = analyticsContext.scrollTop; })
+      .catch(error => showError(error));
   }
+  return Promise.resolve();
 }
 
-localeToggle?.addEventListener("click", () => setLocale(state.locale === "ru" ? "en" : "ru"));
-themeToggle?.addEventListener("click", () => setTheme(state.theme === "dark" ? "light" : "dark"));
+localeToggle?.addEventListener("click", () => runUiTransition(() => setLocale(state.locale === "ru" ? "en" : "ru")));
+themeToggle?.addEventListener("click", () => runUiTransition(() => setTheme(state.theme === "dark" ? "light" : "dark")));
 if (typeof MutationObserver !== "undefined") new MutationObserver(() => applyLocale()).observe(document.body, { childList: true, subtree: true });
 
 async function api(url, options = {}) {
@@ -242,15 +331,15 @@ function setSection(section) {
   state.section = section;
   lastWorkspaceScrollTop = 0;
   topbar?.classList?.remove?.("header-nav-hidden");
-  document.querySelectorAll("[data-section]").forEach(button => button.classList.toggle("active", button.dataset.section === section));
+  document.querySelectorAll("[data-section]").forEach(button => {
+    const isCurrent = button.dataset.section === section;
+    button.classList.toggle("active", isCurrent);
+    if (isCurrent) button.setAttribute?.("aria-current", "page");
+    else button.removeAttribute?.("aria-current");
+  });
   topbar?.setAttribute?.("data-section", section);
   appLayout.classList.toggle("master-mode", section !== "vacancies");
-  setSidebarOpen(false);
-  if (sidebarToggle) {
-    sidebarToggle.hidden = false;
-    sidebarToggle.disabled = false;
-    sidebarToggle.setAttribute?.("aria-label", translateText("Open vacancy list"));
-  }
+  syncResponsiveSidebar();
   newVacancyButton.hidden = false;
 }
 
@@ -331,8 +420,27 @@ function setSidebarOpen(open) {
   sidebarToggle?.setAttribute?.("aria-expanded", String(isOpen));
   sidebarToggle?.setAttribute?.("aria-label", translateText(isOpen ? "Close vacancy list" : "Open vacancy list"));
   const isCompactViewport = typeof window !== "undefined" && typeof window.matchMedia === "function" && window.matchMedia("(max-width: 900px)").matches;
-  vacancySidebar?.setAttribute?.("aria-hidden", String(isCompactViewport && !isOpen));
-  if (vacancySidebar && "inert" in vacancySidebar) vacancySidebar.inert = isCompactViewport && !isOpen;
+  appLayout.classList.toggle("sidebar-collapsed", !isOpen);
+  vacancySidebar?.setAttribute?.("aria-hidden", String(!isOpen));
+  if (vacancySidebar && "inert" in vacancySidebar) vacancySidebar.inert = !isOpen;
+}
+
+function syncResponsiveSidebar() {
+  const isCompactViewport = typeof window !== "undefined" && typeof window.matchMedia === "function" && window.matchMedia("(max-width: 900px)").matches;
+  if (sidebarToggle) {
+    sidebarToggle.hidden = state.section !== "vacancies" && !isCompactViewport;
+    sidebarToggle.disabled = false;
+  }
+  setSidebarOpen(state.section === "vacancies" && !state.selected && !isCompactViewport);
+}
+
+if (typeof window !== "undefined" && typeof window.matchMedia === "function") {
+  const sidebarViewport = window.matchMedia("(max-width: 900px)");
+  if (typeof sidebarViewport.addEventListener === "function") {
+    sidebarViewport.addEventListener("change", syncResponsiveSidebar);
+  } else {
+    sidebarViewport.addListener?.(syncResponsiveSidebar);
+  }
 }
 
 async function showVacancies() {
@@ -353,7 +461,7 @@ async function showVacancies() {
   else renderEmpty();
 }
 
-async function renderAnalytics() {
+async function renderAnalytics(savedFilters = null) {
   setSection("analytics");
   state.viewEpoch++;
   const epoch = state.viewEpoch;
@@ -362,6 +470,10 @@ async function renderAnalytics() {
   const bucket = workspace.querySelector("#analytics-bucket");
   const fromInput = workspace.querySelector("#analytics-from");
   const toInput = workspace.querySelector("#analytics-to");
+  period.value = savedFilters?.period || "";
+  bucket.value = savedFilters?.bucket || "month";
+  fromInput.value = savedFilters?.from || "";
+  toInput.value = savedFilters?.to || "";
   const updateCustomVisibility = () => { const visible = period.value === "custom"; fromInput.closest(".analytics-date").hidden = !visible; toInput.closest(".analytics-date").hidden = !visible; };
   const load = async () => {
     const params = new URLSearchParams({ bucket: bucket.value });
@@ -374,6 +486,7 @@ async function renderAnalytics() {
     catch (error) { if (epoch === state.viewEpoch) workspace.querySelector("#analytics-content").innerHTML = `<p class="error">${escapeHtml(error.message)}</p>`; }
   };
   period.onchange = () => { updateCustomVisibility(); load(); }; bucket.onchange = load; fromInput.onchange = load; toInput.onchange = load; updateCustomVisibility(); await load();
+  if (savedFilters) workspace.scrollTop = savedFilters.scrollTop;
 }
 
 function renderAnalyticsData(data) {
@@ -483,30 +596,31 @@ function renderList() {
     return;
   }
     listEl.innerHTML = state.vacancies.map(item => `
-    <button class="vacancy-card ${state.selected?.id === item.id ? "active" : ""}" data-id="${item.id}">
+      <button class="vacancy-card ${state.selected?.id === item.id ? "active" : ""}" data-id="${item.id}" aria-pressed="${state.selected?.id === item.id}">
       <strong class="vacancy-title" title="${escapeAttr(item.title)}">${escapeHtml(compactVacancyTitle(item.title))}</strong>
       <span>${escapeHtml(item.company || "Company not set")}</span>
       <span class="vacancy-meta">${escapeHtml(item.salary || "Salary not specified")} · Added ${new Date(`${item.created_at}Z`).toLocaleDateString()}</span>
       <span class="vacancy-summary">${escapeHtml(item.summary || "No summary yet")}</span>
-      <span class="card-meta"><span class="badge">${escapeHtml(item.status)}</span><span class="score-group"><span title="Heuristic ATS text-match score, not a probability of getting the job">${item.match_percent == null ? "—" : `ATS ${item.match_percent}%`}</span>${item.ai_match_percent == null ? "" : `<span title="AI resume-to-vacancy score">AI ${item.ai_match_percent}%</span>`}</span></span>
+      <span class="card-meta"><span class="badge ${statusTone(item.status)}">${escapeHtml(item.status)}</span><span class="score-group"><span title="Heuristic ATS text-match score, not a probability of getting the job">${item.match_percent == null ? "—" : `ATS ${item.match_percent}%`}</span>${item.ai_match_percent == null ? "" : `<span title="AI resume-to-vacancy score">AI ${item.ai_match_percent}%</span>`}</span></span>
     </button>`).join("");
 }
 
 function compactVacancyTitle(title) {
-  const value = String(title || "").trim();
-  const withoutPrefix = value.replace(/^(?:вакансия|ищем|нужен|требуется)\s+/i, "");
-  const beforeCompany = withoutPrefix.split(/\s+(?:в компании|в компанию|—|–|—)\s+/i)[0].trim();
-  return (beforeCompany || withoutPrefix || value).slice(0, 88);
+  return String(title || "").trim();
+}
+
+function statusTone(status) {
+  return ({ Saved: "status-saved", Applied: "status-applied", Interview: "status-interview", Waiting: "status-waiting", Offer: "status-offer", Rejected: "status-rejected" })[status] || "status-neutral";
 }
 
 function renderEmpty({ preserveSidebar = false } = {}) {
   const keepSidebarOpen = preserveSidebar && state.sidebarOpen;
-  setSection("vacancies");
   state.selected = null;
   state.lastSelectedVacancy = null;
   state.lastSelectedVacancyTab = null;
   state.pendingVacancyId = null;
   state.pendingVacancyTab = null;
+  setSection("vacancies");
   clearSavedVacancyNavigation();
   state.activeTab = null;
   state.viewEpoch++;
@@ -518,7 +632,7 @@ function renderEmpty({ preserveSidebar = false } = {}) {
 const STAGES = ["Saved", "Applied", "Interview", "Waiting", "Offer", "Rejected"];
 
 function stageBar(vacancy, interviewCount = state.interviewCounts.get(vacancy.id) ?? 0) {
-  return `<div class="stage-scroll" aria-label="Vacancy stage"><div class="stage-bar">${STAGES.map(status => `<button type="button" class="stage-step ${status === vacancy.status ? "active" : ""}" data-stage="${status}" aria-pressed="${status === vacancy.status}">${status === "Interview" ? `Interview · <span data-interview-count>${interviewCount}</span>` : status}</button>`).join("")}</div></div>`;
+  return `<div class="stage-scroll" role="group" aria-label="Vacancy stage"><div class="stage-bar">${STAGES.map(status => `<button type="button" class="stage-step ${status === vacancy.status ? "active" : ""}" data-stage="${status}" aria-pressed="${status === vacancy.status}">${status === "Interview" ? `Interview · <span data-interview-count>${interviewCount}</span>` : status}</button>`).join("")}</div></div>`;
 }
 
 function bindStageBar(vacancy) {
@@ -538,8 +652,28 @@ function bindStageBar(vacancy) {
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify({ status: button.dataset.stage }),
         });
-        await loadVacancies();
-        if (state.section === "vacancies" && state.selected?.id === vacancy.id) renderVacancy(updated);
+        [vacancy, state.selected, state.lastSelectedVacancy, ...state.vacancies]
+          .forEach(item => { if (item?.id === updated.id) Object.assign(item, updated); });
+        document.querySelectorAll(".vacancy-card").forEach(card => {
+          if (String(card.dataset.id) !== String(updated.id)) return;
+          const statusChip = card.querySelector(".card-meta .badge");
+          if (statusChip) {
+            statusChip.className = `badge ${statusTone(updated.status)}`;
+            statusChip.textContent = updated.status;
+          }
+        });
+        if (state.section === "vacancies" && state.selected?.id === updated.id) {
+          document.querySelectorAll("[data-stage]").forEach(item => {
+            const isActive = item.dataset.stage === updated.status;
+            item.classList.toggle("active", isActive);
+            item.setAttribute?.("aria-pressed", String(isActive));
+          });
+          const statusBadge = document.querySelector(".workspace-status");
+          if (statusBadge) {
+            statusBadge.className = `workspace-status badge ${statusTone(updated.status)}`;
+            statusBadge.textContent = updated.status;
+          }
+        }
         toast(`Status changed to ${updated.status}`);
       } catch (error) {
         buttons.forEach(item => {
@@ -598,23 +732,23 @@ async function refreshInterviewCount(vacancy) {
 }
 
 function renderVacancy(vacancy) {
+  state.selected = vacancy;
+  state.lastSelectedVacancy = vacancy;
+  state.lastSelectedVacancyTab = "Overview";
   setSection("vacancies");
   state.selectionEpoch++;
   state.viewEpoch++;
   state.activeTab = "Overview";
-  state.selected = vacancy;
-  state.lastSelectedVacancy = vacancy;
-  state.lastSelectedVacancyTab = "Overview";
   saveVacancyNavigation(vacancy.id, "Overview");
   renderList();
   workspace.innerHTML = `
     <div class="workspace-head">
-      <div><p class="eyebrow">${escapeHtml(vacancy.status)}</p><h2 class="vacancy-title" title="${escapeAttr(vacancy.title)}">${escapeHtml(compactVacancyTitle(vacancy.title))}</h2><p class="muted">${escapeHtml(vacancy.company || "Company not set")} · Added ${new Date(vacancy.created_at + "Z").toLocaleDateString()}</p></div>
+      <div><p class="workspace-status badge ${statusTone(vacancy.status)}">${escapeHtml(vacancy.status)}</p><h2 class="vacancy-title" tabindex="-1">${escapeHtml(compactVacancyTitle(vacancy.title))}</h2><p class="muted">${escapeHtml(vacancy.company || "Company not set")} · Added ${new Date(vacancy.created_at + "Z").toLocaleDateString()}</p></div>
       <div class="actions"><button id="export-report" class="secondary">Export .md</button><button id="edit-overview" class="secondary">Edit</button><button id="archive-vacancy" class="secondary">${vacancy.archived_at ? "Restore" : "Archive"}</button><button id="delete-vacancy" class="danger">Delete</button></div>
     </div>
     ${stageBar(vacancy)}
-    <nav class="tabs">${VACANCY_TABS.map((tab, i) => `<button class="tab ${i === 0 ? "active" : ""}" data-tab="${tab}">${tab}</button>`).join("")}</nav>
-    <section class="panel" id="content-panel"></section>`;
+    <nav class="tabs" aria-label="Vacancy sections">${VACANCY_TABS.map((tab, i) => `<button class="tab ${i === 0 ? "active" : ""}" data-tab="${tab}"${i === 0 ? ' aria-current="page"' : ""}>${tab}</button>`).join("")}</nav>
+    <section class="panel" id="content-panel" aria-live="polite"></section>`;
   document.querySelector("#edit-overview").onclick = () => renderEdit(vacancy);
   document.querySelector("#archive-vacancy").onclick = event => runAction(event.currentTarget, () => toggleArchive(vacancy));
   document.querySelector("#delete-vacancy").onclick = event => runAction(event.currentTarget, () => removeVacancy(vacancy));
@@ -626,7 +760,12 @@ function renderVacancy(vacancy) {
 }
 
 function activateTab(name) {
-  document.querySelectorAll("[data-tab]").forEach(button => button.classList.toggle("active", button.dataset.tab === name));
+  document.querySelectorAll("[data-tab]").forEach(button => {
+    const isCurrent = button.dataset.tab === name;
+    button.classList.toggle("active", isCurrent);
+    if (isCurrent) button.setAttribute?.("aria-current", "page");
+    else button.removeAttribute?.("aria-current");
+  });
 }
 
 async function openTab(name, vacancy) {
@@ -660,7 +799,7 @@ function renderOverview(vacancy) {
   panel.innerHTML = `
     <div class="form-grid overview-meta"><div><p class="eyebrow">SALARY</p><p>${escapeHtml(vacancy.salary || "Not specified")}</p></div><div><p class="eyebrow">SOURCE</p><p>${sourceValue}</p></div></div>
     <h3>Summary</h3><p>${escapeHtml(vacancy.summary || "No summary")}</p>
-    <div class="section-head description-head"><div><h3>Confirmed vacancy description</h3><p class="muted">Used for ATS and Codex context. The original import remains preserved.</p></div><div class="stack"><label class="check-row"><input id="review-cleaning-codex" type="checkbox">Use Codex for this review <span class="muted">Only when selected; vacancy text will be sent to the local Codex CLI.</span></label><button class="secondary" id="review-cleaning">Clean description</button></div></div>
+    <div class="section-head description-head"><div class="description-intro"><h3>Confirmed vacancy description</h3><p class="muted">Used for ATS and Codex context. The original import remains preserved.</p></div><label class="check-row description-codex-toggle"><input id="review-cleaning-codex" type="checkbox"><span class="check-row-label">Use Codex for this review</span><span class="muted">Only when selected; vacancy text will be sent to the local Codex CLI.</span></label><button class="secondary description-clean-action" id="review-cleaning">Clean description</button></div>
     <div class="overview-text">${escapeHtml(vacancy.description)}</div><div id="cleaning-review" aria-live="polite"></div>`;
   panel.querySelector("#review-cleaning").onclick = () => renderExistingDescriptionReview(vacancy);
 }
@@ -1333,7 +1472,8 @@ function closeDialog() { dialog.close(); form.reset(); resetImportReview(); sele
 
 document.addEventListener("click", async event => {
   if (event.target.closest("[data-close-analytics-help]")) { analyticsHelp?.close(); return; }
-  if (state.sidebarOpen && !event.target.closest("#vacancy-sidebar") && !event.target.closest("#sidebar-toggle")) {
+  const isCompactViewport = typeof window !== "undefined" && typeof window.matchMedia === "function" && window.matchMedia("(max-width: 900px)").matches;
+  if (isCompactViewport && state.sidebarOpen && !event.target.closest("#vacancy-sidebar") && !event.target.closest("#sidebar-toggle")) {
     setSidebarOpen(false);
   }
   if (event.target.closest("#sidebar-toggle")) {
@@ -1384,6 +1524,7 @@ document.addEventListener("click", async event => {
       const vacancy = await api(`/api/vacancies/${card.dataset.id}`);
       if (selectionEpoch === state.selectionEpoch) {
         renderVacancy(vacancy);
+        workspace.querySelector(".workspace-head .vacancy-title")?.focus?.();
       }
     } catch (error) { if (selectionEpoch === state.selectionEpoch) showError(error); }
   }
@@ -1473,5 +1614,4 @@ if (state.locale === "ru") {
   applyLocale();
 }
 setSection("vacancies");
-document.querySelector('[data-section="analytics"]')?.addEventListener("click", () => { renderAnalytics().catch(error => showError(error)); });
 loadVacancies().catch(error => { workspace.innerHTML = `<p class="error">${escapeHtml(error.message)}</p>`; });
