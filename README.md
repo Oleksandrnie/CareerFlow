@@ -17,6 +17,7 @@ All records and uploaded files stay on your computer by default. The optional Co
 - Save dated notes, local attachments, and portable Markdown reports.
 - Optionally ask the local Codex CLI to analyze a vacancy, match or improve a resume, review ATS findings, or draft a tailored resume. Results are read-only until you explicitly save a new resume version.
 - Use the browser interface in English or Russian, with light and dark themes and responsive layouts.
+- Switch language and theme in place with a brief, reduced-motion-aware transition; the current page and analytics filters stay selected.
 
 ## Architecture
 

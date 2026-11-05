@@ -110,39 +110,109 @@ const RU = {
   "Review description": "Проверить описание", "Preparing preview…": "Подготовка предпросмотра…", "Vacancy imported": "Вакансия импортирована", "Deletion cancelled": "Удаление отменено", "Vacancy deleted": "Вакансия удалена", "Vacancy archived": "Вакансия отправлена в архив", "Vacancy restored": "Вакансия восстановлена", "Vacancy updated": "Вакансия обновлена", "Status changed to": "Статус изменён на", "Invalid value": "Недопустимое значение", "Request failed": "Запрос не выполнен", "Error": "Ошибка"
 };
 
+const ENGLISH_FROM_RUSSIAN = new Map(Object.entries(RU).map(([english, russian]) => [russian, english]));
+
 function translateText(value) {
-  if (state.locale !== "ru") return value;
   const trimmed = value.trim();
-  if (RU[trimmed]) return value.replace(trimmed, RU[trimmed]);
+  if (state.locale === "ru") {
+    if (RU[trimmed]) return value.replace(trimmed, RU[trimmed]);
+    return value
+      .replace(/\bAdded\b/g, RU.Added)
+      .replace(/\bATS (\d+%)/g, `${RU.ATS} $1`)
+      .replace(/Company not set/g, RU["Company not set"])
+      .replace(/Salary not specified/g, RU["Salary not specified"])
+      .replace(/No summary yet/g, RU["No summary yet"])
+      .replace(/Only when selected; vacancy text will be sent to the local Codex CLI\./g, RU["Only when selected; vacancy text will be sent to the local Codex CLI."])
+      .replace(/Status changed to (.+)/g, (_, status) => `${RU["Status changed to"]} ${RU[status] || status}`)
+      .replace(/Interview ·/g, `${RU.Interview} ·`)
+      .replace(/Based on (Master Resume|Vacancy Resume) v(\d+)/g, (_, kind, version) => `${RU[`Based on ${kind}`]} v${version}`)
+      .replace(/(Add interview) #(\d+)/g, (_, label, number) => `${RU[label]} #${number}`);
+  }
+  if (ENGLISH_FROM_RUSSIAN.has(trimmed)) return value.replace(trimmed, ENGLISH_FROM_RUSSIAN.get(trimmed));
   return value
-    .replace(/\bAdded\b/g, RU.Added)
-    .replace(/\bATS (\d+%)/g, `${RU.ATS} $1`)
-    .replace(/Company not set/g, RU["Company not set"])
-    .replace(/Salary not specified/g, RU["Salary not specified"])
-    .replace(/No summary yet/g, RU["No summary yet"])
-    .replace(/Only when selected; vacancy text will be sent to the local Codex CLI\./g, RU["Only when selected; vacancy text will be sent to the local Codex CLI."])
-    .replace(/Status changed to (.+)/g, (_, status) => `${RU["Status changed to"]} ${RU[status] || status}`)
-    .replace(/Interview ·/g, `${RU.Interview} ·`)
-    .replace(/Based on (Master Resume|Vacancy Resume) v(\d+)/g, (_, kind, version) => `${RU[`Based on ${kind}`]} v${version}`)
-    .replace(/(Add interview) #(\d+)/g, (_, label, number) => `${RU[label]} #${number}`);
+    .replace(/Статус изменён на (.+)/g, (_, status) => `Status changed to ${ENGLISH_FROM_RUSSIAN.get(status) || status}`)
+    .replace(/Собеседование ·/g, "Interview ·")
+    .replace(/На основе (главного резюме|резюме вакансии) v(\d+)/g, (_, kind, version) => `Based on ${kind === "главного резюме" ? "Master Resume" : "Vacancy Resume"} v${version}`)
+    .replace(/Добавить собеседование #(\d+)/g, (_, number) => `Add interview #${number}`);
 }
 
+const localizedText = new WeakMap();
+const localizedAttributes = new WeakMap();
+
 function applyLocale(root = document.body) {
-  if (!root || state.locale !== "ru") return;
+  if (!root) return;
   const walker = document.createTreeWalker?.(root, typeof NodeFilter === "undefined" ? 4 : NodeFilter.SHOW_TEXT);
   if (walker) {
     let node;
     while ((node = walker.nextNode())) {
       const parent = node.parentElement;
       if (!parent || parent.closest("textarea, pre, blockquote, .overview-text, .markdown-preview, .ai-response, .tag")) continue;
-      node.nodeValue = translateText(node.nodeValue);
+      const previous = localizedText.get(node);
+      const source = previous && node.nodeValue === previous.translated ? previous.source : node.nodeValue;
+      const translated = translateText(source);
+      localizedText.set(node, { source, translated });
+      if (node.nodeValue !== translated) node.nodeValue = translated;
     }
   }
   root.querySelectorAll?.("[placeholder], [title], [aria-label]").forEach(element => {
     for (const attribute of ["placeholder", "title", "aria-label"]) {
-      if (element.hasAttribute(attribute)) element.setAttribute(attribute, translateText(element.getAttribute(attribute)));
+      if (!element.hasAttribute(attribute)) continue;
+      const previous = localizedAttributes.get(element)?.[attribute];
+      const current = element.getAttribute(attribute);
+      const source = previous && current === previous.translated ? previous.source : current;
+      const translated = translateText(source);
+      const attributes = localizedAttributes.get(element) || {};
+      attributes[attribute] = { source, translated };
+      localizedAttributes.set(element, attributes);
+      if (current !== translated) element.setAttribute(attribute, translated);
     }
   });
+}
+
+let uiTransitionTimer = null;
+
+function runUiTransition(action) {
+  if (window.matchMedia?.("(prefers-reduced-motion: reduce)").matches) {
+    action();
+    return;
+  }
+
+  window.clearTimeout?.(uiTransitionTimer);
+  document.querySelector(".ui-transition-skeleton")?.remove();
+  const skeleton = document.createElement?.("div");
+  if (!skeleton?.classList || !skeleton.style || typeof document.body?.append !== "function") {
+    action();
+    return;
+  }
+  const bounds = typeof workspace?.getBoundingClientRect === "function" ? workspace.getBoundingClientRect() : null;
+  skeleton.className = "ui-transition-skeleton";
+  skeleton.setAttribute("aria-hidden", "true");
+  if (bounds) {
+    skeleton.style.top = `${Math.max(0, bounds.top)}px`;
+    skeleton.style.left = `${Math.max(0, bounds.left)}px`;
+    skeleton.style.width = `${Math.max(0, bounds.width)}px`;
+    skeleton.style.height = `${Math.max(0, bounds.height)}px`;
+  }
+  skeleton.innerHTML = '<span class="transition-skeleton-shape transition-skeleton-heading"></span><span class="transition-skeleton-shape transition-skeleton-line"></span><span class="transition-skeleton-shape transition-skeleton-card"></span><span class="transition-skeleton-shape transition-skeleton-card transition-skeleton-card-secondary"></span>';
+  document.body.append(skeleton);
+  document.documentElement.classList.add("ui-transitioning");
+  void document.documentElement.offsetWidth;
+  skeleton.classList.add("is-active");
+
+  const startedAt = performance.now();
+  const finishTransition = () => {
+    uiTransitionTimer = window.setTimeout(() => {
+      document.documentElement.classList.remove("ui-transitioning");
+      skeleton.classList.remove("is-active");
+      uiTransitionTimer = window.setTimeout(() => skeleton.remove(), 180);
+    }, Math.max(0, 460 - (performance.now() - startedAt)));
+  };
+  try {
+    Promise.resolve(action()).finally(finishTransition).catch(() => {});
+  } catch (error) {
+    finishTransition();
+    throw error;
+  }
 }
 
 function setTheme(theme) {
@@ -169,24 +239,33 @@ const RU_LOCALE_FLAG = '<svg class="locale-flag" aria-hidden="true" viewBox="0 0
 const US_LOCALE_FLAG = '<svg class="locale-flag" aria-hidden="true" viewBox="0 0 24 16"><defs><clipPath id="flag-us-clip"><rect width="24" height="16" rx="2"/></clipPath></defs><g clip-path="url(#flag-us-clip)"><rect width="24" height="16" fill="#fff"/><path fill="#b22234" d="M0 0h24v1.231H0zM0 2.462h24v1.231H0zM0 4.923h24v1.231H0zM0 7.385h24v1.231H0zM0 9.846h24v1.231H0zM0 12.308h24v1.231H0zM0 14.769h24v1.231H0z"/><rect width="12.5" height="8.62" fill="#3c3b6e"/><g fill="#fff"><circle cx="1.4" cy="1.1" r=".34"/><circle cx="3.7" cy="1.1" r=".34"/><circle cx="6" cy="1.1" r=".34"/><circle cx="8.3" cy="1.1" r=".34"/><circle cx="10.6" cy="1.1" r=".34"/><circle cx="2.55" cy="2.75" r=".34"/><circle cx="4.85" cy="2.75" r=".34"/><circle cx="7.15" cy="2.75" r=".34"/><circle cx="9.45" cy="2.75" r=".34"/><circle cx="1.4" cy="4.4" r=".34"/><circle cx="3.7" cy="4.4" r=".34"/><circle cx="6" cy="4.4" r=".34"/><circle cx="8.3" cy="4.4" r=".34"/><circle cx="10.6" cy="4.4" r=".34"/><circle cx="2.55" cy="6.05" r=".34"/><circle cx="4.85" cy="6.05" r=".34"/><circle cx="7.15" cy="6.05" r=".34"/><circle cx="9.45" cy="6.05" r=".34"/><circle cx="1.4" cy="7.7" r=".34"/><circle cx="3.7" cy="7.7" r=".34"/><circle cx="6" cy="7.7" r=".34"/><circle cx="8.3" cy="7.7" r=".34"/><circle cx="10.6" cy="7.7" r=".34"/></g></g><rect x=".35" y=".35" width="23.3" height="15.3" rx="1.7" fill="none" stroke="#171923" stroke-opacity=".16" stroke-width=".7"/></svg>';
 
 function setLocale(locale) {
+  const analyticsContext = state.section === "analytics" ? {
+    period: workspace.querySelector("#analytics-period")?.value || "",
+    bucket: workspace.querySelector("#analytics-bucket")?.value || "month",
+    from: workspace.querySelector("#analytics-from")?.value || "",
+    to: workspace.querySelector("#analytics-to")?.value || "",
+    scrollTop: workspace.scrollTop,
+  } : null;
   state.locale = locale === "ru" ? "ru" : "en";
   try { localStorage.setItem("careerflow-locale", state.locale); } catch (_) { /* Ignore unavailable storage. */ }
   if (document.documentElement) document.documentElement.lang = state.locale;
+  applyLocale();
   if (localeToggle) {
-    const nextLocaleLabel = state.locale === "ru" ? "Switch language to English (US)" : "Переключить язык на русский";
+    const nextLocaleLabel = state.locale === "ru" ? "Переключить язык на английский (США)" : "Switch language to Russian";
     localeToggle.innerHTML = state.locale === "ru" ? RU_LOCALE_FLAG : US_LOCALE_FLAG;
     localeToggle.setAttribute("aria-label", nextLocaleLabel);
     localeToggle.setAttribute("title", nextLocaleLabel);
   }
-  if (state.locale === "ru") applyLocale();
-  else window.location.reload();
-  if (state.locale === "ru" && state.section === "analytics") {
-    renderAnalytics().catch(error => showError(error));
+  if (analyticsContext) {
+    return renderAnalytics(analyticsContext)
+      .then(() => { workspace.scrollTop = analyticsContext.scrollTop; })
+      .catch(error => showError(error));
   }
+  return Promise.resolve();
 }
 
-localeToggle?.addEventListener("click", () => setLocale(state.locale === "ru" ? "en" : "ru"));
-themeToggle?.addEventListener("click", () => setTheme(state.theme === "dark" ? "light" : "dark"));
+localeToggle?.addEventListener("click", () => runUiTransition(() => setLocale(state.locale === "ru" ? "en" : "ru")));
+themeToggle?.addEventListener("click", () => runUiTransition(() => setTheme(state.theme === "dark" ? "light" : "dark")));
 if (typeof MutationObserver !== "undefined") new MutationObserver(() => applyLocale()).observe(document.body, { childList: true, subtree: true });
 
 async function api(url, options = {}) {
@@ -382,7 +461,7 @@ async function showVacancies() {
   else renderEmpty();
 }
 
-async function renderAnalytics() {
+async function renderAnalytics(savedFilters = null) {
   setSection("analytics");
   state.viewEpoch++;
   const epoch = state.viewEpoch;
@@ -391,6 +470,10 @@ async function renderAnalytics() {
   const bucket = workspace.querySelector("#analytics-bucket");
   const fromInput = workspace.querySelector("#analytics-from");
   const toInput = workspace.querySelector("#analytics-to");
+  period.value = savedFilters?.period || "";
+  bucket.value = savedFilters?.bucket || "month";
+  fromInput.value = savedFilters?.from || "";
+  toInput.value = savedFilters?.to || "";
   const updateCustomVisibility = () => { const visible = period.value === "custom"; fromInput.closest(".analytics-date").hidden = !visible; toInput.closest(".analytics-date").hidden = !visible; };
   const load = async () => {
     const params = new URLSearchParams({ bucket: bucket.value });
@@ -403,6 +486,7 @@ async function renderAnalytics() {
     catch (error) { if (epoch === state.viewEpoch) workspace.querySelector("#analytics-content").innerHTML = `<p class="error">${escapeHtml(error.message)}</p>`; }
   };
   period.onchange = () => { updateCustomVisibility(); load(); }; bucket.onchange = load; fromInput.onchange = load; toInput.onchange = load; updateCustomVisibility(); await load();
+  if (savedFilters) workspace.scrollTop = savedFilters.scrollTop;
 }
 
 function renderAnalyticsData(data) {
