@@ -855,7 +855,13 @@ async function testSavedAiDetailAndLateRun() {
   assert.match(app.panel.innerHTML, /Match resume to vacancy/);
   app.panel.querySelector("#ai-action").value = "Match resume to vacancy";
   app.panel.querySelector("#ai-action").onchange({ target: app.panel.querySelector("#ai-action") });
-  assert.match(app.panel.querySelector("#ai-prompt").value, /match_percent/);
+  assert.match(app.panel.querySelector("#ai-prompt").value, /confirmed vacancy requirements/i);
+  await app.run('setLocale("ru")');
+  assert.match(app.panel.querySelector("#ai-prompt").value, /Сопоставь выбранное резюме/);
+  app.panel.querySelector("#ai-prompt").value = "My custom prompt";
+  app.panel.querySelector("#ai-prompt").oninput({ target: app.panel.querySelector("#ai-prompt") });
+  await app.run('setLocale("en")');
+  assert.equal(app.panel.querySelector("#ai-prompt").value, "My custom prompt", "language switch preserves manually edited prompt");
   app.panel.querySelector("#ai-model").value = "gpt-6-sol";
   app.panel.querySelector("#ai-model").onchange();
   assert.equal(app.panel.querySelector("#ai-effort").value, "high");

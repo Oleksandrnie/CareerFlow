@@ -69,6 +69,42 @@ const vacancySidebar = document.querySelector("#vacancy-sidebar");
 const VACANCY_TABS = ["Overview", "Resume", "ATS", "AI / Codex", "Timeline", "Notes", "Files"];
 let lastWorkspaceScrollTop = 0;
 
+const AI_PROMPT_CATALOG = {
+  "Analyze vacancy": {
+    en: "Analyze the role, prioritize its requirements, and identify questions I should clarify.",
+    ru: "Проанализируй роль, расставь требования по приоритету и выдели вопросы, которые мне стоит уточнить.",
+  },
+  "Improve resume": {
+    en: "Suggest truthful improvements to the selected resume using only evidence already present in the context. For every suggestion, cite the supporting resume lines and do not invent achievements, metrics, skills, dates, or responsibilities.",
+    ru: "Предложи правдивые улучшения выбранного резюме, используя только сведения из контекста. Для каждого предложения укажи подтверждающие строки резюме. Не придумывай достижения, метрики, навыки, даты или обязанности.",
+  },
+  "Review ATS analysis": {
+    en: "Review the local ATS comparison. Flag false positives, weak evidence, and requirements that are not evidenced. Cite the relevant resume lines. Missing evidence does not mean the candidate lacks the skill. Suggest truthful wording improvements only.",
+    ru: "Проверь локальное сравнение ATS. Отметь ложные совпадения, слабые подтверждения и требования, для которых нет свидетельств. Ссылайся на соответствующие строки резюме. Отсутствие подтверждения не означает отсутствия навыка. Предлагай только правдивые улучшения формулировок.",
+  },
+  "Match resume to vacancy": {
+    en: "Compare the selected resume with the confirmed vacancy requirements. For each requirement, report covered, partial, or not evidenced, explain why, and cite exact resume evidence. Missing evidence does not mean the candidate lacks the skill. If input is insufficient, say so instead of inventing a score. Return JSON with summary, requirements, strengths, and gaps; include a score only when its basis is explicit.",
+    ru: "Сопоставь выбранное резюме с подтверждёнными требованиями вакансии. Для каждого требования укажи: подтверждено, частично подтверждено или не подтверждено; объясни вывод и приведи точные фрагменты резюме. Отсутствие подтверждения не означает отсутствия навыка. Если данных недостаточно, сообщи об этом вместо выдуманного балла. Верни JSON с полями summary, requirements, strengths и gaps; указывай оценку только при явном описании её основания.",
+  },
+  "Create tailored resume": {
+    en: "Create a vacancy-tailored Markdown resume from the selected source resume and confirmed vacancy description. Use only candidate facts present in the source. Keep claims, metrics, skills, dates, and responsibilities truthful; never invent or infer them. Preserve the source resume's language unless I explicitly request another language.",
+    ru: "Создай Markdown-резюме под подтверждённое описание вакансии на основе выбранного исходного резюме. Используй только факты о кандидате из исходника. Не выдумывай и не додумывай достижения, метрики, навыки, даты или обязанности. Сохрани язык исходного резюме, если я явно не попрошу другой.",
+  },
+  "Prepare for interview": {
+    en: "Create a focused interview preparation plan with likely questions and evidence-backed talking points. Cite relevant resume evidence and clearly label any uncertainty.",
+    ru: "Составь план подготовки к собеседованию: вероятные вопросы и тезисы, подтверждённые резюме. Приведи релевантные факты из резюме и явно отмечай неопределённость.",
+  },
+  "Analyze interview notes": {
+    en: "Analyze the interview notes, separate recorded facts from interpretation, and extract follow-ups, risks, and suggested next actions.",
+    ru: "Проанализируй заметки собеседования, отдели записанные факты от интерпретаций и выдели дальнейшие действия, риски и предлагаемые следующие шаги.",
+  },
+  "Custom request": { en: "", ru: "" },
+};
+
+function builtInAiPrompt(action, locale = state.locale) {
+  return AI_PROMPT_CATALOG[action]?.[locale === "ru" ? "ru" : "en"] ?? "";
+}
+
 const RU = {
   "LOCAL CAREER WORKSPACE": "ЛОКАЛЬНОЕ ПРОСТРАНСТВО ПОИСКА РАБОТЫ",
   "Primary navigation": "Основная навигация",
@@ -250,6 +286,11 @@ function setLocale(locale) {
   try { localStorage.setItem("careerflow-locale", state.locale); } catch (_) { /* Ignore unavailable storage. */ }
   if (document.documentElement) document.documentElement.lang = state.locale;
   applyLocale();
+  const promptField = document.querySelector("#ai-prompt");
+  const actionField = document.querySelector("#ai-action");
+  if (promptField && actionField && promptField.dataset.dirty !== "true") {
+    promptField.value = builtInAiPrompt(actionField.value, state.locale);
+  }
   if (localeToggle) {
     const nextLocaleLabel = state.locale === "ru" ? "Переключить язык на английский (США)" : "Switch language to Russian";
     localeToggle.innerHTML = state.locale === "ru" ? RU_LOCALE_FLAG : US_LOCALE_FLAG;
@@ -1369,23 +1410,15 @@ async function renderAi(vacancy, view = null) {
     api("/api/codex/models"),
   ]);
   if (!isCurrentView(view)) return;
-  const actions = {
-    "Analyze vacancy": "Analyze the role, prioritize its requirements, and identify questions I should clarify.",
-    "Improve resume": "Suggest truthful improvements to the selected resume using only evidence already present in the context.",
-    "Review ATS analysis": "Review the heuristic ATS analysis, point out false positives or weak evidence, and suggest truthful wording improvements.",
-    "Match resume to vacancy": "Compare the selected resume with the vacancy requirements and return JSON with an integer match_percent from 0 to 100, a short summary, strengths, and gaps. Ignore navigation, company marketing, salary, and generic wording.",
-    "Create tailored resume": "Create a complete vacancy-tailored Markdown resume using the source resume, vacancy fields and full description, and the latest available vacancy analysis, AI match, and resume improvements. Use only candidate facts present in the source resume. Analyze the role and match the source resume directly if saved analyses are missing. Use ATS only as an optional lexical hint; verify it against the source texts. Prioritize relevant experience and supported keywords. Do not invent claims, metrics, skills, dates, or experience.",
-    "Prepare for interview": "Create a focused interview preparation plan with likely questions and evidence-backed talking points.",
-    "Analyze interview notes": "Analyze the interview notes, extract follow-ups, risks, and suggested next actions.",
-    "Custom request": "",
-  };
-  const prompts = actions;
+  const actions = Object.keys(AI_PROMPT_CATALOG);
   panel.innerHTML = `<div class="section-head"><div><p class="eyebrow">READ-ONLY CLI ASSISTANT</p><h3>AI / Codex</h3></div></div>
     <p class="callout">CareerFlow sends the generated vacancy Markdown context to <code>codex exec</code> in a read-only, ephemeral session. The response is shown here and never changes your CV or vacancy automatically.</p>
-    <form id="ai-form" class="stack"><div class="form-grid ai-controls"><label>Action<select name="action" id="ai-action">${Object.keys(actions).map(action => `<option value="${escapeAttr(action)}">${action}</option>`).join("")}</select></label><label>Model<select name="model" id="ai-model">${catalog.models.map(model => `<option value="${escapeAttr(model.id)}" ${model.id === catalog.default_model ? "selected" : ""}>${escapeHtml(model.name)} (${escapeHtml(model.id)})</option>`).join("")}</select></label><label>Reasoning effort<select name="reasoning_effort" id="ai-effort"></select></label><label>Response language<select name="response_language" id="ai-response-language"><option value="auto" selected>Auto</option><option value="russian">Russian</option><option value="english">English</option></select></label></div>${catalog.source !== "codex-cli" ? `<p class="callout">${escapeHtml(catalog.warning || "Codex CLI catalog unavailable; using configured fallback.")}</p>` : ""}<label>Request<textarea name="prompt" id="ai-prompt" rows="6" required>${escapeHtml(prompts["Analyze vacancy"])}</textarea></label><p class="muted">Model and effort are validated against the local Codex CLI catalog.</p><p class="error" id="ai-error"></p><button class="primary" type="submit">Run Codex</button></form>
+    <form id="ai-form" class="stack"><div class="form-grid ai-controls"><label>Action<select name="action" id="ai-action">${actions.map(action => `<option value="${escapeAttr(action)}">${action}</option>`).join("")}</select></label><label>Model<select name="model" id="ai-model">${catalog.models.map(model => `<option value="${escapeAttr(model.id)}" ${model.id === catalog.default_model ? "selected" : ""}>${escapeHtml(model.name)} (${escapeHtml(model.id)})</option>`).join("")}</select></label><label>Reasoning effort<select name="reasoning_effort" id="ai-effort"></select></label><label>Response language<select name="response_language" id="ai-response-language"><option value="auto" selected>Auto</option><option value="russian">Russian</option><option value="english">English</option></select></label></div>${catalog.source !== "codex-cli" ? `<p class="callout">${escapeHtml(catalog.warning || "Codex CLI catalog unavailable; using configured fallback.")}</p>` : ""}<label>Request<textarea name="prompt" id="ai-prompt" rows="6" required>${escapeHtml(builtInAiPrompt("Analyze vacancy"))}</textarea></label><p class="muted">Model and effort are validated against the local Codex CLI catalog.</p><p class="error" id="ai-error"></p><button class="primary" type="submit">Run Codex</button></form>
     <div id="ai-result" aria-live="polite"></div><hr><div class="section-head ai-history-head"><h4>Saved responses</h4><input id="ai-history-filter" type="search" placeholder="Filter saved responses…" aria-label="Filter saved responses"></div><div id="ai-history-list" class="item-list">${history.length ? history.map(aiHistoryItem).join("") : `<p class="muted">No saved responses yet.</p>`}</div>`;
   document.querySelector("#ai-action").onchange = event => {
-    document.querySelector("#ai-prompt").value = prompts[event.target.value] || "";
+    const prompt = document.querySelector("#ai-prompt");
+    prompt.value = builtInAiPrompt(event.target.value);
+    prompt.dataset.dirty = "false";
     if (event.target.value === "Create tailored resume") {
       const preferredModel = catalog.models.find(model => model.id === "gpt-5.6-sol" && model.efforts.includes("medium"));
       if (preferredModel) {
@@ -1393,6 +1426,9 @@ async function renderAi(vacancy, view = null) {
         updateEfforts("medium");
       }
     }
+  };
+  panel.querySelector("#ai-prompt").oninput = event => {
+    event.target.dataset.dirty = String(event.target.value !== builtInAiPrompt(document.querySelector("#ai-action").value));
   };
   const modelSelect = panel.querySelector("#ai-model");
   const effortSelect = panel.querySelector("#ai-effort");
