@@ -165,13 +165,18 @@ function setTheme(theme) {
   try { localStorage.setItem("careerflow-theme", state.theme); } catch (_) { /* Ignore unavailable storage. */ }
 }
 
+const RU_LOCALE_FLAG = '<svg class="locale-flag" aria-hidden="true" viewBox="0 0 24 16"><defs><clipPath id="flag-ru-clip"><rect width="24" height="16" rx="2"/></clipPath></defs><g clip-path="url(#flag-ru-clip)"><rect width="24" height="16" fill="#fff"/><rect y="5.333" width="24" height="5.334" fill="#0039a6"/><rect y="10.667" width="24" height="5.333" fill="#d52b1e"/></g><rect x=".35" y=".35" width="23.3" height="15.3" rx="1.7" fill="none" stroke="#171923" stroke-opacity=".16" stroke-width=".7"/></svg>';
+const US_LOCALE_FLAG = '<svg class="locale-flag" aria-hidden="true" viewBox="0 0 24 16"><defs><clipPath id="flag-us-clip"><rect width="24" height="16" rx="2"/></clipPath></defs><g clip-path="url(#flag-us-clip)"><rect width="24" height="16" fill="#fff"/><path fill="#b22234" d="M0 0h24v1.231H0zM0 2.462h24v1.231H0zM0 4.923h24v1.231H0zM0 7.385h24v1.231H0zM0 9.846h24v1.231H0zM0 12.308h24v1.231H0zM0 14.769h24v1.231H0z"/><rect width="12.5" height="8.62" fill="#3c3b6e"/><g fill="#fff"><circle cx="1.4" cy="1.1" r=".34"/><circle cx="3.7" cy="1.1" r=".34"/><circle cx="6" cy="1.1" r=".34"/><circle cx="8.3" cy="1.1" r=".34"/><circle cx="10.6" cy="1.1" r=".34"/><circle cx="2.55" cy="2.75" r=".34"/><circle cx="4.85" cy="2.75" r=".34"/><circle cx="7.15" cy="2.75" r=".34"/><circle cx="9.45" cy="2.75" r=".34"/><circle cx="1.4" cy="4.4" r=".34"/><circle cx="3.7" cy="4.4" r=".34"/><circle cx="6" cy="4.4" r=".34"/><circle cx="8.3" cy="4.4" r=".34"/><circle cx="10.6" cy="4.4" r=".34"/><circle cx="2.55" cy="6.05" r=".34"/><circle cx="4.85" cy="6.05" r=".34"/><circle cx="7.15" cy="6.05" r=".34"/><circle cx="9.45" cy="6.05" r=".34"/><circle cx="1.4" cy="7.7" r=".34"/><circle cx="3.7" cy="7.7" r=".34"/><circle cx="6" cy="7.7" r=".34"/><circle cx="8.3" cy="7.7" r=".34"/><circle cx="10.6" cy="7.7" r=".34"/></g></g><rect x=".35" y=".35" width="23.3" height="15.3" rx="1.7" fill="none" stroke="#171923" stroke-opacity=".16" stroke-width=".7"/></svg>';
+
 function setLocale(locale) {
   state.locale = locale === "ru" ? "ru" : "en";
   try { localStorage.setItem("careerflow-locale", state.locale); } catch (_) { /* Ignore unavailable storage. */ }
   if (document.documentElement) document.documentElement.lang = state.locale;
   if (localeToggle) {
-    localeToggle.textContent = state.locale === "ru" ? "eng" : "ru";
-    localeToggle.setAttribute("aria-label", state.locale === "ru" ? "Switch language to English" : "Переключить язык на русский");
+    const nextLocaleLabel = state.locale === "ru" ? "Switch language to English (US)" : "Переключить язык на русский";
+    localeToggle.innerHTML = state.locale === "ru" ? US_LOCALE_FLAG : RU_LOCALE_FLAG;
+    localeToggle.setAttribute("aria-label", nextLocaleLabel);
+    localeToggle.setAttribute("title", nextLocaleLabel);
   }
   if (state.locale === "ru") applyLocale();
   else window.location.reload();
@@ -676,7 +681,7 @@ function renderOverview(vacancy) {
   panel.innerHTML = `
     <div class="form-grid overview-meta"><div><p class="eyebrow">SALARY</p><p>${escapeHtml(vacancy.salary || "Not specified")}</p></div><div><p class="eyebrow">SOURCE</p><p>${sourceValue}</p></div></div>
     <h3>Summary</h3><p>${escapeHtml(vacancy.summary || "No summary")}</p>
-    <div class="section-head description-head"><div><h3>Confirmed vacancy description</h3><p class="muted">Used for ATS and Codex context. The original import remains preserved.</p></div><div class="stack"><label class="check-row"><input id="review-cleaning-codex" type="checkbox">Use Codex for this review <span class="muted">Only when selected; vacancy text will be sent to the local Codex CLI.</span></label><button class="secondary" id="review-cleaning">Clean description</button></div></div>
+    <div class="section-head description-head"><div><h3>Confirmed vacancy description</h3><p class="muted">Used for ATS and Codex context. The original import remains preserved.</p></div><div class="stack"><label class="check-row"><input id="review-cleaning-codex" type="checkbox"><span class="check-row-label">Use Codex for this review</span><span class="muted">Only when selected; vacancy text will be sent to the local Codex CLI.</span></label><button class="secondary" id="review-cleaning">Clean description</button></div></div>
     <div class="overview-text">${escapeHtml(vacancy.description)}</div><div id="cleaning-review" aria-live="polite"></div>`;
   panel.querySelector("#review-cleaning").onclick = () => renderExistingDescriptionReview(vacancy);
 }
