@@ -72,6 +72,7 @@ let lastWorkspaceScrollTop = 0;
 const RU = {
   "LOCAL CAREER WORKSPACE": "ЛОКАЛЬНОЕ ПРОСТРАНСТВО ПОИСКА РАБОТЫ",
   "Primary navigation": "Основная навигация",
+  "Vacancy sections": "Разделы вакансии",
   "Vacancies": "Вакансии", "Master Resume": "Главное резюме", "Analytics": "Аналитика", "+ Add vacancy": "+ Добавить вакансию", "LOCAL PROCESS ANALYTICS": "ЛОКАЛЬНАЯ АНАЛИТИКА ПРОЦЕССА", "Activity uses event dates; funnel uses vacancies added in the selected period.": "Активность считается по датам событий, а воронка — по вакансиям, добавленным в выбранном периоде.", "How analytics works": "Как работает аналитика", "Got it": "Понятно", "Period": "Период", "Grouping": "Группировка", "From": "От", "To": "До", "All time": "Всё время", "Current month": "Текущий месяц", "Last 3 months": "Последние 3 месяца", "Current year": "Текущий год", "Custom range": "Произвольный диапазон", "By month": "По месяцам", "By week": "По неделям", "Vacancies added": "Добавлено вакансий", "Applications sent": "Отправлено откликов", "Vacancies with interview": "Вакансий с интервью", "Interviews completed": "Проведено интервью", "Offers received": "Получено офферов", "Rejections received": "Получено отказов", "Active processes": "Активных процессов", "Successfully completed": "Успешно завершено", "Job-search funnel": "Воронка поиска работы", "Conversions": "Конверсии", "Transition": "Переход", "Base": "База", "Reached": "Достигли", "Conversion": "Конверсия", "Final outcomes": "Конечные результаты", "Activity trend": "Динамика активности", "Added / applications / interviews": "Добавлено / отклики / интервью", "Vacancies": "Вакансии", "Applications": "Отклики", "Interviews": "Интервью", "No activity in this period.": "В этом периоде активности нет.", "CareerFlow calculates analytics from recorded structured events. Mark submitted resumes, interview results, offers and final outcomes for accurate statistics.": "CareerFlow считает аналитику по зафиксированным структурированным событиям. Отмечайте отправленные резюме, результаты интервью, офферы и конечные исходы.", "Activity cards and the trend use events that happened within the selected period. The funnel and conversion table use vacancies added within that period and inspect their full history.": "Карточки активности и динамика используют события выбранного периода. Воронка и таблица конверсий учитывают вакансии, добавленные в этот период, и анализируют всю их историю.", "Several interview rounds count as several activity events, but as one vacancy in the funnel. Legacy vacancies archived during the analytics migration are intentionally excluded.": "Несколько раундов интервью считаются отдельными событиями активности, но одной вакансией в воронке. Архивные вакансии, созданные до миграции аналитики, намеренно исключены.", "Incomplete data": "Неполные данные",
   "Archived": "Архив", "Build your job-search workspace": "Создайте рабочее пространство для поиска работы",
   "Add a vacancy by pasting its text or dropping a TXT, HTML, PDF, or DOCX file.": "Добавьте вакансию: вставьте текст или перетащите файл TXT, HTML, PDF или DOCX.",
@@ -146,16 +147,20 @@ function applyLocale(root = document.body) {
 
 function setTheme(theme) {
   state.theme = theme === "dark" ? "dark" : "light";
+  // Update only the theme surface and control so open work, drafts, and scroll state stay in place.
   if (document.documentElement) {
     document.documentElement.dataset.theme = state.theme;
     if (document.documentElement.style) document.documentElement.style.colorScheme = state.theme;
   }
   if (themeToggle) {
     const darkTheme = state.theme === "dark";
-    themeToggle.textContent = darkTheme ? "☀" : "☾";
+    themeToggle.innerHTML = darkTheme
+      ? '<svg aria-hidden="true" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="4"/><path d="M12 2v2m0 16v2M4.93 4.93l1.42 1.42m11.3 11.3 1.42 1.42M2 12h2m16 0h2M4.93 19.07l1.42-1.42m11.3-11.3 1.42-1.42"/></svg>'
+      : '<svg aria-hidden="true" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M20.2 15.4A8.5 8.5 0 0 1 8.6 3.8 8.5 8.5 0 1 0 20.2 15.4Z"/></svg>';
     const label = darkTheme ? "Switch to light theme" : "Switch to dark theme";
     themeToggle.setAttribute?.("aria-label", translateText(label));
     themeToggle.setAttribute?.("title", translateText(label));
+    themeToggle.setAttribute?.("aria-pressed", String(darkTheme));
   }
   try { localStorage.setItem("careerflow-theme", state.theme); } catch (_) { /* Ignore unavailable storage. */ }
 }
@@ -242,7 +247,12 @@ function setSection(section) {
   state.section = section;
   lastWorkspaceScrollTop = 0;
   topbar?.classList?.remove?.("header-nav-hidden");
-  document.querySelectorAll("[data-section]").forEach(button => button.classList.toggle("active", button.dataset.section === section));
+  document.querySelectorAll("[data-section]").forEach(button => {
+    const isCurrent = button.dataset.section === section;
+    button.classList.toggle("active", isCurrent);
+    if (isCurrent) button.setAttribute?.("aria-current", "page");
+    else button.removeAttribute?.("aria-current");
+  });
   topbar?.setAttribute?.("data-section", section);
   appLayout.classList.toggle("master-mode", section !== "vacancies");
   setSidebarOpen(false);
@@ -483,20 +493,21 @@ function renderList() {
     return;
   }
     listEl.innerHTML = state.vacancies.map(item => `
-    <button class="vacancy-card ${state.selected?.id === item.id ? "active" : ""}" data-id="${item.id}">
+      <button class="vacancy-card ${state.selected?.id === item.id ? "active" : ""}" data-id="${item.id}" aria-pressed="${state.selected?.id === item.id}">
       <strong class="vacancy-title" title="${escapeAttr(item.title)}">${escapeHtml(compactVacancyTitle(item.title))}</strong>
       <span>${escapeHtml(item.company || "Company not set")}</span>
       <span class="vacancy-meta">${escapeHtml(item.salary || "Salary not specified")} · Added ${new Date(`${item.created_at}Z`).toLocaleDateString()}</span>
       <span class="vacancy-summary">${escapeHtml(item.summary || "No summary yet")}</span>
-      <span class="card-meta"><span class="badge">${escapeHtml(item.status)}</span><span class="score-group"><span title="Heuristic ATS text-match score, not a probability of getting the job">${item.match_percent == null ? "—" : `ATS ${item.match_percent}%`}</span>${item.ai_match_percent == null ? "" : `<span title="AI resume-to-vacancy score">AI ${item.ai_match_percent}%</span>`}</span></span>
+      <span class="card-meta"><span class="badge ${statusTone(item.status)}">${escapeHtml(item.status)}</span><span class="score-group"><span title="Heuristic ATS text-match score, not a probability of getting the job">${item.match_percent == null ? "—" : `ATS ${item.match_percent}%`}</span>${item.ai_match_percent == null ? "" : `<span title="AI resume-to-vacancy score">AI ${item.ai_match_percent}%</span>`}</span></span>
     </button>`).join("");
 }
 
 function compactVacancyTitle(title) {
-  const value = String(title || "").trim();
-  const withoutPrefix = value.replace(/^(?:вакансия|ищем|нужен|требуется)\s+/i, "");
-  const beforeCompany = withoutPrefix.split(/\s+(?:в компании|в компанию|—|–|—)\s+/i)[0].trim();
-  return (beforeCompany || withoutPrefix || value).slice(0, 88);
+  return String(title || "").trim();
+}
+
+function statusTone(status) {
+  return ({ Saved: "status-saved", Applied: "status-applied", Interview: "status-interview", Waiting: "status-waiting", Offer: "status-offer", Rejected: "status-rejected" })[status] || "status-neutral";
 }
 
 function renderEmpty({ preserveSidebar = false } = {}) {
@@ -518,7 +529,7 @@ function renderEmpty({ preserveSidebar = false } = {}) {
 const STAGES = ["Saved", "Applied", "Interview", "Waiting", "Offer", "Rejected"];
 
 function stageBar(vacancy, interviewCount = state.interviewCounts.get(vacancy.id) ?? 0) {
-  return `<div class="stage-scroll" aria-label="Vacancy stage"><div class="stage-bar">${STAGES.map(status => `<button type="button" class="stage-step ${status === vacancy.status ? "active" : ""}" data-stage="${status}" aria-pressed="${status === vacancy.status}">${status === "Interview" ? `Interview · <span data-interview-count>${interviewCount}</span>` : status}</button>`).join("")}</div></div>`;
+  return `<div class="stage-scroll" role="group" aria-label="Vacancy stage"><div class="stage-bar">${STAGES.map(status => `<button type="button" class="stage-step ${status === vacancy.status ? "active" : ""}" data-stage="${status}" aria-pressed="${status === vacancy.status}">${status === "Interview" ? `Interview · <span data-interview-count>${interviewCount}</span>` : status}</button>`).join("")}</div></div>`;
 }
 
 function bindStageBar(vacancy) {
@@ -609,12 +620,12 @@ function renderVacancy(vacancy) {
   renderList();
   workspace.innerHTML = `
     <div class="workspace-head">
-      <div><p class="eyebrow">${escapeHtml(vacancy.status)}</p><h2 class="vacancy-title" title="${escapeAttr(vacancy.title)}">${escapeHtml(compactVacancyTitle(vacancy.title))}</h2><p class="muted">${escapeHtml(vacancy.company || "Company not set")} · Added ${new Date(vacancy.created_at + "Z").toLocaleDateString()}</p></div>
+      <div><p class="workspace-status badge ${statusTone(vacancy.status)}">${escapeHtml(vacancy.status)}</p><h2 class="vacancy-title">${escapeHtml(compactVacancyTitle(vacancy.title))}</h2><p class="muted">${escapeHtml(vacancy.company || "Company not set")} · Added ${new Date(vacancy.created_at + "Z").toLocaleDateString()}</p></div>
       <div class="actions"><button id="export-report" class="secondary">Export .md</button><button id="edit-overview" class="secondary">Edit</button><button id="archive-vacancy" class="secondary">${vacancy.archived_at ? "Restore" : "Archive"}</button><button id="delete-vacancy" class="danger">Delete</button></div>
     </div>
     ${stageBar(vacancy)}
-    <nav class="tabs">${VACANCY_TABS.map((tab, i) => `<button class="tab ${i === 0 ? "active" : ""}" data-tab="${tab}">${tab}</button>`).join("")}</nav>
-    <section class="panel" id="content-panel"></section>`;
+    <nav class="tabs" aria-label="Vacancy sections">${VACANCY_TABS.map((tab, i) => `<button class="tab ${i === 0 ? "active" : ""}" data-tab="${tab}"${i === 0 ? ' aria-current="page"' : ""}>${tab}</button>`).join("")}</nav>
+    <section class="panel" id="content-panel" aria-live="polite"></section>`;
   document.querySelector("#edit-overview").onclick = () => renderEdit(vacancy);
   document.querySelector("#archive-vacancy").onclick = event => runAction(event.currentTarget, () => toggleArchive(vacancy));
   document.querySelector("#delete-vacancy").onclick = event => runAction(event.currentTarget, () => removeVacancy(vacancy));
@@ -626,7 +637,12 @@ function renderVacancy(vacancy) {
 }
 
 function activateTab(name) {
-  document.querySelectorAll("[data-tab]").forEach(button => button.classList.toggle("active", button.dataset.tab === name));
+  document.querySelectorAll("[data-tab]").forEach(button => {
+    const isCurrent = button.dataset.tab === name;
+    button.classList.toggle("active", isCurrent);
+    if (isCurrent) button.setAttribute?.("aria-current", "page");
+    else button.removeAttribute?.("aria-current");
+  });
 }
 
 async function openTab(name, vacancy) {
@@ -1473,5 +1489,4 @@ if (state.locale === "ru") {
   applyLocale();
 }
 setSection("vacancies");
-document.querySelector('[data-section="analytics"]')?.addEventListener("click", () => { renderAnalytics().catch(error => showError(error)); });
 loadVacancies().catch(error => { workspace.innerHTML = `<p class="error">${escapeHtml(error.message)}</p>`; });

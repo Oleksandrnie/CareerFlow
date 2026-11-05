@@ -14,6 +14,7 @@ function deferred() {
 
 function fakeElement(tagName = "DIV") {
   const children = new Map();
+  const elementListeners = new Map();
   let html = "";
   return {
     tagName,
@@ -25,9 +26,11 @@ function fakeElement(tagName = "DIV") {
     value: "",
     textContent: "",
     classList: { add() {}, remove() {}, toggle(name, force) { this[name] = force ?? !this[name]; } },
-    addEventListener() {},
+    addEventListener(name, callback) { elementListeners.set(name, callback); },
+    dispatch(name, event = {}) { return elementListeners.get(name)?.(event); },
     setAttribute(name, value) { this[name] = String(value); },
     getAttribute(name) { return this[name] ?? null; },
+    removeAttribute(name) { delete this[name]; },
     showModal() { this.open = true; },
     close() { this.open = false; },
     reset() { this.fields = {}; },
@@ -68,6 +71,9 @@ function harness(storage = new Map()) {
   const root = new Map();
   const listeners = new Map();
   const workspace = fakeElement();
+  const themeToggle = fakeElement("BUTTON");
+  const documentElement = fakeElement("HTML");
+  documentElement.style = {};
   let panel = fakeElement();
   Object.defineProperty(workspace, "innerHTML", {
     get() { return this.html || ""; },
@@ -119,9 +125,11 @@ function harness(storage = new Map()) {
     return items;
   }
   const document = {
+    documentElement,
     querySelector(selector) {
       if (selector === "#content-panel") return panel;
       if (selector === "#workspace") return workspace;
+      if (selector === "#theme-toggle") return themeToggle;
       if (selector === "[data-interview-count]") return workspace.querySelector(selector);
       if (selector.startsWith("#") && ["#vacancy-list", "#import-dialog", "#import-form", "#import-review", "#import-error", "#vacancy-file", "#drop-zone", "#selected-file", "#show-archived", "#new-vacancy", "#toast", "#status-selector", "#archive-vacancy", "#delete-vacancy", "#edit-overview", "#export-report"].includes(selector)) return rootElement(selector);
       return panel.querySelector(selector);
@@ -154,7 +162,8 @@ function harness(storage = new Map()) {
   };
   routes.set("GET /api/vacancies?archived=false", []);
   routes.set("GET /api/codex/models", { models: [{ id: "gpt-5.6-luna", name: "Luna", efforts: ["low", "medium"] }], default_model: "gpt-5.6-luna", default_effort: "low", source: "codex-cli", warning: "" });
-  const window = { confirm: () => true, prompt: () => "DELETE" };
+  let reloadCount = 0;
+  const window = { confirm: () => true, prompt: () => "DELETE", location: { reload() { reloadCount += 1; } }, scrollY: 0 };
   const localStorage = {
     getItem(key) { return storage.get(key) ?? null; },
     setItem(key, value) { storage.set(key, String(value)); },
@@ -165,8 +174,10 @@ function harness(storage = new Map()) {
   return {
     context, document, routes, calls, listeners,
     get panel() { return panel; },
+    workspace, themeToggle, documentElement,
     run(code) { return vm.runInContext(code, context); },
     window,
+    get reloadCount() { return reloadCount; },
   };
 }
 
@@ -250,6 +261,59 @@ async function testOverviewLinkAndTabOrder() {
   assert.match(app.panel.innerHTML, /href="https:\/\/example\.com\/jobs\/project-manager"/);
   assert.match(app.panel.innerHTML, /target="_blank"/);
   assert.doesNotMatch(app.panel.innerHTML, /VACANCY LINK/);
+
+  const longTitle = "Senior Principal Platform Engineer — Distributed Systems and Infrastructure Leadership, Europe";
+  app.run(`renderVacancy(${JSON.stringify({ ...vacancy, title: longTitle })})`);
+  assert.match(app.workspace.innerHTML, new RegExp(longTitle.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")), "the full vacancy title should be visible without hover");
+  assert.equal(app.run(`compactVacancyTitle(${JSON.stringify(longTitle)})`), longTitle);
+  app.run(`state.vacancies = [${JSON.stringify({ ...vacancy, title: longTitle })}]; renderList()`);
+  assert.match(app.run("listEl.innerHTML"), new RegExp(longTitle.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")));
+}
+
+async function testThemeTogglePreservesCurrentView() {
+  const views = [
+    { section: "analytics", tab: null },
+    { section: "master-resume", tab: null },
+    ...["Overview", "Resume", "ATS", "AI / Codex", "Timeline", "Notes", "Files"].map(tab => ({ section: "vacancies", tab })),
+  ];
+  for (const view of views) {
+    const storage = new Map([["careerflow-theme", "light"], ["careerflow-locale", "en"]]);
+    const app = harness(storage);
+    await new Promise(resolve => setTimeout(resolve, 0));
+    app.run(`state.section = ${JSON.stringify(view.section)}; state.activeTab = ${JSON.stringify(view.tab)}; state.selected = ${JSON.stringify(first)}; state.lastSelectedVacancy = state.selected; state.lastSelectedVacancyTab = ${JSON.stringify(view.tab)};`);
+    app.workspace.innerHTML = `<main data-view="${view.section}" data-tab="${view.tab || ""}"><form><textarea>Unsaved draft</textarea></form></main>`;
+    app.workspace.scrollTop = 246;
+    const importForm = app.document.querySelector("#import-form");
+    importForm.fields = { text: "An unsaved vacancy description" };
+    const importDialog = app.document.querySelector("#import-dialog");
+    importDialog.open = true;
+    const markupBefore = app.workspace.innerHTML;
+
+    app.themeToggle.dispatch("click");
+    assert.equal(app.run("state.theme"), "dark", `${view.section}/${view.tab || "home"}: toggle should activate dark theme`);
+    assert.equal(app.documentElement.dataset.theme, "dark");
+    assert.equal(app.documentElement.style.colorScheme, "dark");
+    assert.equal(app.themeToggle.getAttribute("aria-pressed"), "true");
+    assert.equal(storage.get("careerflow-theme"), "dark");
+    assert.equal(app.run("state.section"), view.section, `${view.section}/${view.tab || "home"}: section should be preserved`);
+    assert.equal(app.run("state.activeTab"), view.tab, `${view.section}/${view.tab || "home"}: active tab should be preserved`);
+    assert.equal(app.run("state.selected.id"), first.id, `${view.section}/${view.tab || "home"}: selected vacancy should be preserved`);
+    assert.equal(app.workspace.innerHTML, markupBefore, `${view.section}/${view.tab || "home"}: rendered view should not be replaced`);
+    assert.equal(app.workspace.scrollTop, 246, `${view.section}/${view.tab || "home"}: scroll position should be preserved`);
+    assert.equal(importForm.fields.text, "An unsaved vacancy description");
+    assert.equal(importDialog.open, true, `${view.section}/${view.tab || "home"}: open dialog should remain open`);
+    assert.equal(app.reloadCount, 0, `${view.section}/${view.tab || "home"}: theme changes must not reload the app`);
+
+    app.themeToggle.dispatch("click");
+    assert.equal(app.run("state.theme"), "light");
+    assert.equal(storage.get("careerflow-theme"), "light");
+    assert.equal(app.run("state.section"), view.section);
+    assert.equal(app.run("state.activeTab"), view.tab);
+    assert.equal(app.workspace.innerHTML, markupBefore);
+    assert.equal(importForm.fields.text, "An unsaved vacancy description");
+    assert.equal(importDialog.open, true);
+    assert.equal(app.reloadCount, 0);
+  }
 }
 
 async function testEditAndInterviewSubmitControls() {
@@ -660,6 +724,7 @@ async function testUrlImportStructuredDefaultsAndEditableMetadata() {
 async function testExistingDescriptionReviewAndCodexOptIn() {
   const app = harness();
   app.run('state.locale = "ru"');
+  assert.equal(app.run('translateText("Vacancy sections")'), "Разделы вакансии");
   const localizedHint = app.run('translateText("Only when selected; vacancy text will be sent to the local Codex CLI.")');
   assert.equal(localizedHint, "Только при выборе; текст вакансии будет передан локальному Codex CLI.");
   assert.doesNotMatch(localizedHint, /undefined/);
@@ -956,6 +1021,7 @@ async function testMutationFailuresAndDuplicateRecovery() {
   await testVacancyNavigationRestoresLastSelection();
   await testVacancyNavigationRestoresAfterReload();
   await testOverviewLinkAndTabOrder();
+  await testThemeTogglePreservesCurrentView();
   await testEditAndInterviewSubmitControls();
   await testInterviewCounterLifecycleAndStaleReads();
   await testResumePreviewAndEditableCopy();

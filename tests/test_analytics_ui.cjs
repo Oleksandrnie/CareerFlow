@@ -5,6 +5,9 @@ const path = require("node:path");
 const root = path.resolve(__dirname, "..");
 const app = fs.readFileSync(path.join(root, "careerflow/static/app.js"), "utf8");
 const css = fs.readFileSync(path.join(root, "careerflow/static/app.css"), "utf8");
+const index = fs.readFileSync(path.join(root, "careerflow/static/index.html"), "utf8");
+
+assert.match(index, /<dialog id="analytics-help" aria-labelledby="analytics-help-title">[\s\S]*?<h2 id="analytics-help-title">How analytics works<\/h2>/);
 
 for (const label of [
   'added: "Добавлено"',
