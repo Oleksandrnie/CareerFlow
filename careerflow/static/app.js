@@ -681,7 +681,7 @@ function renderOverview(vacancy) {
   panel.innerHTML = `
     <div class="form-grid overview-meta"><div><p class="eyebrow">SALARY</p><p>${escapeHtml(vacancy.salary || "Not specified")}</p></div><div><p class="eyebrow">SOURCE</p><p>${sourceValue}</p></div></div>
     <h3>Summary</h3><p>${escapeHtml(vacancy.summary || "No summary")}</p>
-    <div class="section-head description-head"><div class="description-intro"><h3>Confirmed vacancy description</h3><p class="muted">Used for ATS and Codex context. The original import remains preserved.</p></div><div class="description-actions"><label class="check-row"><input id="review-cleaning-codex" type="checkbox"><span class="check-row-label">Use Codex for this review</span><span class="muted">Only when selected; vacancy text will be sent to the local Codex CLI.</span></label><button class="secondary" id="review-cleaning">Clean description</button></div></div>
+    <div class="section-head description-head"><div class="description-intro"><h3>Confirmed vacancy description</h3><p class="muted">Used for ATS and Codex context. The original import remains preserved.</p></div><label class="check-row description-codex-toggle"><input id="review-cleaning-codex" type="checkbox"><span class="check-row-label">Use Codex for this review</span><span class="muted">Only when selected; vacancy text will be sent to the local Codex CLI.</span></label><button class="secondary description-clean-action" id="review-cleaning">Clean description</button></div>
     <div class="overview-text">${escapeHtml(vacancy.description)}</div><div id="cleaning-review" aria-live="polite"></div>`;
   panel.querySelector("#review-cleaning").onclick = () => renderExistingDescriptionReview(vacancy);
 }
