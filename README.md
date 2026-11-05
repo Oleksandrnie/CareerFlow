@@ -63,6 +63,7 @@ CareerFlow reads optional `KEY=VALUE` settings from `.env` in the project root. 
 | `CAREERFLOW_HOST` | `127.0.0.1` | Bind address. Keep loopback for a single-user local setup. |
 | `CAREERFLOW_PORT` | `8000` | Local HTTP port. |
 | `CAREERFLOW_RELOAD` | `0` | Set to `1` to enable Uvicorn reload for development. |
+| `CAREERFLOW_OPEN_BROWSER` | `1` | Automatically open the local app in a browser when `run.py` starts. With Uvicorn reload enabled, the launcher opens one tab and reload workers do not open additional tabs. Set to `0` to disable. |
 | `CAREERFLOW_DATA_DIR` | `<project>/data` | Directory for the SQLite database. |
 | `CAREERFLOW_STORAGE_DIR` | `<project>/storage` | Directory for original documents, attachments and reports. |
 | `CAREERFLOW_DATABASE` | `<data dir>/careerflow.db` | Optional explicit SQLite database path. |
