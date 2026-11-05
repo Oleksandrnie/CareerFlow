@@ -554,8 +554,28 @@ function bindStageBar(vacancy) {
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify({ status: button.dataset.stage }),
         });
-        await loadVacancies();
-        if (state.section === "vacancies" && state.selected?.id === vacancy.id) renderVacancy(updated);
+        [vacancy, state.selected, state.lastSelectedVacancy, ...state.vacancies]
+          .forEach(item => { if (item?.id === updated.id) Object.assign(item, updated); });
+        document.querySelectorAll(".vacancy-card").forEach(card => {
+          if (String(card.dataset.id) !== String(updated.id)) return;
+          const statusChip = card.querySelector(".card-meta .badge");
+          if (statusChip) {
+            statusChip.className = `badge ${statusTone(updated.status)}`;
+            statusChip.textContent = updated.status;
+          }
+        });
+        if (state.section === "vacancies" && state.selected?.id === updated.id) {
+          document.querySelectorAll("[data-stage]").forEach(item => {
+            const isActive = item.dataset.stage === updated.status;
+            item.classList.toggle("active", isActive);
+            item.setAttribute?.("aria-pressed", String(isActive));
+          });
+          const statusBadge = document.querySelector(".workspace-status");
+          if (statusBadge) {
+            statusBadge.className = `workspace-status badge ${statusTone(updated.status)}`;
+            statusBadge.textContent = updated.status;
+          }
+        }
         toast(`Status changed to ${updated.status}`);
       } catch (error) {
         buttons.forEach(item => {
