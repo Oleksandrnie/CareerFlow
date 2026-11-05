@@ -174,7 +174,7 @@ function setLocale(locale) {
   if (document.documentElement) document.documentElement.lang = state.locale;
   if (localeToggle) {
     const nextLocaleLabel = state.locale === "ru" ? "Switch language to English (US)" : "Переключить язык на русский";
-    localeToggle.innerHTML = state.locale === "ru" ? US_LOCALE_FLAG : RU_LOCALE_FLAG;
+    localeToggle.innerHTML = state.locale === "ru" ? RU_LOCALE_FLAG : US_LOCALE_FLAG;
     localeToggle.setAttribute("aria-label", nextLocaleLabel);
     localeToggle.setAttribute("title", nextLocaleLabel);
   }
