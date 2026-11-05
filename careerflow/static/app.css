@@ -748,6 +748,7 @@ dialog::backdrop { background: var(--backdrop); backdrop-filter: blur(2px); }
   .toast { right: 12px; bottom: 12px; max-width: calc(100vw - 24px); }
 }
 @media (max-width: 360px) {
+  .primary-nav-item { padding-inline: 10px; font-size: 13px; }
   .brand-lockup { gap: 7px; }
   .topbar h1 { font-size: 17px; }
   .topbar-actions > button { width: 32px; min-width: 32px; }
