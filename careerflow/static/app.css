@@ -627,6 +627,16 @@ button:focus-visible, input:focus-visible, textarea:focus-visible, select:focus-
   .layout.master-mode { grid-template-columns: minmax(0, 1fr); }
 }
 
+/* UI hot fix: let the two-row mobile header define its own height after the
+   global desktop shell sets a fixed header height. */
+@media (max-width: 760px) {
+  .topbar {
+    height: auto;
+    min-height: 0;
+    row-gap: 8px;
+  }
+}
+
 .workspace { padding: clamp(22px, 3vw, 40px); background: var(--paper); }
 .workspace > * { max-width: 1180px; margin-right: auto; margin-left: auto; }
 .workspace > .workspace-head { max-width: 1180px; }

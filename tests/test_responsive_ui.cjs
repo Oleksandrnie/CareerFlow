@@ -49,6 +49,16 @@ assert.match(index, /id="new-vacancy"[^>]*class="primary new-vacancy-action"[^>]
 assert.match(css, /@media \(max-width: 760px\) \{\s+\.topbar \{ display: grid; grid-template-columns: minmax\(0, 1fr\) auto; grid-template-rows: auto auto;/);
 assert.match(css, /\.topbar-actions \{ grid-column: 2; grid-row: 1; min-width: 0; flex-wrap: nowrap; justify-content: flex-end; \}/);
 assert.match(css, /\.primary-nav \{ grid-column: 1 \/ -1; grid-row: 2; width: calc\(100% \+ 28px\);/);
+const fixedDesktopHeader = css.indexOf(".topbar { height: 72px; min-height: 72px;");
+const mobileHeaderHotFix = css.indexOf("/* UI hot fix: let the two-row mobile header define its own height");
+assert.ok(fixedDesktopHeader >= 0 && mobileHeaderHotFix > fixedDesktopHeader, "mobile header sizing must override the later fixed desktop header height");
+assert.match(css.slice(mobileHeaderHotFix), /@media \(max-width: 760px\) \{\s+\.topbar \{\s+height: auto;\s+min-height: 0;\s+row-gap: 8px;/);
+assert.match(index, /<header class="topbar">[\s\S]*?<\/header>\s*<main class="layout" id="app-layout">/);
+assert.match(index, /href="\/static\/app\.css\?v=operations-refresh-12"/);
+assert.match(app, /function renderEmpty\([\s\S]*?workspace\.innerHTML =/);
+assert.match(app, /async function renderAnalytics\([\s\S]*?workspace\.innerHTML =/);
+assert.match(app, /async function renderMasterResume\([\s\S]*?workspace\.innerHTML =/);
+assert.match(app, /function renderVacancy\([\s\S]*?workspace\.innerHTML =/);
 assert.match(css, /--accent: #4859dc;/);
 assert.match(css, /\[data-theme="dark"\] \{[\s\S]*?--accent: #a9b3ff;/);
 assert.match(css, /--success-ink:/);
