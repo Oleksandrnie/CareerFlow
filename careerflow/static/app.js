@@ -260,11 +260,12 @@ function setSection(section) {
   });
   topbar?.setAttribute?.("data-section", section);
   appLayout.classList.toggle("master-mode", section !== "vacancies");
-  setSidebarOpen(false);
+  const isCompactViewport = typeof window !== "undefined" && typeof window.matchMedia === "function" && window.matchMedia("(max-width: 900px)").matches;
+  setSidebarOpen(section === "vacancies" && !state.selected && !isCompactViewport);
   if (sidebarToggle) {
-    sidebarToggle.hidden = false;
+    sidebarToggle.hidden = section !== "vacancies" && !isCompactViewport;
     sidebarToggle.disabled = false;
-    sidebarToggle.setAttribute?.("aria-label", translateText("Open vacancy list"));
+    sidebarToggle.setAttribute?.("aria-label", translateText(state.sidebarOpen ? "Close vacancy list" : "Open vacancy list"));
   }
   newVacancyButton.hidden = false;
 }
@@ -346,8 +347,9 @@ function setSidebarOpen(open) {
   sidebarToggle?.setAttribute?.("aria-expanded", String(isOpen));
   sidebarToggle?.setAttribute?.("aria-label", translateText(isOpen ? "Close vacancy list" : "Open vacancy list"));
   const isCompactViewport = typeof window !== "undefined" && typeof window.matchMedia === "function" && window.matchMedia("(max-width: 900px)").matches;
-  vacancySidebar?.setAttribute?.("aria-hidden", String(isCompactViewport && !isOpen));
-  if (vacancySidebar && "inert" in vacancySidebar) vacancySidebar.inert = isCompactViewport && !isOpen;
+  appLayout.classList.toggle("sidebar-collapsed", !isOpen);
+  vacancySidebar?.setAttribute?.("aria-hidden", String(!isOpen));
+  if (vacancySidebar && "inert" in vacancySidebar) vacancySidebar.inert = !isOpen;
 }
 
 async function showVacancies() {
@@ -517,12 +519,12 @@ function statusTone(status) {
 
 function renderEmpty({ preserveSidebar = false } = {}) {
   const keepSidebarOpen = preserveSidebar && state.sidebarOpen;
-  setSection("vacancies");
   state.selected = null;
   state.lastSelectedVacancy = null;
   state.lastSelectedVacancyTab = null;
   state.pendingVacancyId = null;
   state.pendingVacancyTab = null;
+  setSection("vacancies");
   clearSavedVacancyNavigation();
   state.activeTab = null;
   state.viewEpoch++;
@@ -634,13 +636,13 @@ async function refreshInterviewCount(vacancy) {
 }
 
 function renderVacancy(vacancy) {
+  state.selected = vacancy;
+  state.lastSelectedVacancy = vacancy;
+  state.lastSelectedVacancyTab = "Overview";
   setSection("vacancies");
   state.selectionEpoch++;
   state.viewEpoch++;
   state.activeTab = "Overview";
-  state.selected = vacancy;
-  state.lastSelectedVacancy = vacancy;
-  state.lastSelectedVacancyTab = "Overview";
   saveVacancyNavigation(vacancy.id, "Overview");
   renderList();
   workspace.innerHTML = `

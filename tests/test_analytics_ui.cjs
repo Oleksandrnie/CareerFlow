@@ -24,7 +24,8 @@ assert.match(app, /analyticsLabel\(item\.stage\)/);
 assert.match(app, /analyticsLabel\(item\.transition\)/);
 assert.match(app, /analyticsLabel\(key\)/);
 assert.match(app, /window\.matchMedia\?\.\("\(max-width: 600px\)"\)\.matches/);
-assert.match(app, /sidebarToggle\.hidden = false/);
+assert.match(app, /sidebarToggle\.hidden = section !== "vacancies" && !isCompactViewport/);
+assert.match(app, /setSidebarOpen\(section === "vacancies" && !state\.selected && !isCompactViewport\)/);
 assert.match(app, /sidebarToggle\.disabled = false/);
 assert.match(app, /state\.locale === "ru" && state\.section === "analytics"/);
 assert.match(css, /\.analytics-head \{[^}]*grid-template-columns: minmax\(0, 1fr\) 38px;[^}]*min-height: 92px;/);
@@ -32,7 +33,7 @@ assert.match(css, /\.analytics-head \.help-button \{[^}]*width: 38px;[^}]*border
 assert.match(css, /\.analytics-help-shell \{[^}]*padding: 24px;/);
 assert.match(css, /\.standalone-head \{ max-width: none; margin: 0 0 22px; \}/);
 assert.match(css, /\.analytics-date\[hidden\] \{ display: none !important; \}/);
-assert.match(css, /\.sidebar-toggle\[hidden\] \{ visibility: hidden; pointer-events: none; \}/);
+assert.match(css, /\.sidebar-toggle\[hidden\] \{ display: none !important; visibility: hidden; pointer-events: none; \}/);
 assert.match(css, /\.topbar\.header-nav-hidden \.primary-nav \{ display: flex;/);
 
 console.log("Analytics mobile UI contract passed");

@@ -33,7 +33,12 @@ assert.match(css, /\.topbar-actions > button \{ width: 38px; min-width: 38px; he
 assert.match(css, /\.topbar-actions > button \{ width: 36px; min-width: 36px; height: 27px; padding: 0; \}/);
 assert.match(css, /#master-resume-dialog \.dialog-actions \{ display: grid; grid-template-columns: repeat\(2, minmax\(0, 1fr\)\); align-items: stretch; \}/);
 assert.match(css, /#master-resume-dialog \.dialog-actions > button \{ width: 100%; min-width: 0; height: 64px; min-height: 64px;/);
-assert.match(css, /\.sidebar-toggle\[hidden\] \{ visibility: hidden; pointer-events: none; \}/);
+assert.match(css, /\.sidebar-toggle\[hidden\] \{ display: none !important; visibility: hidden; pointer-events: none; \}/);
+assert.match(css, /\.sidebar-toggle \.menu-glyph svg \{ display: block; width: 24px; height: 24px;/);
+assert.match(css, /@media \(min-width: 901px\) \{\s+\.sidebar-toggle \{ display: inline-grid; place-items: center; \}\s+\.layout \{ grid-template-columns: minmax\(270px, 310px\) minmax\(0, 1fr\); transition: grid-template-columns 240ms/);
+assert.match(css, /\.layout\.sidebar-collapsed \{ grid-template-columns: minmax\(0, 0fr\) minmax\(0, 1fr\); \}/);
+assert.match(index, /<div class="archive-toggle"><input id="show-archived" type="checkbox" aria-labelledby="archive-label"><span id="archive-label">Archived<\/span><\/div>/);
+assert.doesNotMatch(index, /<label class="archive-toggle">/);
 assert.match(css, /\.brand-lockup \{ display: flex; align-items: center; gap: 10px; min-width: 0; \}/);
 assert.match(app, /newVacancyButton\.hidden = false;/);
 assert.match(index, /<div class="brand-lockup">\s*<button id="sidebar-toggle"[\s\S]*?<div class="brand-copy"><h1>CareerFlow<\/h1>/);

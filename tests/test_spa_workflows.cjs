@@ -516,7 +516,9 @@ async function testStageFourMasterCrmAndAtsAcceptance() {
   app.routes.set("POST /api/vacancies/1/status", updated);
   app.routes.set("GET /api/vacancies?archived=false", [updated]);
   await app.document.querySelectorAll("[data-stage]").find(button => button.dataset.stage === "Applied").onclick();
-  assert.match(app.document.querySelector("#workspace").innerHTML, /data-stage="Applied" aria-pressed="true"/);
+  const appliedAfterUpdate = app.document.querySelectorAll("[data-stage]").find(button => button.dataset.stage === "Applied");
+  assert.equal(appliedAfterUpdate.getAttribute("aria-pressed"), "true");
+  assert.equal(appliedAfterUpdate.classList.active, true);
 
   app.routes.set("GET /api/resumes?kind=master", [{ id: 42, kind: "master", version: 3, label: "Canonical", created_at: "2026-09-21 10:00:00" }]);
   app.routes.set("GET /api/resumes?kind=vacancy&vacancy_id=1", []);
@@ -931,7 +933,9 @@ async function testAiResponseLanguageSubmission() {
 
 async function testResponsiveSidebarToggleClosesAfterSelection() {
   const app = harness();
+  assert.equal(app.run("state.sidebarOpen"), true, "desktop vacancy list starts open");
   app.run(`renderVacancy(${JSON.stringify(first)})`);
+  assert.equal(app.run("state.sidebarOpen"), false, "selecting a vacancy hides the desktop list");
   const click = app.listeners.get("click");
   const toggleTarget = { closest: selector => selector === "#sidebar-toggle" ? {} : null };
   await click({ target: toggleTarget });
@@ -942,6 +946,16 @@ async function testResponsiveSidebarToggleClosesAfterSelection() {
     closest: selector => selector === ".vacancy-card" ? vacancyCard : null,
   };
   await click({ target: vacancyCard });
+  assert.equal(app.run("state.sidebarOpen"), false);
+  await click({ target: toggleTarget });
+  assert.equal(app.run("state.sidebarOpen"), true);
+  const secondCard = {
+    dataset: { id: "2" },
+    closest: selector => selector === ".vacancy-card" ? secondCard : null,
+  };
+  app.routes.set("GET /api/vacancies/2", second);
+  await click({ target: secondCard });
+  assert.equal(app.run("state.selected.id"), 2);
   assert.equal(app.run("state.sidebarOpen"), false);
 }
 
@@ -1025,6 +1039,8 @@ async function testMutationFailuresAndDuplicateRecovery() {
   await testEditAndInterviewSubmitControls();
   await testInterviewCounterLifecycleAndStaleReads();
   await testResumePreviewAndEditableCopy();
+  await testResponsiveSidebarToggleClosesAfterSelection();
+  await testResponsiveSidebarStaysOpenWhenArchiveFilterChanges();
   await testStageFourMasterCrmAndAtsAcceptance();
   await testMasterResumeWorkspaceAndSave();
   await testImportPreviewEditConfirmAndRecovery();
@@ -1033,8 +1049,6 @@ async function testMutationFailuresAndDuplicateRecovery() {
   await testSavedAiDetailAndLateRun();
   await testTailoredResumeActionAndExplicitDraftHandoff();
   await testAiResponseLanguageSubmission();
-  await testResponsiveSidebarToggleClosesAfterSelection();
-  await testResponsiveSidebarStaysOpenWhenArchiveFilterChanges();
   await testVacancyDeletionUsesInAppPolicyDialog();
   await testMutationFailuresAndDuplicateRecovery();
   process.stdout.write("SPA workflow regressions passed\n");
