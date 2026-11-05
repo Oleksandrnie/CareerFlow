@@ -637,7 +637,12 @@ button:focus-visible, input:focus-visible, textarea:focus-visible, select:focus-
 .overview-meta > div { min-width: 0; padding-bottom: 14px; border-bottom: 1px solid var(--line); }
 .overview-meta .eyebrow { margin-bottom: 4px; color: var(--muted); font-size: 10px; letter-spacing: .09em; }
 .overview-meta p:last-child { overflow-wrap: anywhere; }
-.workspace .description-head { align-items: flex-end; margin: 26px 0 12px; }
+.workspace .description-head { display: grid; grid-template-columns: minmax(0, 1fr); align-items: stretch; gap: 12px; margin: 26px 0 12px; }
+.description-intro { min-width: 0; }
+.description-intro > .muted { max-width: 70ch; margin-top: 4px; }
+.description-actions { display: grid; grid-template-columns: minmax(0, 1fr) auto; align-items: center; gap: 20px; }
+.description-actions .check-row { min-width: 0; }
+.description-actions > .secondary { justify-self: end; width: auto; min-width: 180px; }
 .description-head .eyebrow { display: none; }
 .overview-text, .markdown-preview, .ai-readable, .ai-response { border-radius: 12px; background: var(--content-bg); }
 .overview-text { max-height: 52vh; line-height: 1.65; padding: 18px; overflow-wrap: anywhere; }
@@ -769,6 +774,8 @@ dialog::backdrop { background: var(--backdrop); backdrop-filter: blur(2px); }
   .workspace-head .actions { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); }
   .workspace-head .actions > button { min-width: 0; }
   .section-head { align-items: flex-start; }
+  .description-actions { grid-template-columns: minmax(0, 1fr); gap: 12px; }
+  .description-actions > .secondary { justify-self: stretch; width: 100%; min-width: 0; }
   .stage-scroll { margin-right: 0; }
   .tabs { margin-right: 0; }
   .tab { padding-inline: 11px; }
