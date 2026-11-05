@@ -693,6 +693,21 @@ button:focus-visible, input:focus-visible, textarea:focus-visible, select:focus-
 .ai-readable-score strong { color: var(--accent); }
 
 input, textarea, select { min-height: 42px; border-radius: var(--radius-control); border-color: var(--input-border); background: var(--input-bg); color: var(--ink); }
+select:not([multiple]):not([size]) {
+  appearance: none;
+  -webkit-appearance: none;
+  padding: 10px 48px 10px 12px;
+  border-radius: 12px;
+  background-color: var(--content-bg);
+  background-image: linear-gradient(45deg, transparent 45%, var(--muted) 45% 55%, transparent 55%), linear-gradient(135deg, transparent 45%, var(--muted) 45% 55%, transparent 55%);
+  background-position: calc(100% - 30px) 50%, calc(100% - 22px) 50%;
+  background-repeat: no-repeat;
+  background-size: 8px 8px;
+  cursor: pointer;
+  transition: background-color 140ms ease, border-color 140ms ease;
+}
+select:not([multiple]):not([size]):hover:not(:disabled) { border-color: var(--hover-border); background-color: var(--surface); }
+select:not([multiple]):not([size]):disabled { cursor: not-allowed; opacity: .6; }
 textarea { min-height: 120px; line-height: 1.55; }
 input::placeholder, textarea::placeholder { color: var(--muted); opacity: 1; }
 .archive-toggle input[type="checkbox"] {
