@@ -144,6 +144,44 @@ const RU = {
 };
 
 RU["Show request"] = "Показать запрос";
+Object.assign(RU, {
+  "Role family": "Профиль роли", "Grade support": "Подтверждение уровня",
+  "Overall resume score": "Итоговая оценка резюме", "Resume risk checks": "Проверка рисков резюме",
+  "Evidence and achievement review": "Проверка опыта и достижений", "10-second recruiter read": "Первое впечатление рекрутера",
+  "Priority improvements": "Приоритетные улучшения", "Limitations": "Ограничения",
+  "Score calculation": "Расчёт оценки", "Weighted total": "Итог с учётом весов",
+  "Evidence": "Подтверждённость опыта", "RoleClarity": "Ясность роли", "AntiPersonaClean": "Риски профиля",
+  "TenSecondRead": "Первое впечатление", "KeywordFit": "Совпадение ключевых слов", "Structure": "Структура",
+  "claimed_title_or_years": "Заявленная должность или стаж", "supported_family_years": "Подтверждённый стаж по профилю",
+  "severity": "Уровень неопределённости", "line_refs": "Строки резюме",
+  "grade": "Уровень", "domain": "Профиль", "first_bullet_impact": "Эффект первого достижения", "scope": "Масштаб ответственности", "tools": "Инструменты",
+  "Historical ATS text match — rerun analysis": "Исторический результат ATS — запустите анализ заново",
+  "ATS text-match score": "Оценка текстового совпадения ATS", "Analysis #": "Анализ №",
+  "Heuristic comparison of vacancy wording with resume text. It is not a probability of getting the job or a definitive assessment of suitability.": "Локальное сравнение текста вакансии и резюме. Это не вероятность трудоустройства и не окончательная оценка соответствия.",
+  "Heuristic text comparison only. Missing means not evidenced in this resume version, not that the candidate lacks the experience.": "Это только текстовое сравнение. «Не найдено» означает, что свидетельство отсутствует в этой версии резюме, а не что у кандидата нет такого опыта.",
+  "The confirmed vacancy description changed after this run. This result is historical; run ATS again for a current score.": "Подтверждённое описание вакансии изменилось после анализа. Это исторический результат; повторите ATS-анализ для актуальной оценки.",
+  "Historical result; source changed or was deleted": "Исторический результат: источник изменён или удалён",
+  "Manager resume audit": "Аудит резюме руководителя", "Vacancy requirement match": "Сопоставление с требованиями вакансии",
+  "Resume risk checks": "Проверка рисков резюме", "Evidence and achievement review": "Проверка опыта и достижений",
+  "10-second recruiter read": "Первое впечатление рекрутера", "Score calculation": "Расчёт оценки",
+  "CLEAR means no signal found; PARTIAL means some evidence or uncertainty; NONE means the signal is not supported. L1, L2, etc. point to numbered lines in the resume text used for this audit.": "CLEAR — сигнал не обнаружен; PARTIAL — есть частичные свидетельства или неопределённость; NONE — сигнал не подтверждён. L1, L2 и далее обозначают строки текста резюме, использованные в аудите.",
+  "covered": "подтверждено", "partial": "частично", "not_evidenced": "не подтверждено", "insufficient_input": "недостаточно данных",
+  "CLEAR": "Не обнаружено", "PARTIAL": "Частично", "NONE": "Не подтверждено", "PASS": "Подтверждено", "WEAK": "Слабое свидетельство", "FAIL": "Не подтверждено", "SCOPE": "Масштаб", "NOISE": "Лишняя информация"
+  ,"ATS and resume review": "ATS и аудит резюме", "EVIDENCE-BASED REVIEW": "ПРОВЕРКА ПО СВИДЕТЕЛЬСТВАМ",
+  "Resume version": "Версия резюме", "Run local comparison": "Запустить локальное сравнение", "Run local comparison again": "Повторить локальное сравнение",
+  "Local keyword coverage is a limited text comparison. Codex review is explicit, uses only the selected resume and confirmed vacancy text for matching, and does not change a resume automatically.": "Локальный ATS сравнивает текст резюме с требованиями вакансии и показывает совпадения. Отдельный аудит через Codex запускается только по кнопке и оценивает резюме или его соответствие подтверждённой вакансии; резюме автоматически не меняется.",
+  "Select a resume version and run ATS analysis.": "Выберите версию резюме и запустите локальный ATS-анализ.", "ATS is a local text comparison, not an employer decision and not a Codex analysis.": "ATS — локальное сравнение текста, а не решение работодателя и не анализ Codex.",
+  "Evidence-based Codex review": "Проверка резюме через Codex", "Manager audit checks role clarity, evidence, seniority signals, and common resume risk patterns. Vacancy match cites resume lines against this vacancy. Neither produces a hiring probability.": "Аудит Codex отдельно проверяет ясность роли, свидетельства опыта, уровень и риски резюме. Сопоставление связывает требования выбранной вакансии со строками резюме. Оба действия запускаются явно и не оценивают вероятность найма.",
+  "Audit this resume": "Провести аудит резюме", "Match against vacancy": "Сопоставить с вакансией",
+  "Strengths": "Сильные стороны", "Gaps": "Пробелы", "Resume evidence:": "Строки резюме:",
+  "Covered": "Подтверждено", "Partial": "Частично", "Missing": "Не найдено", "Requirements and evidence": "Требования и подтверждения", "Keywords": "Ключевые слова",
+  "Historical result; source changed or was deleted": "Исторический результат: источник изменён или удалён",
+  "master": "главное", "vacancy": "вакансии",
+  "mismatch": "расхождение", "No Codex assessments for this resume version yet.": "Для этой версии резюме пока нет оценок Codex.",
+  "This historical explanation was saved in English.": "Пояснение в этом сохранённом результате было на английском.", "Show original text": "Показать оригинальный текст",
+  "Project administrator": "Администратор проекта", "Project proxy": "Представитель проекта", "Ritual agile PM": "Формальный Agile-менеджер",
+  "Unimmersed delivery manager": "Delivery-менеджер без погружения в домен", "Manager-router": "Менеджер-передатчик задач", "General management without domain": "Общее управление без доменной экспертизы"
+});
 
 const ENGLISH_FROM_RUSSIAN = new Map(Object.entries(RU).map(([english, russian]) => [russian, english]));
 
@@ -1122,10 +1160,10 @@ function atsResult(analysis, vacancy = null) {
   const resumeLabel = analysis.resume_kind_at_analysis && analysis.resume_version_at_analysis
     ? `${analysis.resume_kind_at_analysis === "master" ? "Master" : "Vacancy"} Resume v${analysis.resume_version_at_analysis}`
     : "legacy resume version";
-  return `<div class="score-row"><div class="score" aria-label="ATS text-match score ${analysis.match_percent}%">${analysis.match_percent}%</div><div><h3>${analysis.is_stale ? "Historical ATS text match — rerun analysis" : "ATS text-match score"}</h3><p class="muted">Analysis #${analysis.id} · ${escapeHtml(resumeLabel)} (ID ${analysis.resume_version_id})</p>${vacancy?.ai_match_percent != null ? `<p class="score-inline"><strong>AI ${vacancy.ai_match_percent}%</strong> <span class="muted">AI resume-to-vacancy score</span></p>` : ""}<p class="muted">Heuristic comparison of vacancy wording with resume text. It is not a probability of getting the job or a definitive assessment of suitability.</p><p class="muted">${escapeHtml(result.disclaimer)}</p>${analysis.is_stale ? `<p class="error">${analysis.resume_deleted ? "The resume version used for this analysis was deleted. This result remains historical; create or select a current resume and run ATS again." : "The confirmed vacancy description changed after this run. This result is historical; run ATS again for a current score."}</p>` : ""}</div></div>
-    <div class="metric-grid"><div><strong>${result.counts.covered}</strong><span>Covered</span></div><div><strong>${result.counts.partial}</strong><span>Partial</span></div><div><strong>${result.counts.missing}</strong><span>Missing</span></div></div>
-    <h4>Requirements and evidence</h4><div class="item-list">${result.requirements.map(item => `<article class="requirement ${item.classification}"><span class="badge">${item.classification}</span><strong>${escapeHtml(item.requirement)}</strong><p>${escapeHtml(item.interpretation)}</p>${item.evidence ? `<blockquote>${escapeHtml(item.evidence)}</blockquote>` : ""}</article>`).join("")}</div>
-    <h4>Keywords</h4><div class="tag-list">${result.keywords.map(word => `<span class="tag ${result.covered_keywords.includes(word) ? "hit" : ""}">${escapeHtml(word)}</span>`).join("")}</div>`;
+  return `<div class="score-row"><div class="score" aria-label="${escapeHtml(translateText("ATS text-match score"))} ${analysis.match_percent}%">${analysis.match_percent}%</div><div><h3>${escapeHtml(translateText(analysis.is_stale ? "Historical ATS text match — rerun analysis" : "ATS text-match score"))}</h3><p class="muted">${escapeHtml(translateText("Analysis #"))}${analysis.id} · ${escapeHtml(translateText(resumeLabel))} (ID ${analysis.resume_version_id})</p>${vacancy?.ai_match_percent != null ? `<p class="score-inline"><strong>AI ${vacancy.ai_match_percent}%</strong> <span class="muted">${escapeHtml(translateText("AI resume-to-vacancy score"))}</span></p>` : ""}<p class="muted">${escapeHtml(translateText("Heuristic comparison of vacancy wording with resume text. It is not a probability of getting the job or a definitive assessment of suitability."))}</p><p class="muted">${escapeHtml(result.disclaimer)}</p>${analysis.is_stale ? `<p class="error">${escapeHtml(translateText(analysis.resume_deleted ? "The resume version used for this analysis was deleted. This result remains historical; create or select a current resume and run ATS again." : "The confirmed vacancy description changed after this run. This result is historical; run ATS again for a current score."))}</p>` : ""}</div></div>
+    <div class="metric-grid"><div><strong>${result.counts.covered}</strong><span>${escapeHtml(translateText("Covered"))}</span></div><div><strong>${result.counts.partial}</strong><span>${escapeHtml(translateText("Partial"))}</span></div><div><strong>${result.counts.missing}</strong><span>${escapeHtml(translateText("Missing"))}</span></div></div>
+    <h4>${escapeHtml(translateText("Requirements and evidence"))}</h4><div class="item-list">${result.requirements.map(item => `<article class="requirement ${item.classification}"><span class="badge">${escapeHtml(translateText(item.classification))}</span><strong>${escapeHtml(item.requirement)}</strong><p>${escapeHtml(item.interpretation)}</p>${item.evidence ? `<blockquote>${escapeHtml(item.evidence)}</blockquote>` : ""}</article>`).join("")}</div>
+    <h4>${escapeHtml(translateText("Keywords"))}</h4><div class="tag-list">${result.keywords.map(word => `<span class="tag ${result.covered_keywords.includes(word) ? "hit" : ""}">${escapeHtml(word)}</span>`).join("")}</div>`;
 }
 
 function assessmentFormatError(kind) {
@@ -1134,21 +1172,43 @@ function assessmentFormatError(kind) {
     : "Codex returned an invalid format for the vacancy match. Try running the match again.");
 }
 
+function formatAssessmentObject(value, label) {
+  if (!value || typeof value !== "object" || Array.isArray(value)) return `<p><strong>${escapeHtml(label)}:</strong> ${escapeHtml(String(value || "—"))}</p>`;
+  const rows = Object.entries(value).map(([key, item]) => {
+    const displayed = Array.isArray(item) ? item.join(", ") : item && typeof item === "object" ? [item.line_ref, item.quote].filter(Boolean).join(" — ") : String(item ?? "—");
+    return `<div class="assessment-detail"><dt>${escapeHtml(translateText(key))}</dt><dd>${escapeHtml(displayed)}</dd></div>`;
+  }).join("");
+  return `<section class="assessment-details"><h4>${escapeHtml(label)}</h4><dl>${rows}</dl></section>`;
+}
+
+function weightedScoreDetails(result) {
+  const weights = result.weighted_sum?.weights;
+  if (!weights || typeof weights !== "object") return "";
+  const rows = Object.entries(weights).map(([axis, weight]) => `<div class="assessment-weight"><span>${escapeHtml(translateText(axis))}</span><span>${escapeHtml(Number(weight).toFixed(2))} × ${escapeHtml(Number(result.scores?.[axis] ?? 0).toFixed(2))}</span></div>`).join("");
+  return `<section class="assessment-details"><h4>${escapeHtml(translateText("Score calculation"))}</h4><div class="assessment-weight-list">${rows}</div><p class="muted">${escapeHtml(translateText("Weighted total"))}: ${escapeHtml(Number(result.weighted_sum.total ?? 0).toFixed(4))}</p></section>`;
+}
+
+function assessmentProse(value, locale) {
+  const text = String(value ?? "");
+  if (locale !== "ru" || !/[A-Za-z]/.test(text) || /[А-Яа-яЁё]/.test(text)) return escapeHtml(text);
+  return `<span>${escapeHtml(translateText("This historical explanation was saved in English."))}</span><details class="original-assessment-text"><summary>${escapeHtml(translateText("Show original text"))}</summary><p>${escapeHtml(text)}</p></details>`;
+}
+
 function renderAssessmentResult(assessment) {
   if (assessment.redacted_at) return `<p class="muted">Resume content was deleted; assessment evidence was removed.</p>`;
   const result = assessment.result || {};
   if (result.response_format_error) return `<p class="error">${escapeHtml(assessmentFormatError(assessment.assessment_kind))}</p>`;
   const refs = value => Array.isArray(value) ? value.join(", ") : String(value || "");
   const list = value => Array.isArray(value) && value.length
-    ? `<ul>${value.map(item => `<li>${escapeHtml(String(item))}</li>`).join("")}</ul>`
+    ? `<ul>${value.map(item => `<li>${assessmentProse(item, assessment.locale)}</li>`).join("")}</ul>`
     : `<p class="muted">—</p>`;
-  const summary = result.overall_summary ? `<p>${escapeHtml(String(result.overall_summary))}</p>` : "";
+  const summary = result.overall_summary ? `<p>${assessmentProse(result.overall_summary, assessment.locale)}</p>` : "";
   if (assessment.assessment_kind === "vacancy_match" && Array.isArray(result.requirements)) {
     return `${summary}<div class="item-list">${result.requirements.map(item => {
       const status = item.status || "not_evidenced";
       const statusClass = ({ covered: "covered", partial: "partial", not_evidenced: "missing" })[status] || "";
-      return `<article class="requirement ${statusClass}"><span class="badge">${escapeHtml(status)}</span><strong>${escapeHtml(item.requirement || "Requirement")}</strong>${item.vacancy_quote ? `<blockquote>${escapeHtml(item.vacancy_quote)}</blockquote>` : ""}<p>${escapeHtml(item.explanation || "")}</p>${refs(item.resume_line_refs) ? `<small class="muted">Resume evidence: ${escapeHtml(refs(item.resume_line_refs))}</small>` : ""}</article>`;
-    }).join("")}</div><div class="ai-readable-columns"><div><h4>Strengths</h4>${list(result.strengths)}</div><div><h4>Gaps</h4>${list(result.gaps)}</div></div>${Array.isArray(result.limitations) && result.limitations.length ? `<h4>Limitations</h4>${list(result.limitations)}` : ""}`;
+      return `<article class="requirement ${statusClass}"><span class="badge">${escapeHtml(translateText(status))}</span><strong>${escapeHtml(item.requirement || "Requirement")}</strong>${item.vacancy_quote ? `<blockquote>${escapeHtml(item.vacancy_quote)}</blockquote>` : ""}<p>${assessmentProse(item.explanation || "", assessment.locale)}</p>${refs(item.resume_line_refs) ? `<small class="muted">${escapeHtml(translateText("Resume evidence:"))} ${escapeHtml(refs(item.resume_line_refs))}</small>` : ""}</article>`;
+    }).join("")}</div><div class="ai-readable-columns"><div><h4>${escapeHtml(translateText("Strengths"))}</h4>${list(result.strengths)}</div><div><h4>${escapeHtml(translateText("Gaps"))}</h4>${list(result.gaps)}</div></div>${Array.isArray(result.limitations) && result.limitations.length ? `<h4>${escapeHtml(translateText("Limitations"))}</h4>${list(result.limitations)}` : ""}`;
   }
   if (assessment.assessment_kind === "manager_audit") {
     const flags = Array.isArray(result.anti_persona_flags) ? result.anti_persona_flags : [];
@@ -1160,9 +1220,9 @@ function renderAssessmentResult(assessment) {
       ? `${family.claimed_family || "—"} (${family.claimed_grade || "—"}) → ${family.supported_family || "—"} (${family.supported_grade || "—"})${family.mismatch ? " · mismatch" : ""}`
       : String(family || "—");
     const scores = result.scores && typeof result.scores === "object"
-      ? Object.entries(result.scores).map(([axis, score]) => `<div><span>${escapeHtml(axis)}</span><strong>${escapeHtml(Number(score).toFixed(2))}</strong></div>`).join("")
+      ? Object.entries(result.scores).map(([axis, score]) => `<div><span>${escapeHtml(translateText(axis))}</span><strong>${escapeHtml(Number(score).toFixed(2))}</strong></div>`).join("")
       : "";
-    return `${summary}<p><strong>Role family:</strong> ${escapeHtml(familyText)} · <strong>Grade inflation:</strong> ${escapeHtml(JSON.stringify(result.grade_inflation || "—"))}</p><h4>Overall resume score · ${escapeHtml(result.overall_score_percent ?? "—")}%</h4>${scores ? `<div class="metric-grid ats-score-grid">${scores}</div><p class="muted">${escapeHtml(JSON.stringify(result.weighted_sum || ""))}</p>` : ""}<h4>Resume risk checks</h4><div class="item-list">${flags.map(item => `<article class="item-row"><div><span class="badge">${escapeHtml(item.status || "unrated")}</span><strong>${escapeHtml(item.name || "Check")}</strong><p>${escapeHtml(item.explanation || "")}</p><small class="muted">${escapeHtml(refs(item.line_refs))}</small></div></article>`).join("")}</div><h4>Evidence and achievement review</h4><div class="item-list">${evidence.map(item => `<article class="item-row"><div><strong>${escapeHtml(item.line_ref || "Resume line")} · ${escapeHtml(item.xyz_verdict || item.category || "evidence")}</strong><p>${escapeHtml(item.quote || "")}</p><p>${escapeHtml(item.xyz_assessment || "")}${item.attribution ? ` · ${escapeHtml(item.attribution)}` : ""}</p></div></article>`).join("") || `<p class="muted">—</p>`}</div><h4>10-second recruiter read</h4><div class="item-list">${quickRead.map(item => `<article class="item-row"><div><strong>${escapeHtml(item.check || "Check")}</strong><p>${escapeHtml(item.result || "")}</p><small class="muted">${escapeHtml(refs(item.line_refs))}</small></div></article>`).join("")}</div><h4>Priority improvements</h4><div class="item-list">${improvements.map(item => `<article class="item-row"><div><strong>${escapeHtml(item.issue || "Improvement")}</strong><p>${escapeHtml(item.direction || item.recommendation || "")}</p><small class="muted">${escapeHtml(refs(item.line_refs))}</small></div></article>`).join("") || `<p class="muted">—</p>`}</div>${Array.isArray(result.limitations) && result.limitations.length ? `<h4>Limitations</h4>${list(result.limitations)}` : ""}`;
+    return `${summary}<p><strong>${escapeHtml(translateText("Role family"))}:</strong> ${escapeHtml(familyText)}</p>${formatAssessmentObject(result.grade_inflation, translateText("Grade support"))}<h4>${escapeHtml(translateText("Overall resume score"))} · ${escapeHtml(result.overall_score_percent ?? "—")}%</h4>${scores ? `<div class="metric-grid ats-score-grid">${scores}</div>${weightedScoreDetails(result)}` : ""}<h4>${escapeHtml(translateText("Resume risk checks"))}</h4><p class="muted">${escapeHtml(translateText("CLEAR means no signal found; PARTIAL means some evidence or uncertainty; NONE means the signal is not supported. L1, L2, etc. point to numbered lines in the resume text used for this audit."))}</p><div class="item-list">${flags.map(item => `<article class="item-row"><div><span class="badge">${escapeHtml(translateText(item.status || "unrated"))}</span><strong>${escapeHtml(translateText(item.name || "Check"))}</strong><p>${assessmentProse(item.explanation || "", assessment.locale)}</p><small class="muted">${escapeHtml(refs(item.line_refs))}</small></div></article>`).join("")}</div><h4>${escapeHtml(translateText("Evidence and achievement review"))}</h4><div class="item-list">${evidence.map(item => `<article class="item-row"><div><strong>${escapeHtml(item.line_ref || "Resume line")} · ${escapeHtml(translateText(item.xyz_verdict || item.category || "evidence"))}</strong><p>${escapeHtml(item.quote || "")}</p><p>${assessmentProse(item.xyz_assessment || "", assessment.locale)}${item.attribution ? ` · ${assessmentProse(item.attribution, assessment.locale)}` : ""}</p></div></article>`).join("") || `<p class="muted">—</p>`}</div><h4>${escapeHtml(translateText("10-second recruiter read"))}</h4><div class="item-list">${quickRead.map(item => `<article class="item-row"><div><strong>${escapeHtml(translateText(item.check || "Check"))}</strong><p>${assessmentProse(item.result || "", assessment.locale)}</p><small class="muted">${escapeHtml(refs(item.line_refs))}</small></div></article>`).join("")}</div><h4>${escapeHtml(translateText("Priority improvements"))}</h4><div class="item-list">${improvements.map(item => `<article class="item-row"><div><strong>${assessmentProse(item.issue || "Improvement", assessment.locale)}</strong><p>${assessmentProse(item.direction || item.recommendation || "", assessment.locale)}</p><small class="muted">${escapeHtml(refs(item.line_refs))}</small></div></article>`).join("") || `<p class="muted">—</p>`}</div>${Array.isArray(result.limitations) && result.limitations.length ? `<h4>${escapeHtml(translateText("Limitations"))}</h4>${list(result.limitations)}` : ""}`;
   }
   return `<pre class="ai-response">${escapeHtml(JSON.stringify(result, null, 2))}</pre>`;
 }
@@ -1212,11 +1272,11 @@ async function renderAts(vacancy, view = null) {
       if (!isCurrentView(view)) return;
       if (Number(resumeSelect.value) !== resumeId) return;
       assessmentHistory.innerHTML = assessments.length ? assessments.map(item => {
-        const title = item.assessment_kind === "manager_audit" ? "Manager resume audit" : "Vacancy requirement match";
+        const title = translateText(item.assessment_kind === "manager_audit" ? "Manager resume audit" : "Vacancy requirement match");
         const vacancyLabel = item.assessment_kind === "vacancy_match"
           ? ` · ${item.vacancy_title ? escapeHtml(item.vacancy_title) : `Vacancy #${item.vacancy_id}`}${item.vacancy_company ? ` — ${escapeHtml(item.vacancy_company)}` : ""}`
           : "";
-        return `<article class="ats-assessment"><div class="section-head"><div><strong>${title} · ${escapeHtml(item.model)}</strong><p class="muted">${escapeHtml(item.resume_kind)} resume v${item.resume_version}${vacancyLabel} · ${escapeHtml(item.locale)} · ${escapeHtml(item.rubric_version)} · ${escapeHtml(item.created_at)}${item.is_stale ? " · Historical result; source changed or was deleted" : ""}</p></div></div>${renderAssessmentResult(item)}</article>`;
+        return `<article class="ats-assessment"><div class="section-head"><div><strong>${title} · ${escapeHtml(item.model)}</strong><p class="muted">${escapeHtml(translateText(item.resume_kind))} ${escapeHtml(translateText("Resume"))} v${item.resume_version}${vacancyLabel} · ${escapeHtml(translateText(item.locale))} · ${escapeHtml(item.rubric_version)} · ${escapeHtml(item.created_at)}${item.is_stale ? ` · ${escapeHtml(translateText("Historical result; source changed or was deleted"))}` : ""}</p></div></div>${renderAssessmentResult(item)}</article>`;
       }).join("") : `<p class="muted">No Codex assessments for this resume version yet.</p>`;
     };
     if (resumeSelect) {

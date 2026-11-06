@@ -76,6 +76,28 @@ vm.runInContext(source, context);
     /invalid format for the resume audit.*running the audit again/);
   assert.match(vm.runInContext('state.locale = "ru"; renderAssessmentResult(invalidManagerAudit)', context),
     /результат аудита в неверном формате.*запустить аудит ещё раз/);
+  const historicalEnglishAssessment = {
+    assessment_kind: "vacancy_match",
+    locale: "ru",
+    result: {
+      overall_summary: "Strong overall fit based on the available evidence.",
+      requirements: [{
+        requirement: "English source requirement",
+        status: "covered",
+        vacancy_quote: "Exact English quote from the vacancy.",
+        explanation: "The resume directly demonstrates this requirement.",
+        resume_line_refs: ["L2"],
+      }],
+      strengths: [], gaps: [],
+    },
+  };
+  context.historicalEnglishAssessment = historicalEnglishAssessment;
+  const historicalHtml = vm.runInContext('state.locale = "ru"; renderAssessmentResult(historicalEnglishAssessment)', context);
+  assert.match(historicalHtml, /Strong overall fit[\s\S]*?Пояснение в этом сохранённом результате было на английском/);
+  assert.match(historicalHtml, /<strong>English source requirement<\/strong>/);
+  assert.match(historicalHtml, /<blockquote>Exact English quote from the vacancy\.<\/blockquote>/);
+  assert.match(historicalHtml, /Показать оригинальный текст/);
+  assert.match(historicalHtml, /Пробелы/);
   process.stdout.write("ATS UI provenance contract passed\n");
 })().catch(error => {
   process.stderr.write(`${error.stack}\n`);
