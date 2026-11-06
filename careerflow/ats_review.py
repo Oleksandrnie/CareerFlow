@@ -230,8 +230,8 @@ def list_assessments(
         clauses.append("a.vacancy_id = ?")
         params.append(vacancy_id)
     where = f"WHERE {' AND '.join(clauses)}" if clauses else ""
-    rows = database.fetch_all(
-        f"""SELECT a.*, r.deleted_at AS resume_deleted_at,
+    # `where` uses only the fixed clauses above; filter values stay bound parameters.
+    query = f"""SELECT a.*, r.deleted_at AS resume_deleted_at,
                    r.content_text AS current_resume_text,
                    v.description AS current_description,
                    v.description_revision AS current_description_revision,
@@ -239,9 +239,8 @@ def list_assessments(
             FROM ats_assessments a
             LEFT JOIN resume_versions r ON r.id = a.resume_version_id
             LEFT JOIN vacancies v ON v.id = a.vacancy_id
-            {where} ORDER BY a.created_at DESC, a.id DESC""",
-        tuple(params),
-    )
+            {where} ORDER BY a.created_at DESC, a.id DESC"""  # nosec B608
+    rows = database.fetch_all(query, tuple(params))
     assessments = []
     for row in rows:
         resume_text = row.pop("current_resume_text", None)
