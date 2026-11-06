@@ -885,7 +885,6 @@ html.ui-transitioning *::after {
   transition-duration: 420ms;
   transition-timing-function: cubic-bezier(.2, .75, .25, 1);
 }
-html.ui-transitioning #workspace { opacity: .88; }
 #workspace {
   transition: opacity 180ms ease, color 420ms cubic-bezier(.2, .75, .25, 1), background-color 420ms cubic-bezier(.2, .75, .25, 1), border-color 420ms cubic-bezier(.2, .75, .25, 1), box-shadow 420ms cubic-bezier(.2, .75, .25, 1);
 }
@@ -895,11 +894,11 @@ html.ui-transitioning #workspace { opacity: .88; }
   overflow: hidden;
   pointer-events: none;
   border-radius: var(--radius-panel);
-  background: color-mix(in srgb, var(--surface) 5%, transparent);
+  background: var(--content-bg);
   opacity: 0;
   transition: opacity 160ms ease;
 }
-.ui-transition-skeleton.is-active { opacity: 1; }
+.ui-transition-skeleton.is-active { opacity: 1; transition: none; }
 .ui-transition-skeleton::after {
   position: absolute;
   inset: 0;
