@@ -118,7 +118,7 @@ const RU = {
   "No archived vacancies.": "Архивных вакансий нет.", "No vacancies yet.": "Вакансий пока нет.", "Company not set": "Компания не указана", "Salary not specified": "Зарплата не указана", "No summary yet": "Описание пока отсутствует",
   "Saved": "Сохранена", "Applied": "Отклик отправлен", "Interview": "Собеседование", "Waiting": "Ожидание", "Offer": "Оффер", "Rejected": "Отказ",
   "Vacancy stage": "Этап вакансии", "Added": "Добавлена", "ATS": "ATS", "AI": "AI", "Heuristic ATS text-match score, not a probability of getting the job": "Эвристическая оценка совпадения ATS, не вероятность получения работы",
-  "ATS and resume review": "ATS и аудит резюме", "EVIDENCE-BASED REVIEW": "ПРОВЕРКА ПО СВИДЕТЕЛЬСТВАМ", "Run local comparison": "Запустить локальное сравнение", "Run local comparison again": "Повторить локальное сравнение", "Vacancy Resume": "Резюме вакансии", "Resume version": "Версия резюме", "Evidence-based Codex review": "Проверка резюме через Codex", "Audit this resume": "Провести аудит резюме", "Match against vacancy": "Сопоставить с вакансией", "Manager audit checks role clarity, evidence, seniority signals, and common resume risk patterns. Vacancy match cites resume lines against this vacancy. Neither produces a hiring probability.": "Аудит проверяет ясность роли, подтверждённость результатов, сигналы уровня и типичные риски резюме. Сопоставление связывает требования вакансии со строками резюме. Ни одна проверка не оценивает вероятность найма.", "Local keyword coverage is a limited text comparison. Codex review is explicit, uses only the selected resume and confirmed vacancy text for matching, and does not change a resume automatically.": "Локальное совпадение ключевых слов — ограниченное текстовое сравнение. Проверка Codex запускается явно и использует только выбранное резюме, а для сопоставления — подтверждённый текст вакансии. Резюме автоматически не меняется.", "Manager resume audit": "Аудит резюме руководителя", "Vacancy requirement match": "Сопоставление с требованиями вакансии", "Historical result; source changed or was deleted": "Исторический результат: источник изменён или удалён", "Resume risk checks": "Проверка рисков резюме", "Priority improvements": "Приоритетные улучшения", "Resume evidence:": "Свидетельства в резюме:", "Resume content was deleted; assessment evidence was removed.": "Данные резюме удалены; свидетельства оценки очищены.", "No Codex assessments for this resume version yet.": "Для этой версии резюме пока нет оценок Codex.", "Codex returned an unreadable assessment. No score was saved.": "Codex вернул нераспознанную оценку. Числовая оценка не сохранена.", "covered": "подтверждено", "partial": "частично", "not_evidenced": "не подтверждено", "insufficient_input": "недостаточно данных", "present": "обнаружено", "clear": "не обнаружено", "unrated": "не оценено",
+  "ATS and resume review": "ATS и аудит резюме", "EVIDENCE-BASED REVIEW": "ПРОВЕРКА ПО СВИДЕТЕЛЬСТВАМ", "Run local comparison": "Запустить локальное сравнение", "Run local comparison again": "Повторить локальное сравнение", "Vacancy Resume": "Резюме вакансии", "Resume version": "Версия резюме", "Evidence-based Codex review": "Проверка резюме через Codex", "Audit this resume": "Провести аудит резюме", "Match against vacancy": "Сопоставить с вакансией", "Manager audit checks role clarity, evidence, seniority signals, and common resume risk patterns. Vacancy match cites resume lines against this vacancy. Neither produces a hiring probability.": "Аудит проверяет ясность роли, подтверждённость результатов, сигналы уровня и типичные риски резюме. Сопоставление связывает требования вакансии со строками резюме. Ни одна проверка не оценивает вероятность найма.", "Local keyword coverage is a limited text comparison. Codex review is explicit, uses only the selected resume and confirmed vacancy text for matching, and does not change a resume automatically.": "Локальное совпадение ключевых слов — ограниченное текстовое сравнение. Проверка Codex запускается явно и использует только выбранное резюме, а для сопоставления — подтверждённый текст вакансии. Резюме автоматически не меняется.", "Manager resume audit": "Аудит резюме руководителя", "Vacancy requirement match": "Сопоставление с требованиями вакансии", "Historical result; source changed or was deleted": "Исторический результат: источник изменён или удалён", "Resume risk checks": "Проверка рисков резюме", "Priority improvements": "Приоритетные улучшения", "Resume evidence:": "Свидетельства в резюме:", "Resume content was deleted; assessment evidence was removed.": "Данные резюме удалены; свидетельства оценки очищены.", "No Codex assessments for this resume version yet.": "Для этой версии резюме пока нет оценок Codex.", "Codex returned an invalid format for the resume audit. Try running the audit again.": "Codex вернул результат аудита в неверном формате. Попробуйте запустить аудит ещё раз.", "Codex returned an invalid format for the vacancy match. Try running the match again.": "Codex вернул результат сопоставления в неверном формате. Попробуйте запустить сопоставление ещё раз.", "covered": "подтверждено", "partial": "частично", "not_evidenced": "не подтверждено", "insufficient_input": "недостаточно данных", "present": "обнаружено", "clear": "не обнаружено", "unrated": "не оценено",
   "Overview": "Обзор", "Resume": "Резюме", "Timeline": "История", "Notes": "Заметки", "Files": "Файлы", "AI / Codex": "AI / Codex",
   "Export .md": "Экспорт .md", "Edit": "Изменить", "Restore": "Восстановить", "Archive": "Архивировать", "Delete": "Удалить",
   "PERMANENT ACTION": "НЕОБРАТИМОЕ ДЕЙСТВИЕ", "Delete vacancy?": "Удалить вакансию?", "Delete vacancy": "Удалить вакансию", "Delete vacancy, keep CVs": "Удалить вакансию, сохранить CV", "Delete vacancy and CVs": "Удалить вакансию и CV",
@@ -1128,10 +1128,16 @@ function atsResult(analysis, vacancy = null) {
     <h4>Keywords</h4><div class="tag-list">${result.keywords.map(word => `<span class="tag ${result.covered_keywords.includes(word) ? "hit" : ""}">${escapeHtml(word)}</span>`).join("")}</div>`;
 }
 
+function assessmentFormatError(kind) {
+  return translateText(kind === "manager_audit"
+    ? "Codex returned an invalid format for the resume audit. Try running the audit again."
+    : "Codex returned an invalid format for the vacancy match. Try running the match again.");
+}
+
 function renderAssessmentResult(assessment) {
   if (assessment.redacted_at) return `<p class="muted">Resume content was deleted; assessment evidence was removed.</p>`;
   const result = assessment.result || {};
-  if (result.response_format_error) return `<p class="error">Codex returned an unreadable assessment. No score was saved.</p>`;
+  if (result.response_format_error) return `<p class="error">${escapeHtml(assessmentFormatError(assessment.assessment_kind))}</p>`;
   const refs = value => Array.isArray(value) ? value.join(", ") : String(value || "");
   const list = value => Array.isArray(value) && value.length
     ? `<ul>${value.map(item => `<li>${escapeHtml(String(item))}</li>`).join("")}</ul>`
@@ -1233,8 +1239,12 @@ async function renderAts(vacancy, view = null) {
             }),
           });
           if (!isCurrentView(view)) return;
-          if (assessment.status === "invalid_response") errorTarget.textContent = "Codex returned an unreadable assessment. No score was saved.";
           await refreshAssessmentHistory();
+          if (!isCurrentView(view)) return;
+          if (assessment.status === "invalid_response") {
+            errorTarget.textContent = assessmentFormatError(button.dataset.runAssessment);
+            return;
+          }
           if (button.dataset.runAssessment === "vacancy_match") toast("Vacancy review saved as historical assessment");
           else toast("Resume audit saved as historical assessment");
         }, errorTarget, view);

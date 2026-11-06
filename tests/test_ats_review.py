@@ -42,9 +42,10 @@ class AtsReviewTest(unittest.TestCase):
         self.context.__exit__(None, None, None)
         self.temp_dir.cleanup()
 
-    def test_manager_audit_uses_only_selected_resume_and_redacts_result_on_delete(self) -> None:
-        response_json = {
-            "overall_summary": "Evidence-backed",
+    @staticmethod
+    def manager_audit_response(summary: str) -> dict:
+        return {
+            "overall_summary": summary,
             "role_family": {"claimed_family": "Project Manager", "supported_family": "Project Manager"},
             "grade_inflation": {"severity": "none"},
             "scores": {
@@ -55,7 +56,7 @@ class AtsReviewTest(unittest.TestCase):
                 "KeywordFit": 0.5,
                 "Structure": 0.5,
             },
-            "overall_score_percent": 50,
+            "overall_score_percent": 99,
             "anti_persona_flags": [
                 {"name": name, "status": "CLEAR", "line_refs": []}
                 for name in (
@@ -73,11 +74,12 @@ class AtsReviewTest(unittest.TestCase):
             "priority_improvements": [],
             "verdict": "Conditional",
         }
+    def run_manager_audit(self, locale: str, raw_response: str):
         with (
             patch("careerflow.ats_review.load_model_catalog", return_value=self.catalog),
             patch(
                 "careerflow.ats_review.run_codex",
-                return_value=SimpleNamespace(response=json.dumps(response_json)),
+                return_value=SimpleNamespace(response=raw_response),
             ) as codex,
         ):
             response = self.client.post(
@@ -86,18 +88,22 @@ class AtsReviewTest(unittest.TestCase):
                     "assessment_kind": "manager_audit",
                     "resume_version_id": self.master["id"],
                     "vacancy_id": self.vacancy["id"],
-                    "locale": "en",
+                    "locale": locale,
                 },
             )
         self.assertEqual(response.status_code, 201, response.text)
-        self.assertEqual(response.json()["result"]["overall_score_percent"], 50)
-        self.assertEqual(response.json()["result"]["scores"], response_json["scores"])
-        self.assertIn("weighted_sum", response.json()["result"])
-        prompt = codex.call_args.args[1]
+        return response.json(), codex.call_args.args[1]
+
+    def test_manager_audit_uses_only_selected_resume_and_redacts_result_on_delete(self) -> None:
+        response_json = self.manager_audit_response("Evidence-backed")
+        assessment, prompt = self.run_manager_audit("en", json.dumps(response_json))
+        self.assertEqual(assessment["result"]["overall_score_percent"], 50)
+        self.assertEqual(assessment["result"]["scores"], response_json["scores"])
+        self.assertIn("weighted_sum", assessment["result"])
         self.assertIn("L1: L1 evidence: led a product delivery team.", prompt)
         self.assertNotIn("SECRET_OTHER_RESUME", prompt)
         self.assertNotIn(self.vacancy["description"], prompt)
-        self.assertIsNone(response.json()["vacancy_id"], "manager audit history is not vacancy-scoped")
+        self.assertIsNone(assessment["vacancy_id"], "manager audit history is not vacancy-scoped")
 
         deleted = self.client.delete(f"/api/resumes/{self.master['id']}")
         self.assertEqual(deleted.status_code, 200, deleted.text)
@@ -109,6 +115,35 @@ class AtsReviewTest(unittest.TestCase):
         self.assertTrue(history[0]["redacted_at"])
         self.assertEqual(history[0]["response"], "")
         self.assertTrue(history[0]["result"]["redacted"])
+
+    def test_manager_audit_prompt_uses_fixed_identifiers_in_both_locales(self) -> None:
+        for locale, summary, contract_rule in (
+            ("en", "Evidence-backed", "copy JSON keys and fixed values verbatim"),
+            ("ru", "Есть подтверждения", "ключи JSON и фиксированные значения копируй дословно"),
+        ):
+            with self.subTest(locale=locale):
+                payload = self.manager_audit_response(summary)
+                payload["anti_persona_flags"].reverse()
+                assessment, prompt = self.run_manager_audit(locale, json.dumps(payload, ensure_ascii=False))
+                self.assertEqual(assessment["status"], "completed")
+                self.assertEqual(assessment["prompt_template_version"], 2)
+                self.assertEqual(assessment["result"]["overall_summary"], summary)
+                self.assertIn(contract_rule, prompt)
+                self.assertIn('"name": "Project administrator"', prompt)
+                self.assertIn('"status": "CLEAR"', prompt)
+                for flag in payload["anti_persona_flags"]:
+                    self.assertIn(f'"{flag["name"]}"', prompt)
+
+    def test_manager_audit_rejects_missing_translated_duplicate_and_malformed_risk_names(self) -> None:
+        expected = "Manager audit must use the six named manager risk checks."
+        for invalid_fields in ({}, {"name": "Администратор проекта"}, {"name": "Project proxy"}, {"name": []}):
+            with self.subTest(invalid_fields=invalid_fields):
+                payload = self.manager_audit_response("Есть подтверждения")
+                payload["anti_persona_flags"][0] = {"status": "CLEAR", **invalid_fields}
+                assessment, _ = self.run_manager_audit("ru", json.dumps(payload))
+                self.assertEqual(assessment["status"], "invalid_response")
+                self.assertEqual(assessment["result"], {"response_format_error": expected})
+                self.assertEqual(assessment["response"], "")
 
     def test_vacancy_match_requires_confirmed_description_and_marks_stale(self) -> None:
         vacancy_resume = self.client.post(

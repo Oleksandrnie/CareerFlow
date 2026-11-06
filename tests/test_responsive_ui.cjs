@@ -55,7 +55,7 @@ assert.ok(fixedDesktopHeader >= 0 && mobileHeaderHotFix > fixedDesktopHeader, "m
 assert.match(css.slice(mobileHeaderHotFix), /@media \(max-width: 760px\) \{\s+\.topbar \{\s+height: auto;\s+min-height: 0;\s+row-gap: 8px;/);
 assert.match(index, /<header class="topbar">[\s\S]*?<\/header>\s*<main class="layout" id="app-layout">/);
 assert.match(index, /href="\/static\/app\.css\?v=operations-refresh-13"/);
-assert.match(index, /src="\/static\/app\.js\?v=operations-refresh-13"/);
+assert.match(index, /src="\/static\/app\.js\?v=operations-refresh-14"/);
 assert.match(app, /function renderEmpty\([\s\S]*?workspace\.innerHTML =/);
 assert.match(app, /async function renderAnalytics\([\s\S]*?workspace\.innerHTML =/);
 assert.match(app, /async function renderMasterResume\([\s\S]*?workspace\.innerHTML =/);

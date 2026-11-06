@@ -67,6 +67,15 @@ vm.runInContext(source, context);
   assert.match(html, /not a probability of getting the job or a definitive assessment of suitability/);
   assert.match(html, /data-run-assessment="manager_audit"/);
   assert.match(html, /data-run-assessment="vacancy_match"/);
+  const invalidManagerAudit = {
+    assessment_kind: "manager_audit",
+    result: { response_format_error: "Manager audit must use the six named manager risk checks." },
+  };
+  context.invalidManagerAudit = invalidManagerAudit;
+  assert.match(vm.runInContext('state.locale = "en"; renderAssessmentResult(invalidManagerAudit)', context),
+    /invalid format for the resume audit.*running the audit again/);
+  assert.match(vm.runInContext('state.locale = "ru"; renderAssessmentResult(invalidManagerAudit)', context),
+    /результат аудита в неверном формате.*запустить аудит ещё раз/);
   process.stdout.write("ATS UI provenance contract passed\n");
 })().catch(error => {
   process.stderr.write(`${error.stack}\n`);

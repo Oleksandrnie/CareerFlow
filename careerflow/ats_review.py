@@ -18,6 +18,7 @@ from .db import Database, insert_and_get_id
 
 ASSESSMENT_SCHEMA_VERSION = 1
 RUBRIC_VERSION = "manager-resume-2026-01"
+_PROMPT_TEMPLATE_VERSIONS = {"manager_audit": 2, "vacancy_match": 1}
 _KINDS = {"manager_audit", "vacancy_match"}
 _SCORE_WEIGHTS = {
     "Evidence": 0.25,
@@ -35,15 +36,45 @@ _ANTI_PERSONAS = (
     "Manager-router",
     "General management without domain",
 )
+_RISK_STATUSES = ("CLEAR", "PARTIAL", "NONE")
 _TEN_SECOND_CHECKS = ("grade", "domain", "first_bullet_impact", "scope", "tools")
+
+
+def _manager_audit_contract(locale: str) -> str:
+    risk_example = json.dumps({"name": _ANTI_PERSONAS[0], "status": _RISK_STATUSES[0], "quotes": [], "line_refs": []})
+    risk_names = json.dumps(_ANTI_PERSONAS)
+    statuses = json.dumps(_RISK_STATUSES)
+    checks = json.dumps(_TEN_SECOND_CHECKS)
+    score_keys = json.dumps(list(_SCORE_WEIGHTS))
+    weights = json.dumps(_SCORE_WEIGHTS)
+    if locale == "ru":
+        return (
+            "Верни только один JSON-объект. Переводи только пояснения и другие значения со свободным текстом; "
+            "ключи JSON и фиксированные значения копируй дословно с учётом регистра. Цитаты сохраняй на языке источника.\n"
+            f"anti_persona_flags: по одному объекту на каждое точное значение поля name: {risk_names}. "
+            f"Допустимые значения status: {statuses}. Пример объекта: {risk_example}.\n"
+            f"ten_second_read: по одному объекту на каждое точное значение поля check: {checks}.\n"
+            f"scores: объект с ключами {score_keys}; каждое значение — число от 0 до 1. "
+            f"Веса для weighted_sum: {weights}."
+        )
+    return (
+        "Return one JSON object only. Localize explanations and other free-text values only; "
+        "copy JSON keys and fixed values verbatim, including case. Keep quotes in their source language.\n"
+        f"anti_persona_flags: one object for each exact name value: {risk_names}. "
+        f"Allowed status values: {statuses}. Example item: {risk_example}.\n"
+        f"ten_second_read: one object for each exact check value: {checks}.\n"
+        f"scores: an object with keys {score_keys}; each value is a number from 0 to 1. "
+        f"Weights for weighted_sum: {weights}."
+    )
 
 
 def _assessment_prompt(kind: str, locale: str, resume_lines: str, vacancy: dict | None) -> str:
     if kind == "manager_audit":
         if locale == "ru":
-            instruction = """Проведи строгий аудит резюме менеджера проекта/доставки/технологий/продукта только по переданному резюме. Верни JSON-объект с полями: overall_summary; role_family (claimed_family, claimed_grade, supported_family, supported_grade, mismatch, quotes); grade_inflation (claimed_title_or_years, supported_family_years, severity, line_refs); anti_persona_flags (ровно шесть объектов, по одному для Project administrator, Project proxy, Ritual agile PM, Unimmersed delivery manager, Manager-router, General management without domain; у каждого status=CLEAR|PARTIAL|NONE, quotes и line_refs); evidence_review (объекты line_ref, quote, category=achievement|process|scope|noise, xyz_verdict=PASS|WEAK|FAIL|SCOPE|NOISE, xyz_assessment, attribution); structure (rubric=T, export_quality, header, chronology, skills, length, limitations); ten_second_read (ровно пять объектов по check=grade|domain|first_bullet_impact|scope|tools, result и line_refs); scores (Evidence, RoleClarity, AntiPersonaClean, TenSecondRead, KeywordFit, Structure — каждое число 0.00–1.00); overall_score_percent (целое 0–100); weighted_sum (раскрой веса 0.25/0.20/0.20/0.15/0.10/0.10 и арифметику); verdict; priority_improvements (не более пяти объектов issue, direction, line_refs); limitations. Используй стабильные ссылки L1, L2 и так далее. PASS достижение требует X+Y+Z (действие, изменение, измеримый результат/артефакт/срок); командный размер, процесс и неподтверждённые метрики не считай достижением; проверь личную атрибуцию и vanity metrics. Для каждой жёсткой оценки приводи цитату. Примени Rubric T, если структуры по тексту можно судить. Давай только направления исправления: не пиши готовые буллеты, абзацы или текст для вставки. Не придумывай опыт. Отсутствие свидетельства означает лишь «не подтверждено этим резюме». Для фото, колонок и визуальной структуры укажи, что это нельзя оценить по переданному тексту."""
+            instruction = """Проведи строгий аудит резюме менеджера проекта/доставки/технологий/продукта только по переданному резюме. Верни JSON-объект с полями: overall_summary; role_family (claimed_family, claimed_grade, supported_family, supported_grade, mismatch, quotes); grade_inflation (claimed_title_or_years, supported_family_years, severity, line_refs); anti_persona_flags (см. контракт ниже); evidence_review (объекты line_ref, quote, category=achievement|process|scope|noise, xyz_verdict=PASS|WEAK|FAIL|SCOPE|NOISE, xyz_assessment, attribution); structure (rubric=T, export_quality, header, chronology, skills, length, limitations); ten_second_read (объекты check, result и line_refs; см. контракт ниже); scores (см. контракт ниже); overall_score_percent (целое 0–100); weighted_sum (покажи веса и арифметику); verdict; priority_improvements (не более пяти объектов issue, direction, line_refs); limitations. Используй стабильные ссылки L1, L2 и так далее. PASS достижение требует X+Y+Z (действие, изменение, измеримый результат/артефакт/срок); командный размер, процесс и неподтверждённые метрики не считай достижением; проверь личную атрибуцию и vanity metrics. Для каждой жёсткой оценки приводи цитату. Примени Rubric T, если структуры по тексту можно судить. Давай только направления исправления: не пиши готовые буллеты, абзацы или текст для вставки. Не придумывай опыт. Отсутствие свидетельства означает лишь «не подтверждено этим резюме». Для фото, колонок и визуальной структуры укажи, что это нельзя оценить по переданному тексту."""
         else:
-            instruction = """Perform a strict audit of a project/delivery/technical/product manager resume using only the supplied resume. Return JSON with: overall_summary; role_family (claimed_family, claimed_grade, supported_family, supported_grade, mismatch, quotes); grade_inflation (claimed_title_or_years, supported_family_years, severity, line_refs); anti_persona_flags (exactly six objects named Project administrator, Project proxy, Ritual agile PM, Unimmersed delivery manager, Manager-router, General management without domain; each with status=CLEAR|PARTIAL|NONE, quotes, line_refs); evidence_review (objects with line_ref, quote, category=achievement|process|scope|noise, xyz_verdict=PASS|WEAK|FAIL|SCOPE|NOISE, xyz_assessment, attribution); structure (rubric=T, export_quality, header, chronology, skills, length, limitations); ten_second_read (exactly five objects for check=grade|domain|first_bullet_impact|scope|tools, result, line_refs); scores (Evidence, RoleClarity, AntiPersonaClean, TenSecondRead, KeywordFit, Structure, each 0.00–1.00); overall_score_percent (integer 0–100); weighted_sum (show weights 0.25/0.20/0.20/0.15/0.10/0.10 and arithmetic); verdict; priority_improvements (at most five objects with issue, direction, line_refs); limitations. Cite stable references L1, L2, etc. An achievement PASS requires X+Y+Z (action, change, measurable result/artifact/time); team size, process and unattributed metrics are not achievements. Check personal attribution and employer vanity metrics. Back every hard verdict with a quote. Use Rubric T where structure can be assessed from text. Give fix directions only; do not write paste-ready bullets or resume sections. Do not invent experience. Missing evidence means only not evidenced in this resume. State that photos, columns, and visual structure cannot be assessed from supplied text."""
+            instruction = """Perform a strict audit of a project/delivery/technical/product manager resume using only the supplied resume. Return JSON with: overall_summary; role_family (claimed_family, claimed_grade, supported_family, supported_grade, mismatch, quotes); grade_inflation (claimed_title_or_years, supported_family_years, severity, line_refs); anti_persona_flags (see contract below); evidence_review (objects with line_ref, quote, category=achievement|process|scope|noise, xyz_verdict=PASS|WEAK|FAIL|SCOPE|NOISE, xyz_assessment, attribution); structure (rubric=T, export_quality, header, chronology, skills, length, limitations); ten_second_read (objects with check, result and line_refs; see contract below); scores (see contract below); overall_score_percent (integer 0–100); weighted_sum (show the weights and arithmetic); verdict; priority_improvements (at most five objects with issue, direction, line_refs); limitations. Cite stable references L1, L2, etc. An achievement PASS requires X+Y+Z (action, change, measurable result/artifact/time); team size, process and unattributed metrics are not achievements. Check personal attribution and employer vanity metrics. Back every hard verdict with a quote. Use Rubric T where structure can be assessed from text. Give fix directions only; do not write paste-ready bullets or resume sections. Do not invent experience. Missing evidence means only not evidenced in this resume. State that photos, columns, and visual structure cannot be assessed from supplied text."""
+        instruction = f"{instruction}\n\n{_manager_audit_contract(locale)}"
     else:
         if locale == "ru":
             instruction = """Сопоставь резюме с конкретной вакансией по требованиям. Верни JSON-объект с полями overall_summary, requirements (массив объектов requirement, status=covered|partial|not_evidenced|insufficient_input, resume_line_refs, vacancy_quote, explanation), strengths, gaps, limitations. Ссылайся только на строки резюме L1, L2 и так далее; для требований цитируй короткий фрагмент описания вакансии. Не считай отсутствие свидетельства доказательством отсутствия навыка. Не указывай вероятность трудоустройства и не выдумывай общий процент. Если описание вакансии недостаточно, используй insufficient_input."""
@@ -81,9 +112,9 @@ def _validate_result(kind: str, payload: dict) -> str | None:
         flags = payload.get("anti_persona_flags")
         checks = payload.get("ten_second_read")
         improvements = payload.get("priority_improvements")
-        if not isinstance(flags, list) or len(flags) != 6:
+        if not isinstance(flags, list) or len(flags) != len(_ANTI_PERSONAS):
             return "Manager audit must include exactly six risk checks."
-        if not isinstance(checks, list) or len(checks) != 5:
+        if not isinstance(checks, list) or len(checks) != len(_TEN_SECOND_CHECKS):
             return "Manager audit must include exactly five recruiter-read checks."
         if not isinstance(improvements, list) or len(improvements) > 5:
             return "Manager audit can include at most five priority improvements."
@@ -99,7 +130,7 @@ def _validate_result(kind: str, payload: dict) -> str | None:
             return "Manager audit is missing the verdict."
         if {item.get("name") for item in flags if isinstance(item.get("name"), str)} != set(_ANTI_PERSONAS):
             return "Manager audit must use the six named manager risk checks."
-        if any(item.get("status") not in ("CLEAR", "PARTIAL", "NONE") for item in flags):
+        if any(item.get("status") not in _RISK_STATUSES for item in flags):
             return "Manager risk checks must use CLEAR, PARTIAL, or NONE status."
         if {item.get("check") for item in checks if isinstance(item.get("check"), str)} != set(_TEN_SECOND_CHECKS):
             return "Manager audit is missing one or more recruiter-read checks."
@@ -107,10 +138,8 @@ def _validate_result(kind: str, payload: dict) -> str | None:
         if not isinstance(structure, dict) or structure.get("rubric") != "T":
             return "Manager audit must identify the applied structure rubric."
         scores = payload.get("scores")
-        expected_axes = {
-            "Evidence", "RoleClarity", "AntiPersonaClean", "TenSecondRead", "KeywordFit", "Structure"
-        }
-        if not isinstance(scores, dict) or not expected_axes.issubset(scores):
+        expected_axes = _SCORE_WEIGHTS.keys()
+        if not isinstance(scores, dict) or not expected_axes <= scores.keys():
             return "Manager audit is missing one or more rubric scores."
         if any(isinstance(scores[axis], bool) or not isinstance(scores[axis], (int, float)) or not 0 <= scores[axis] <= 1 for axis in expected_axes):
             return "Rubric scores must be between 0 and 1."
@@ -278,7 +307,7 @@ def create_assessment(
                 status, result_json, response
             ) VALUES (?, ?, 'codex', ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)""",
             (
-                ASSESSMENT_SCHEMA_VERSION, kind, RUBRIC_VERSION, f"ats.{kind}", 1, resume_version_id,
+                ASSESSMENT_SCHEMA_VERSION, kind, RUBRIC_VERSION, f"ats.{kind}", _PROMPT_TEMPLATE_VERSIONS[kind], resume_version_id,
                 resume["kind"], resume["version"], resume_sha256, vacancy_id if kind == "vacancy_match" else None,
                 description_snapshot, description_revision, locale, selected_model, selected_effort,
                 "completed" if is_completed else "invalid_response", json.dumps(result_payload, ensure_ascii=False),
