@@ -82,7 +82,9 @@ class AtsReviewTest(unittest.TestCase):
             "verdict": "Conditional",
         }
 
-    def run_manager_audit(self, locale: str, raw_response: str):
+    def run_manager_audit(
+        self, locale: str, raw_response: str, resume_version_id: int | None = None
+    ):
         with (
             patch("careerflow.ats_review.load_model_catalog", return_value=self.catalog),
             patch(
@@ -94,7 +96,9 @@ class AtsReviewTest(unittest.TestCase):
                 "/api/ats/assessments",
                 json={
                     "assessment_kind": "manager_audit",
-                    "resume_version_id": self.master["id"],
+                    "resume_version_id": (
+                        resume_version_id if resume_version_id is not None else self.master["id"]
+                    ),
                     "vacancy_id": self.vacancy["id"],
                     "locale": locale,
                 },
@@ -161,6 +165,52 @@ class AtsReviewTest(unittest.TestCase):
                 self.assertEqual(assessment["status"], "invalid_response")
                 self.assertEqual(assessment["result"], {"response_format_error": expected})
                 self.assertEqual(assessment["response"], "")
+
+    def test_manager_audit_rejects_non_object_evidence_review_entries(self) -> None:
+        payload = self.manager_audit_response("Evidence-backed")
+        payload["evidence_review"] = [None]
+        assessment, _ = self.run_manager_audit("en", json.dumps(payload))
+        self.assertEqual(assessment["status"], "invalid_response")
+        self.assertEqual(
+            assessment["result"]["response_format_error"],
+            "Assessment sections must contain structured objects.",
+        )
+        self.assertEqual(assessment["response"], "")
+
+    def test_delete_vacancy_redacts_manager_audit_for_deleted_resume(self) -> None:
+        resume = self.client.post(
+            "/api/resumes",
+            data={
+                "kind": "vacancy",
+                "vacancy_id": self.vacancy["id"],
+                "text": "PRIVATE VACANCY RESUME LINE",
+            },
+        ).json()
+        payload = self.manager_audit_response("Evidence-backed")
+        payload["evidence_review"] = [
+            {
+                "line_ref": "L1",
+                "quote": "PRIVATE VACANCY RESUME LINE",
+                "category": "achievement",
+                "xyz_verdict": "PASS",
+                "xyz_assessment": "Evidence supports a result.",
+            }
+        ]
+        assessment, _ = self.run_manager_audit(
+            "en", json.dumps(payload), resume_version_id=resume["id"]
+        )
+        deleted = self.client.delete(
+            f"/api/vacancies/{self.vacancy['id']}?resume_policy=delete_all"
+        )
+        self.assertEqual(deleted.status_code, 200, deleted.text)
+        row = self.context.app.state.db.fetch_one(
+            "SELECT result_json, response, redacted_at FROM ats_assessments WHERE id = ?",
+            (assessment["id"],),
+        )
+        self.assertTrue(row["redacted_at"])
+        self.assertEqual(row["response"], "")
+        self.assertNotIn("PRIVATE VACANCY RESUME LINE", row["result_json"])
+        self.assertTrue(json.loads(row["result_json"])["redacted"])
 
     def test_vacancy_match_requires_confirmed_description_and_marks_stale(self) -> None:
         vacancy_resume = self.client.post(

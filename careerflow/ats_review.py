@@ -156,6 +156,8 @@ def _validate_result(kind: str, payload: dict) -> str | None:
             return "Manager audit is missing the grade inflation check."
         if not isinstance(payload.get("evidence_review"), list):
             return "Manager audit is missing the evidence line review."
+        if any(not isinstance(item, dict) for item in payload["evidence_review"]):
+            return "Assessment sections must contain structured objects."
         if not payload.get("verdict"):
             return "Manager audit is missing the verdict."
         if {item.get("name") for item in flags if isinstance(item.get("name"), str)} != set(

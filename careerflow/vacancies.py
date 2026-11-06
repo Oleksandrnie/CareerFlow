@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import json
 import re
 import shutil
 from pathlib import Path
@@ -303,9 +304,22 @@ def delete_vacancy(
                 )
                 preserved += 1
         else:
+            redacted_result = json.dumps(
+                {
+                    "redacted": True,
+                    "message": "Resume content was deleted; assessment evidence was removed.",
+                },
+                ensure_ascii=False,
+            )
             for resume in resumes:
                 paths_to_remove.extend(
                     [resume.get("original_path"), resume.get("extracted_text_path")]
+                )
+                connection.execute(
+                    """UPDATE ats_assessments
+                       SET result_json = ?, response = '', redacted_at = CURRENT_TIMESTAMP
+                       WHERE resume_version_id = ? AND redacted_at IS NULL""",
+                    (redacted_result, resume["id"]),
                 )
         connection.execute("DELETE FROM vacancies WHERE id = ?", (vacancy_id,))
 
