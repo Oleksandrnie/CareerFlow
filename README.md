@@ -15,6 +15,7 @@ All records and uploaded files stay on your computer by default. The optional Co
 - Keep a global Master Resume and immutable, vacancy-specific resume versions with source lineage.
 - Run a local heuristic ATS comparison, then explicitly request a Codex manager-resume audit or evidence-based match against one confirmed vacancy. Each assessment records the selected resume version and source snapshot; changed or deleted sources mark the result historical, and deleting a resume redacts its saved assessment evidence. If Codex returns an invalid format, ATS shows an error and lets you rerun the assessment.
 - Save dated notes, local attachments, and portable Markdown reports.
+- Open the vacancy sidebar from Vacancies, Master Resume, or Analytics; selecting a vacancy opens its workspace.
 - Optionally ask the local Codex CLI to analyze a vacancy, improve a resume, review ATS findings, prepare for an interview, or draft a tailored resume. Built-in AI/Codex prompts follow the interface language; manually edited prompt text is preserved when the language changes. Results are read-only until you explicitly review and save a new resume version.
 - Use the browser interface in English or Russian, with light and dark themes and responsive layouts.
 - Switch language and theme in place with a brief, reduced-motion-aware transition; the current page and analytics filters stay selected.

@@ -32,9 +32,9 @@ const analysis = {
   match_percent: 87,
   is_stale: true,
   result: {
-    disclaimer: "Heuristic result",
+    disclaimer: "Heuristic text comparison only. Missing means not evidenced in this resume version, not that the candidate lacks the experience.",
     counts: { covered: 1, partial: 0, missing: 0 },
-    requirements: [],
+    requirements: [{ classification: "partial", requirement: "REST APIs", interpretation: "Evidence found in this resume version", evidence: "REST APIs" }],
     keywords: [],
     covered_keywords: [],
   },
@@ -55,6 +55,7 @@ const context = vm.createContext({
   }),
   setTimeout,
 });
+context.analysis = analysis;
 vm.runInContext(source, context);
 
 (async () => {
@@ -93,11 +94,40 @@ vm.runInContext(source, context);
   };
   context.historicalEnglishAssessment = historicalEnglishAssessment;
   const historicalHtml = vm.runInContext('state.locale = "ru"; renderAssessmentResult(historicalEnglishAssessment)', context);
-  assert.match(historicalHtml, /Strong overall fit[\s\S]*?Пояснение в этом сохранённом результате было на английском/);
+  assert.match(historicalHtml, /Strong overall fit[\s\S]*?Это пояснение на английском языке/);
   assert.match(historicalHtml, /<strong>English source requirement<\/strong>/);
   assert.match(historicalHtml, /<blockquote>Exact English quote from the vacancy\.<\/blockquote>/);
   assert.match(historicalHtml, /Показать оригинальный текст/);
   assert.match(historicalHtml, /Пробелы/);
+  const currentLocaleEnglishProse = {
+    ...historicalEnglishAssessment,
+    locale: "en",
+  };
+  context.currentLocaleEnglishProse = currentLocaleEnglishProse;
+  const currentLocaleHtml = vm.runInContext('state.locale = "ru"; renderAssessmentResult(currentLocaleEnglishProse)', context);
+  assert.match(currentLocaleHtml, /Это пояснение на английском языке\./, "the active UI locale controls the English explanation disclosure");
+  assert.doesNotMatch(currentLocaleHtml, /<p>\s*<div class="assessment-prose"/, "assessment prose must not put a block disclosure inside a paragraph");
+  const proseNode = { dataset: { assessmentOriginal: "English saved explanation." }, innerHTML: "" };
+  context.proseRoot = { querySelectorAll: () => [proseNode] };
+  vm.runInContext('state.locale = "ru"; refreshAssessmentProse(proseRoot)', context);
+  assert.match(proseNode.innerHTML, /<details class="original-assessment-text">/);
+  vm.runInContext('state.locale = "en"; refreshAssessmentProse(proseRoot)', context);
+  assert.equal(proseNode.innerHTML, "English saved explanation.", "changing language updates an already rendered explanation without rerendering the page");
+  const malformedAudit = {
+    assessment_kind: "manager_audit",
+    locale: "en",
+    result: {
+      evidence_review: [{ line_ref: "L4", xyz_verdict: 12, category: { unexpected: true }, quote: "A quoted resume line", xyz_assessment: "English assessment prose." }],
+    },
+  };
+  context.malformedAudit = malformedAudit;
+  const malformedAuditHtml = vm.runInContext('state.locale = "ru"; renderAssessmentResult(malformedAudit)', context);
+  assert.match(malformedAuditHtml, /L4 · evidence/, "unexpected optional verdict/category types must safely fall back");
+  assert.match(malformedAuditHtml, /A quoted resume line/);
+  const localizedAtsHtml = vm.runInContext('state.locale = "ru"; atsResult(analysis, {id: 1})', context);
+  assert.match(localizedAtsHtml, /Оценка текстового совпадения ATS/);
+  assert.match(localizedAtsHtml, /В этой версии резюме найдено подтверждение\./);
+  assert.match(localizedAtsHtml, /Это только текстовое сравнение/);
   process.stdout.write("ATS UI provenance contract passed\n");
 })().catch(error => {
   process.stderr.write(`${error.stack}\n`);

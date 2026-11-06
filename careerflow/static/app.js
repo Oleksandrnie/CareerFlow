@@ -145,6 +145,11 @@ const RU = {
 
 RU["Show request"] = "Показать запрос";
 Object.assign(RU, {
+  "This explanation is in English.": "Это пояснение на английском языке.",
+  "The required years are not evidenced by this resume sentence": "В этом фрагменте резюме не подтверждён требуемый стаж.",
+  "Evidence found in this resume version": "В этой версии резюме найдено подтверждение.",
+  "Some related evidence is present; the requirement may be under-described": "Есть близкие подтверждения, но требование может быть описано недостаточно подробно.",
+  "Not evidenced in this resume version; this does not prove the experience is absent": "В этой версии резюме подтверждение не найдено; это не доказывает отсутствие опыта.",
   "Role family": "Профиль роли", "Grade support": "Подтверждение уровня",
   "Overall resume score": "Итоговая оценка резюме", "Resume risk checks": "Проверка рисков резюме",
   "Evidence and achievement review": "Проверка опыта и достижений", "10-second recruiter read": "Первое впечатление рекрутера",
@@ -178,7 +183,7 @@ Object.assign(RU, {
   "Historical result; source changed or was deleted": "Исторический результат: источник изменён или удалён",
   "master": "главное", "vacancy": "вакансии",
   "mismatch": "расхождение", "No Codex assessments for this resume version yet.": "Для этой версии резюме пока нет оценок Codex.",
-  "This historical explanation was saved in English.": "Пояснение в этом сохранённом результате было на английском.", "Show original text": "Показать оригинальный текст",
+  "This explanation is in English.": "Это пояснение на английском языке.", "Show original text": "Показать оригинальный текст",
   "Project administrator": "Администратор проекта", "Project proxy": "Представитель проекта", "Ritual agile PM": "Формальный Agile-менеджер",
   "Unimmersed delivery manager": "Delivery-менеджер без погружения в домен", "Manager-router": "Менеджер-передатчик задач", "General management without domain": "Общее управление без доменной экспертизы"
 });
@@ -323,6 +328,7 @@ function setLocale(locale) {
   try { localStorage.setItem("careerflow-locale", state.locale); } catch (_) { /* Ignore unavailable storage. */ }
   if (document.documentElement) document.documentElement.lang = state.locale;
   applyLocale();
+  refreshAssessmentProse();
   const promptField = document.querySelector("#ai-prompt");
   const actionField = document.querySelector("#ai-action");
   if (promptField && actionField && promptField.dataset.dirty !== "true") {
@@ -409,13 +415,12 @@ function setSection(section) {
   state.section = section;
   lastWorkspaceScrollTop = 0;
   topbar?.classList?.remove?.("header-nav-hidden");
-  document.querySelectorAll("[data-section]").forEach(button => {
+  document.querySelectorAll("button[data-section]").forEach(button => {
     const isCurrent = button.dataset.section === section;
     button.classList.toggle("active", isCurrent);
     if (isCurrent) button.setAttribute?.("aria-current", "page");
     else button.removeAttribute?.("aria-current");
   });
-  topbar?.setAttribute?.("data-section", section);
   appLayout.classList.toggle("master-mode", section !== "vacancies");
   syncResponsiveSidebar();
   newVacancyButton.hidden = false;
@@ -497,7 +502,6 @@ function setSidebarOpen(open) {
   appLayout.classList.toggle("sidebar-open", isOpen);
   sidebarToggle?.setAttribute?.("aria-expanded", String(isOpen));
   sidebarToggle?.setAttribute?.("aria-label", translateText(isOpen ? "Close vacancy list" : "Open vacancy list"));
-  const isCompactViewport = typeof window !== "undefined" && typeof window.matchMedia === "function" && window.matchMedia("(max-width: 900px)").matches;
   appLayout.classList.toggle("sidebar-collapsed", !isOpen);
   vacancySidebar?.setAttribute?.("aria-hidden", String(!isOpen));
   if (vacancySidebar && "inert" in vacancySidebar) vacancySidebar.inert = !isOpen;
@@ -506,7 +510,7 @@ function setSidebarOpen(open) {
 function syncResponsiveSidebar() {
   const isCompactViewport = typeof window !== "undefined" && typeof window.matchMedia === "function" && window.matchMedia("(max-width: 900px)").matches;
   if (sidebarToggle) {
-    sidebarToggle.hidden = state.section !== "vacancies" && !isCompactViewport;
+    sidebarToggle.hidden = false;
     sidebarToggle.disabled = false;
   }
   setSidebarOpen(state.section === "vacancies" && !state.selected && !isCompactViewport);
@@ -1160,9 +1164,9 @@ function atsResult(analysis, vacancy = null) {
   const resumeLabel = analysis.resume_kind_at_analysis && analysis.resume_version_at_analysis
     ? `${analysis.resume_kind_at_analysis === "master" ? "Master" : "Vacancy"} Resume v${analysis.resume_version_at_analysis}`
     : "legacy resume version";
-  return `<div class="score-row"><div class="score" aria-label="${escapeHtml(translateText("ATS text-match score"))} ${analysis.match_percent}%">${analysis.match_percent}%</div><div><h3>${escapeHtml(translateText(analysis.is_stale ? "Historical ATS text match — rerun analysis" : "ATS text-match score"))}</h3><p class="muted">${escapeHtml(translateText("Analysis #"))}${analysis.id} · ${escapeHtml(translateText(resumeLabel))} (ID ${analysis.resume_version_id})</p>${vacancy?.ai_match_percent != null ? `<p class="score-inline"><strong>AI ${vacancy.ai_match_percent}%</strong> <span class="muted">${escapeHtml(translateText("AI resume-to-vacancy score"))}</span></p>` : ""}<p class="muted">${escapeHtml(translateText("Heuristic comparison of vacancy wording with resume text. It is not a probability of getting the job or a definitive assessment of suitability."))}</p><p class="muted">${escapeHtml(result.disclaimer)}</p>${analysis.is_stale ? `<p class="error">${escapeHtml(translateText(analysis.resume_deleted ? "The resume version used for this analysis was deleted. This result remains historical; create or select a current resume and run ATS again." : "The confirmed vacancy description changed after this run. This result is historical; run ATS again for a current score."))}</p>` : ""}</div></div>
+  return `<div class="score-row"><div class="score" aria-label="${escapeHtml(translateText("ATS text-match score"))} ${analysis.match_percent}%">${analysis.match_percent}%</div><div><h3>${escapeHtml(translateText(analysis.is_stale ? "Historical ATS text match — rerun analysis" : "ATS text-match score"))}</h3><p class="muted">${escapeHtml(translateText("Analysis #"))}${analysis.id} · ${escapeHtml(translateText(resumeLabel))} (ID ${analysis.resume_version_id})</p>${vacancy?.ai_match_percent != null ? `<p class="score-inline"><strong>AI ${vacancy.ai_match_percent}%</strong> <span class="muted">${escapeHtml(translateText("AI resume-to-vacancy score"))}</span></p>` : ""}<p class="muted">${escapeHtml(translateText("Heuristic comparison of vacancy wording with resume text. It is not a probability of getting the job or a definitive assessment of suitability."))}</p><p class="muted">${escapeHtml(translateText(result.disclaimer || ""))}</p>${analysis.is_stale ? `<p class="error">${escapeHtml(translateText(analysis.resume_deleted ? "The resume version used for this analysis was deleted. This result remains historical; create or select a current resume and run ATS again." : "The confirmed vacancy description changed after this run. This result is historical; run ATS again for a current score."))}</p>` : ""}</div></div>
     <div class="metric-grid"><div><strong>${result.counts.covered}</strong><span>${escapeHtml(translateText("Covered"))}</span></div><div><strong>${result.counts.partial}</strong><span>${escapeHtml(translateText("Partial"))}</span></div><div><strong>${result.counts.missing}</strong><span>${escapeHtml(translateText("Missing"))}</span></div></div>
-    <h4>${escapeHtml(translateText("Requirements and evidence"))}</h4><div class="item-list">${result.requirements.map(item => `<article class="requirement ${item.classification}"><span class="badge">${escapeHtml(translateText(item.classification))}</span><strong>${escapeHtml(item.requirement)}</strong><p>${escapeHtml(item.interpretation)}</p>${item.evidence ? `<blockquote>${escapeHtml(item.evidence)}</blockquote>` : ""}</article>`).join("")}</div>
+    <h4>${escapeHtml(translateText("Requirements and evidence"))}</h4><div class="item-list">${result.requirements.map(item => `<article class="requirement ${item.classification}"><span class="badge">${escapeHtml(translateText(item.classification))}</span><strong>${escapeHtml(item.requirement)}</strong><p>${escapeHtml(translateText(item.interpretation || ""))}</p>${item.evidence ? `<blockquote>${escapeHtml(item.evidence)}</blockquote>` : ""}</article>`).join("")}</div>
     <h4>${escapeHtml(translateText("Keywords"))}</h4><div class="tag-list">${result.keywords.map(word => `<span class="tag ${result.covered_keywords.includes(word) ? "hit" : ""}">${escapeHtml(word)}</span>`).join("")}</div>`;
 }
 
@@ -1188,10 +1192,21 @@ function weightedScoreDetails(result) {
   return `<section class="assessment-details"><h4>${escapeHtml(translateText("Score calculation"))}</h4><div class="assessment-weight-list">${rows}</div><p class="muted">${escapeHtml(translateText("Weighted total"))}: ${escapeHtml(Number(result.weighted_sum.total ?? 0).toFixed(4))}</p></section>`;
 }
 
-function assessmentProse(value, locale) {
+function assessmentProse(value) {
   const text = String(value ?? "");
-  if (locale !== "ru" || !/[A-Za-z]/.test(text) || /[А-Яа-яЁё]/.test(text)) return escapeHtml(text);
-  return `<span>${escapeHtml(translateText("This historical explanation was saved in English."))}</span><details class="original-assessment-text"><summary>${escapeHtml(translateText("Show original text"))}</summary><p>${escapeHtml(text)}</p></details>`;
+  if (!/[A-Za-z]/.test(text) || /[А-Яа-яЁё]/.test(text)) return escapeHtml(text);
+  return `<div class="assessment-prose" data-assessment-original="${escapeHtml(text)}">${assessmentProseContent(text)}</div>`;
+}
+
+function assessmentProseContent(text) {
+  if (state.locale !== "ru") return escapeHtml(text);
+  return `<p class="muted">${escapeHtml(translateText("This explanation is in English."))}</p><details class="original-assessment-text"><summary>${escapeHtml(translateText("Show original text"))}</summary><div>${escapeHtml(text)}</div></details>`;
+}
+
+function refreshAssessmentProse(root = document) {
+  root.querySelectorAll?.(".assessment-prose[data-assessment-original]").forEach(node => {
+    node.innerHTML = assessmentProseContent(node.dataset.assessmentOriginal || "");
+  });
 }
 
 function renderAssessmentResult(assessment) {
@@ -1200,14 +1215,14 @@ function renderAssessmentResult(assessment) {
   if (result.response_format_error) return `<p class="error">${escapeHtml(assessmentFormatError(assessment.assessment_kind))}</p>`;
   const refs = value => Array.isArray(value) ? value.join(", ") : String(value || "");
   const list = value => Array.isArray(value) && value.length
-    ? `<ul>${value.map(item => `<li>${assessmentProse(item, assessment.locale)}</li>`).join("")}</ul>`
+    ? `<ul>${value.map(item => `<li>${assessmentProse(item)}</li>`).join("")}</ul>`
     : `<p class="muted">—</p>`;
-  const summary = result.overall_summary ? `<p>${assessmentProse(result.overall_summary, assessment.locale)}</p>` : "";
+  const summary = result.overall_summary ? assessmentProse(result.overall_summary) : "";
   if (assessment.assessment_kind === "vacancy_match" && Array.isArray(result.requirements)) {
     return `${summary}<div class="item-list">${result.requirements.map(item => {
       const status = item.status || "not_evidenced";
       const statusClass = ({ covered: "covered", partial: "partial", not_evidenced: "missing" })[status] || "";
-      return `<article class="requirement ${statusClass}"><span class="badge">${escapeHtml(translateText(status))}</span><strong>${escapeHtml(item.requirement || "Requirement")}</strong>${item.vacancy_quote ? `<blockquote>${escapeHtml(item.vacancy_quote)}</blockquote>` : ""}<p>${assessmentProse(item.explanation || "", assessment.locale)}</p>${refs(item.resume_line_refs) ? `<small class="muted">${escapeHtml(translateText("Resume evidence:"))} ${escapeHtml(refs(item.resume_line_refs))}</small>` : ""}</article>`;
+      return `<article class="requirement ${statusClass}"><span class="badge">${escapeHtml(translateText(status))}</span><strong>${escapeHtml(item.requirement || "Requirement")}</strong>${item.vacancy_quote ? `<blockquote>${escapeHtml(item.vacancy_quote)}</blockquote>` : ""}${assessmentProse(item.explanation || "")}${refs(item.resume_line_refs) ? `<small class="muted">${escapeHtml(translateText("Resume evidence:"))} ${escapeHtml(refs(item.resume_line_refs))}</small>` : ""}</article>`;
     }).join("")}</div><div class="ai-readable-columns"><div><h4>${escapeHtml(translateText("Strengths"))}</h4>${list(result.strengths)}</div><div><h4>${escapeHtml(translateText("Gaps"))}</h4>${list(result.gaps)}</div></div>${Array.isArray(result.limitations) && result.limitations.length ? `<h4>${escapeHtml(translateText("Limitations"))}</h4>${list(result.limitations)}` : ""}`;
   }
   if (assessment.assessment_kind === "manager_audit") {
@@ -1222,7 +1237,15 @@ function renderAssessmentResult(assessment) {
     const scores = result.scores && typeof result.scores === "object"
       ? Object.entries(result.scores).map(([axis, score]) => `<div><span>${escapeHtml(translateText(axis))}</span><strong>${escapeHtml(Number(score).toFixed(2))}</strong></div>`).join("")
       : "";
-    return `${summary}<p><strong>${escapeHtml(translateText("Role family"))}:</strong> ${escapeHtml(familyText)}</p>${formatAssessmentObject(result.grade_inflation, translateText("Grade support"))}<h4>${escapeHtml(translateText("Overall resume score"))} · ${escapeHtml(result.overall_score_percent ?? "—")}%</h4>${scores ? `<div class="metric-grid ats-score-grid">${scores}</div>${weightedScoreDetails(result)}` : ""}<h4>${escapeHtml(translateText("Resume risk checks"))}</h4><p class="muted">${escapeHtml(translateText("CLEAR means no signal found; PARTIAL means some evidence or uncertainty; NONE means the signal is not supported. L1, L2, etc. point to numbered lines in the resume text used for this audit."))}</p><div class="item-list">${flags.map(item => `<article class="item-row"><div><span class="badge">${escapeHtml(translateText(item.status || "unrated"))}</span><strong>${escapeHtml(translateText(item.name || "Check"))}</strong><p>${assessmentProse(item.explanation || "", assessment.locale)}</p><small class="muted">${escapeHtml(refs(item.line_refs))}</small></div></article>`).join("")}</div><h4>${escapeHtml(translateText("Evidence and achievement review"))}</h4><div class="item-list">${evidence.map(item => `<article class="item-row"><div><strong>${escapeHtml(item.line_ref || "Resume line")} · ${escapeHtml(translateText(item.xyz_verdict || item.category || "evidence"))}</strong><p>${escapeHtml(item.quote || "")}</p><p>${assessmentProse(item.xyz_assessment || "", assessment.locale)}${item.attribution ? ` · ${assessmentProse(item.attribution, assessment.locale)}` : ""}</p></div></article>`).join("") || `<p class="muted">—</p>`}</div><h4>${escapeHtml(translateText("10-second recruiter read"))}</h4><div class="item-list">${quickRead.map(item => `<article class="item-row"><div><strong>${escapeHtml(translateText(item.check || "Check"))}</strong><p>${assessmentProse(item.result || "", assessment.locale)}</p><small class="muted">${escapeHtml(refs(item.line_refs))}</small></div></article>`).join("")}</div><h4>${escapeHtml(translateText("Priority improvements"))}</h4><div class="item-list">${improvements.map(item => `<article class="item-row"><div><strong>${assessmentProse(item.issue || "Improvement", assessment.locale)}</strong><p>${assessmentProse(item.direction || item.recommendation || "", assessment.locale)}</p><small class="muted">${escapeHtml(refs(item.line_refs))}</small></div></article>`).join("") || `<p class="muted">—</p>`}</div>${Array.isArray(result.limitations) && result.limitations.length ? `<h4>${escapeHtml(translateText("Limitations"))}</h4>${list(result.limitations)}` : ""}`;
+    const verdictLabel = item => {
+      const candidate = [item?.xyz_verdict, item?.category].find(value => typeof value === "string" && value.trim());
+      return translateText(candidate || "evidence");
+    };
+    const flagRows = flags.map(item => `<article class="item-row"><div><span class="badge">${escapeHtml(translateText(item.status || "unrated"))}</span><strong>${escapeHtml(translateText(item.name || "Check"))}</strong>${assessmentProse(item.explanation || "")}<small class="muted">${escapeHtml(refs(item.line_refs))}</small></div></article>`).join("");
+    const evidenceRows = evidence.map(item => `<article class="item-row"><div><strong>${escapeHtml(item.line_ref || "Resume line")} · ${escapeHtml(verdictLabel(item))}</strong><p>${escapeHtml(item.quote || "")}</p><div>${assessmentProse(item.xyz_assessment || "")}${item.attribution ? ` · ${assessmentProse(item.attribution)}` : ""}</div></div></article>`).join("");
+    const quickReadRows = quickRead.map(item => `<article class="item-row"><div><strong>${escapeHtml(translateText(item.check || "Check"))}</strong>${assessmentProse(item.result || "")}<small class="muted">${escapeHtml(refs(item.line_refs))}</small></div></article>`).join("");
+    const improvementRows = improvements.map(item => `<article class="item-row"><div><div class="assessment-issue">${assessmentProse(item.issue || "Improvement")}</div>${assessmentProse(item.direction || item.recommendation || "")}<small class="muted">${escapeHtml(refs(item.line_refs))}</small></div></article>`).join("");
+    return `${summary}<p><strong>${escapeHtml(translateText("Role family"))}:</strong> ${escapeHtml(familyText)}</p>${formatAssessmentObject(result.grade_inflation, translateText("Grade support"))}<h4>${escapeHtml(translateText("Overall resume score"))} · ${escapeHtml(result.overall_score_percent ?? "—")}%</h4>${scores ? `<div class="metric-grid ats-score-grid">${scores}</div>${weightedScoreDetails(result)}` : ""}<h4>${escapeHtml(translateText("Resume risk checks"))}</h4><p class="muted">${escapeHtml(translateText("CLEAR means no signal found; PARTIAL means some evidence or uncertainty; NONE means the signal is not supported. L1, L2, etc. point to numbered lines in the resume text used for this audit."))}</p><div class="item-list">${flagRows}</div><h4>${escapeHtml(translateText("Evidence and achievement review"))}</h4><div class="item-list">${evidenceRows || `<p class="muted">—</p>`}</div><h4>${escapeHtml(translateText("10-second recruiter read"))}</h4><div class="item-list">${quickReadRows}</div><h4>${escapeHtml(translateText("Priority improvements"))}</h4><div class="item-list">${improvementRows || `<p class="muted">—</p>`}</div>${Array.isArray(result.limitations) && result.limitations.length ? `<h4>${escapeHtml(translateText("Limitations"))}</h4>${list(result.limitations)}` : ""}`;
   }
   return `<pre class="ai-response">${escapeHtml(JSON.stringify(result, null, 2))}</pre>`;
 }
@@ -1668,7 +1691,7 @@ document.addEventListener("click", async event => {
     setSidebarOpen(!state.sidebarOpen);
     return;
   }
-  const sectionButton = event.target.closest("[data-section]");
+  const sectionButton = event.target.closest("button[data-section]");
   if (sectionButton) {
     if (sectionButton.dataset.section === "master-resume") await renderMasterResume();
     else if (sectionButton.dataset.section === "analytics") await renderAnalytics();
