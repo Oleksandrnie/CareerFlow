@@ -39,9 +39,8 @@ assert.match(css, /\.sidebar-toggle\[hidden\] \{ display: none !important; visib
 assert.match(css, /\.sidebar-toggle \.menu-glyph svg \{ display: block; width: 24px; height: 24px;/);
 assert.match(css, /@media \(min-width: 901px\) \{\s+\.sidebar-toggle \{ display: inline-grid; place-items: center; \}\s+\.layout \{ grid-template-columns: minmax\(270px, 310px\) minmax\(0, 1fr\); transition: grid-template-columns 240ms/);
 assert.match(css, /\.layout\.sidebar-collapsed \{ grid-template-columns: minmax\(0, 0fr\) minmax\(0, 1fr\); \}/);
-assert.match(css, /\.layout:not\(\.master-mode\) \.sidebar \{ min-width: 0; overflow-x: hidden; overflow-y: auto;/);
-assert.match(css, /\.layout\.sidebar-collapsed:not\(\.master-mode\) \.sidebar \{ overflow: hidden;/);
-assert.match(css, /\.layout\.master-mode\.sidebar-open \{ grid-template-columns: minmax\(270px, 310px\) minmax\(0, 1fr\); \}/, "desktop main sections must give the opened vacancy sidebar its own column");
+assert.match(css, /@media \(min-width: 901px\) \{[\s\S]*?\.layout \.sidebar,[\s\S]*?position: absolute;[\s\S]*?z-index: 30;/, "desktop vacancy sidebar must overlay the workspace without reserving a grid column");
+assert.match(css, /\.layout\.sidebar-open \.sidebar \{ transform: translateX\(0\); opacity: 1; pointer-events: auto; \}/, "desktop drawer opens over unchanged workspace content");
 assert.match(index, /<div class="archive-toggle"><input id="show-archived" type="checkbox" aria-labelledby="archive-label"><span id="archive-label">Archived<\/span><\/div>/);
 assert.doesNotMatch(index, /<label class="archive-toggle">/);
 assert.match(css, /\.brand-lockup \{ display: flex; align-items: center; gap: 10px; min-width: 0; \}/);
