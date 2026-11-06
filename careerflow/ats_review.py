@@ -18,7 +18,7 @@ from .db import Database, insert_and_get_id
 
 ASSESSMENT_SCHEMA_VERSION = 1
 RUBRIC_VERSION = "manager-resume-2026-01"
-_PROMPT_TEMPLATE_VERSIONS = {"manager_audit": 2, "vacancy_match": 1}
+_PROMPT_TEMPLATE_VERSIONS = {"manager_audit": 3, "vacancy_match": 1}
 _KINDS = {"manager_audit", "vacancy_match"}
 _SCORE_WEIGHTS = {
     "Evidence": 0.25,
@@ -68,13 +68,41 @@ def _manager_audit_contract(locale: str) -> str:
     )
 
 
+def _manager_experience_guidance(locale: str) -> str:
+    if locale == "ru":
+        return (
+            "Дополнительно включи в grade_inflation поля total_it_years, direct_managerial_years, "
+            "related_coordination_years, technical_ic_years, chronology_basis. В overall_summary сначала "
+            "синтезируй подтверждённый целевой опыт с цитатами/ссылками на строки, чтобы не создать впечатление, "
+            "что его нет. Рассмотри обязанности и результаты во всех строках, а не только названия должностей. "
+            "Разделяй общий стаж в IT, прямое управление проектами/delivery/product, смежную координацию и "
+            "техническую работу без менеджерской ответственности. Суммируй только явно датированные периоды; "
+            "пересекающиеся даты не учитывай дважды внутри одного итога. Не прибавляй весь IT-стаж к стажу "
+            "менеджера. Если даты отсутствуют или неоднозначны, укажи заявленную длительность отдельно от "
+            "длительности, проверяемой по датам, и объясни ограничение в chronology_basis. Недостаток дат — "
+            "это невозможность проверить срок, а не отсутствие релевантного опыта. line_refs должны указывать "
+            "на все использованные периоды и подтверждающие обязанности."
+        )
+    return (
+        "Also include total_it_years, direct_managerial_years, related_coordination_years, technical_ic_years, "
+        "and chronology_basis in grade_inflation. In overall_summary, first synthesize evidenced target-relevant "
+        "experience with resume line citations so the report does not imply it is absent. Review duties and outcomes "
+        "across all lines, not only job titles. Separate total IT tenure, direct project/delivery/product management, "
+        "adjacent coordination, and technical work without management responsibility. Sum only explicitly dated "
+        "periods; do not double-count overlapping dates within a category. Never add all IT tenure to management "
+        "tenure. If dates are missing or ambiguous, distinguish stated duration from date-verifiable duration and "
+        "explain the limit in chronology_basis. Missing dates mean duration cannot be verified, not that relevant "
+        "experience is absent. line_refs must cite all periods and supporting responsibilities."
+    )
+
+
 def _assessment_prompt(kind: str, locale: str, resume_lines: str, vacancy: dict | None) -> str:
     if kind == "manager_audit":
         if locale == "ru":
             instruction = """Проведи строгий аудит резюме менеджера проекта/доставки/технологий/продукта только по переданному резюме. Верни JSON-объект с полями: overall_summary; role_family (claimed_family, claimed_grade, supported_family, supported_grade, mismatch, quotes); grade_inflation (claimed_title_or_years, supported_family_years, severity, line_refs); anti_persona_flags (см. контракт ниже); evidence_review (объекты line_ref, quote, category=achievement|process|scope|noise, xyz_verdict=PASS|WEAK|FAIL|SCOPE|NOISE, xyz_assessment, attribution); structure (rubric=T, export_quality, header, chronology, skills, length, limitations); ten_second_read (объекты check, result и line_refs; см. контракт ниже); scores (см. контракт ниже); overall_score_percent (целое 0–100); weighted_sum (покажи веса и арифметику); verdict; priority_improvements (не более пяти объектов issue, direction, line_refs); limitations. Используй стабильные ссылки L1, L2 и так далее. PASS достижение требует X+Y+Z (действие, изменение, измеримый результат/артефакт/срок); командный размер, процесс и неподтверждённые метрики не считай достижением; проверь личную атрибуцию и vanity metrics. Для каждой жёсткой оценки приводи цитату. Примени Rubric T, если структуры по тексту можно судить. Давай только направления исправления: не пиши готовые буллеты, абзацы или текст для вставки. Не придумывай опыт. Отсутствие свидетельства означает лишь «не подтверждено этим резюме». Для фото, колонок и визуальной структуры укажи, что это нельзя оценить по переданному тексту."""
         else:
             instruction = """Perform a strict audit of a project/delivery/technical/product manager resume using only the supplied resume. Return JSON with: overall_summary; role_family (claimed_family, claimed_grade, supported_family, supported_grade, mismatch, quotes); grade_inflation (claimed_title_or_years, supported_family_years, severity, line_refs); anti_persona_flags (see contract below); evidence_review (objects with line_ref, quote, category=achievement|process|scope|noise, xyz_verdict=PASS|WEAK|FAIL|SCOPE|NOISE, xyz_assessment, attribution); structure (rubric=T, export_quality, header, chronology, skills, length, limitations); ten_second_read (objects with check, result and line_refs; see contract below); scores (see contract below); overall_score_percent (integer 0–100); weighted_sum (show the weights and arithmetic); verdict; priority_improvements (at most five objects with issue, direction, line_refs); limitations. Cite stable references L1, L2, etc. An achievement PASS requires X+Y+Z (action, change, measurable result/artifact/time); team size, process and unattributed metrics are not achievements. Check personal attribution and employer vanity metrics. Back every hard verdict with a quote. Use Rubric T where structure can be assessed from text. Give fix directions only; do not write paste-ready bullets or resume sections. Do not invent experience. Missing evidence means only not evidenced in this resume. State that photos, columns, and visual structure cannot be assessed from supplied text."""
-        instruction = f"{instruction}\n\n{_manager_audit_contract(locale)}"
+        instruction = f"{instruction}\n\n{_manager_experience_guidance(locale)}\n\n{_manager_audit_contract(locale)}"
     else:
         if locale == "ru":
             instruction = """Сопоставь резюме с конкретной вакансией по требованиям. Верни JSON-объект с полями overall_summary, requirements (массив объектов requirement, status=covered|partial|not_evidenced|insufficient_input, resume_line_refs, vacancy_quote, explanation), strengths, gaps, limitations. Ссылайся только на строки резюме L1, L2 и так далее; для требований цитируй короткий фрагмент описания вакансии. Не считай отсутствие свидетельства доказательством отсутствия навыка. Не указывай вероятность трудоустройства и не выдумывай общий процент. Если описание вакансии недостаточно, используй insufficient_input."""

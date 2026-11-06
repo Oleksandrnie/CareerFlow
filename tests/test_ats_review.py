@@ -126,7 +126,7 @@ class AtsReviewTest(unittest.TestCase):
                 payload["anti_persona_flags"].reverse()
                 assessment, prompt = self.run_manager_audit(locale, json.dumps(payload, ensure_ascii=False))
                 self.assertEqual(assessment["status"], "completed")
-                self.assertEqual(assessment["prompt_template_version"], 2)
+                self.assertEqual(assessment["prompt_template_version"], 3)
                 self.assertEqual(assessment["result"]["overall_summary"], summary)
                 self.assertIn(contract_rule, prompt)
                 self.assertIn('"name": "Project administrator"', prompt)
