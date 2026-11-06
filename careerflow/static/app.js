@@ -1704,6 +1704,11 @@ document.addEventListener("click", async event => {
     setSidebarOpen(!state.sidebarOpen);
     return;
   }
+  if (event.target.closest("#home-link")) {
+    event.preventDefault();
+    await showVacancies();
+    return;
+  }
   const sectionButton = event.target.closest("button[data-section]");
   if (sectionButton) {
     if (sectionButton.dataset.section === "master-resume") await renderMasterResume();

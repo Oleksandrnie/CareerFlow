@@ -136,6 +136,8 @@ button:focus-visible, input:focus-visible, textarea:focus-visible, select:focus-
 .sidebar-toggle[aria-expanded="true"] .menu-glyph svg { transform: rotate(9deg); }
 .brand-lockup { display: flex; align-items: center; gap: 10px; min-width: 0; }
 .brand-copy { min-width: 0; }
+.brand-home { display: inline-block; color: inherit; text-decoration: none; user-select: none; -webkit-user-select: none; }
+.brand-home:focus-visible { outline: 3px solid var(--focus); outline-offset: 3px; border-radius: 3px; }
 .topbar-actions > button { width: 38px; min-width: 38px; height: 30px; padding: 0; display: inline-flex; align-items: center; justify-content: center; }
 .locale-toggle { padding: 0; }
 .locale-toggle svg { display: block; width: 22px; height: 15px; border-radius: 3px; }
@@ -153,8 +155,6 @@ button:focus-visible, input:focus-visible, textarea:focus-visible, select:focus-
 .danger { color: var(--danger-ink); background: var(--danger-bg); }
 .layout { min-height: calc(100vh - 84px); display: grid; grid-template-columns: 340px 1fr; }
 .layout.master-mode { grid-template-columns: 1fr; }
-.layout.master-mode .sidebar { display: none; }
-.layout.master-mode.sidebar-open .sidebar { display: block; }
 .analytics-cards { display:grid; grid-template-columns:repeat(4,minmax(0,1fr)); gap:12px; margin-bottom:16px; }
 .analytics-card, .funnel-row, .result-row { display:flex; justify-content:space-between; gap:12px; align-items:center; }
 .analytics-card { flex-direction:column; align-items:flex-start; padding:16px; border:1px solid var(--line); border-radius:14px; background:var(--paper); }
@@ -634,9 +634,7 @@ button:focus-visible, input:focus-visible, textarea:focus-visible, select:focus-
   .sidebar-toggle { display: inline-grid; place-items: center; }
   .layout { position: relative; grid-template-columns: minmax(0, 1fr); }
   .layout.sidebar-open { grid-template-columns: minmax(0, 1fr); }
-  .layout .sidebar,
-  .layout.master-mode .sidebar,
-  .layout.master-mode.sidebar-open .sidebar {
+  .layout .sidebar {
     position: absolute;
     inset: 0 auto 0 0;
     z-index: 30;
