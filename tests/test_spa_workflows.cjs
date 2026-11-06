@@ -14,6 +14,7 @@ function deferred() {
 
 function fakeElement(tagName = "DIV") {
   const children = new Map();
+  const elementListeners = new Map();
   let html = "";
   return {
     tagName,
@@ -25,9 +26,12 @@ function fakeElement(tagName = "DIV") {
     value: "",
     textContent: "",
     classList: { add() {}, remove() {}, toggle(name, force) { this[name] = force ?? !this[name]; } },
-    addEventListener() {},
+    addEventListener(name, callback) { elementListeners.set(name, callback); },
+    dispatch(name, event = {}) { return elementListeners.get(name)?.(event); },
     setAttribute(name, value) { this[name] = String(value); },
     getAttribute(name) { return this[name] ?? null; },
+    removeAttribute(name) { delete this[name]; },
+    remove() { this.removed = true; },
     showModal() { this.open = true; },
     close() { this.open = false; },
     reset() { this.fields = {}; },
@@ -68,6 +72,13 @@ function harness(storage = new Map()) {
   const root = new Map();
   const listeners = new Map();
   const workspace = fakeElement();
+  const themeToggle = fakeElement("BUTTON");
+  const sidebarToggle = fakeElement("BUTTON");
+  const vacancySidebar = fakeElement("ASIDE");
+  vacancySidebar.inert = false;
+  const appLayout = fakeElement("MAIN");
+  const documentElement = fakeElement("HTML");
+  documentElement.style = {};
   let panel = fakeElement();
   Object.defineProperty(workspace, "innerHTML", {
     get() { return this.html || ""; },
@@ -76,6 +87,9 @@ function harness(storage = new Map()) {
   function rootElement(selector) {
     if (selector === "#workspace") return workspace;
     if (selector === "#content-panel") return panel;
+    if (selector === "#app-layout") return appLayout;
+    if (selector === "#sidebar-toggle") return sidebarToggle;
+    if (selector === "#vacancy-sidebar") return vacancySidebar;
     if (selector === "#import-form") {
       if (!root.has(selector)) root.set(selector, fakeElement("FORM"));
       return root.get(selector);
@@ -119,9 +133,12 @@ function harness(storage = new Map()) {
     return items;
   }
   const document = {
+    documentElement,
     querySelector(selector) {
       if (selector === "#content-panel") return panel;
       if (selector === "#workspace") return workspace;
+      if (selector === "#theme-toggle") return themeToggle;
+      if (["#app-layout", "#sidebar-toggle", "#vacancy-sidebar"].includes(selector)) return rootElement(selector);
       if (selector === "[data-interview-count]") return workspace.querySelector(selector);
       if (selector.startsWith("#") && ["#vacancy-list", "#import-dialog", "#import-form", "#import-review", "#import-error", "#vacancy-file", "#drop-zone", "#selected-file", "#show-archived", "#new-vacancy", "#toast", "#status-selector", "#archive-vacancy", "#delete-vacancy", "#edit-overview", "#export-report"].includes(selector)) return rootElement(selector);
       return panel.querySelector(selector);
@@ -154,7 +171,32 @@ function harness(storage = new Map()) {
   };
   routes.set("GET /api/vacancies?archived=false", []);
   routes.set("GET /api/codex/models", { models: [{ id: "gpt-5.6-luna", name: "Luna", efforts: ["low", "medium"] }], default_model: "gpt-5.6-luna", default_effort: "low", source: "codex-cli", warning: "" });
-  const window = { confirm: () => true, prompt: () => "DELETE" };
+  let reloadCount = 0;
+  let viewportWidth = 1200;
+  const sidebarViewportListeners = new Set();
+  const window = {
+    confirm: () => true,
+    prompt: () => "DELETE",
+    location: { reload() { reloadCount += 1; } },
+    scrollY: 0,
+    matchMedia(query) {
+      const maxWidth = Number(query.match(/max-width:\s*(\d+)px/)?.[1] || 0);
+      return {
+        matches: maxWidth > 0 && viewportWidth <= maxWidth,
+        addEventListener(name, callback) {
+          if (name === "change" && maxWidth === 900) sidebarViewportListeners.add(callback);
+        },
+      };
+    },
+    setViewport(width) {
+      const wasCompact = viewportWidth <= 900;
+      viewportWidth = width;
+      const isCompact = viewportWidth <= 900;
+      if (wasCompact !== isCompact) {
+        sidebarViewportListeners.forEach(callback => callback({ matches: isCompact, media: "(max-width: 900px)" }));
+      }
+    },
+  };
   const localStorage = {
     getItem(key) { return storage.get(key) ?? null; },
     setItem(key, value) { storage.set(key, String(value)); },
@@ -165,8 +207,10 @@ function harness(storage = new Map()) {
   return {
     context, document, routes, calls, listeners,
     get panel() { return panel; },
+    workspace, themeToggle, sidebarToggle, vacancySidebar, appLayout, documentElement,
     run(code) { return vm.runInContext(code, context); },
     window,
+    get reloadCount() { return reloadCount; },
   };
 }
 
@@ -250,6 +294,59 @@ async function testOverviewLinkAndTabOrder() {
   assert.match(app.panel.innerHTML, /href="https:\/\/example\.com\/jobs\/project-manager"/);
   assert.match(app.panel.innerHTML, /target="_blank"/);
   assert.doesNotMatch(app.panel.innerHTML, /VACANCY LINK/);
+
+  const longTitle = "Senior Principal Platform Engineer — Distributed Systems and Infrastructure Leadership, Europe";
+  app.run(`renderVacancy(${JSON.stringify({ ...vacancy, title: longTitle })})`);
+  assert.match(app.workspace.innerHTML, new RegExp(longTitle.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")), "the full vacancy title should be visible without hover");
+  assert.equal(app.run(`compactVacancyTitle(${JSON.stringify(longTitle)})`), longTitle);
+  app.run(`state.vacancies = [${JSON.stringify({ ...vacancy, title: longTitle })}]; renderList()`);
+  assert.match(app.run("listEl.innerHTML"), new RegExp(longTitle.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")));
+}
+
+async function testThemeTogglePreservesCurrentView() {
+  const views = [
+    { section: "analytics", tab: null },
+    { section: "master-resume", tab: null },
+    ...["Overview", "Resume", "ATS", "AI / Codex", "Timeline", "Notes", "Files"].map(tab => ({ section: "vacancies", tab })),
+  ];
+  for (const view of views) {
+    const storage = new Map([["careerflow-theme", "light"], ["careerflow-locale", "en"]]);
+    const app = harness(storage);
+    await new Promise(resolve => setTimeout(resolve, 0));
+    app.run(`state.section = ${JSON.stringify(view.section)}; state.activeTab = ${JSON.stringify(view.tab)}; state.selected = ${JSON.stringify(first)}; state.lastSelectedVacancy = state.selected; state.lastSelectedVacancyTab = ${JSON.stringify(view.tab)};`);
+    app.workspace.innerHTML = `<main data-view="${view.section}" data-tab="${view.tab || ""}"><form><textarea>Unsaved draft</textarea></form></main>`;
+    app.workspace.scrollTop = 246;
+    const importForm = app.document.querySelector("#import-form");
+    importForm.fields = { text: "An unsaved vacancy description" };
+    const importDialog = app.document.querySelector("#import-dialog");
+    importDialog.open = true;
+    const markupBefore = app.workspace.innerHTML;
+
+    app.themeToggle.dispatch("click");
+    assert.equal(app.run("state.theme"), "dark", `${view.section}/${view.tab || "home"}: toggle should activate dark theme`);
+    assert.equal(app.documentElement.dataset.theme, "dark");
+    assert.equal(app.documentElement.style.colorScheme, "dark");
+    assert.equal(app.themeToggle.getAttribute("aria-pressed"), "true");
+    assert.equal(storage.get("careerflow-theme"), "dark");
+    assert.equal(app.run("state.section"), view.section, `${view.section}/${view.tab || "home"}: section should be preserved`);
+    assert.equal(app.run("state.activeTab"), view.tab, `${view.section}/${view.tab || "home"}: active tab should be preserved`);
+    assert.equal(app.run("state.selected.id"), first.id, `${view.section}/${view.tab || "home"}: selected vacancy should be preserved`);
+    assert.equal(app.workspace.innerHTML, markupBefore, `${view.section}/${view.tab || "home"}: rendered view should not be replaced`);
+    assert.equal(app.workspace.scrollTop, 246, `${view.section}/${view.tab || "home"}: scroll position should be preserved`);
+    assert.equal(importForm.fields.text, "An unsaved vacancy description");
+    assert.equal(importDialog.open, true, `${view.section}/${view.tab || "home"}: open dialog should remain open`);
+    assert.equal(app.reloadCount, 0, `${view.section}/${view.tab || "home"}: theme changes must not reload the app`);
+
+    app.themeToggle.dispatch("click");
+    assert.equal(app.run("state.theme"), "light");
+    assert.equal(storage.get("careerflow-theme"), "light");
+    assert.equal(app.run("state.section"), view.section);
+    assert.equal(app.run("state.activeTab"), view.tab);
+    assert.equal(app.workspace.innerHTML, markupBefore);
+    assert.equal(importForm.fields.text, "An unsaved vacancy description");
+    assert.equal(importDialog.open, true);
+    assert.equal(app.reloadCount, 0);
+  }
 }
 
 async function testEditAndInterviewSubmitControls() {
@@ -452,7 +549,9 @@ async function testStageFourMasterCrmAndAtsAcceptance() {
   app.routes.set("POST /api/vacancies/1/status", updated);
   app.routes.set("GET /api/vacancies?archived=false", [updated]);
   await app.document.querySelectorAll("[data-stage]").find(button => button.dataset.stage === "Applied").onclick();
-  assert.match(app.document.querySelector("#workspace").innerHTML, /data-stage="Applied" aria-pressed="true"/);
+  const appliedAfterUpdate = app.document.querySelectorAll("[data-stage]").find(button => button.dataset.stage === "Applied");
+  assert.equal(appliedAfterUpdate.getAttribute("aria-pressed"), "true");
+  assert.equal(appliedAfterUpdate.classList.active, true);
 
   app.routes.set("GET /api/resumes?kind=master", [{ id: 42, kind: "master", version: 3, label: "Canonical", created_at: "2026-09-21 10:00:00" }]);
   app.routes.set("GET /api/resumes?kind=vacancy&vacancy_id=1", []);
@@ -660,6 +759,7 @@ async function testUrlImportStructuredDefaultsAndEditableMetadata() {
 async function testExistingDescriptionReviewAndCodexOptIn() {
   const app = harness();
   app.run('state.locale = "ru"');
+  assert.equal(app.run('translateText("Vacancy sections")'), "Разделы вакансии");
   const localizedHint = app.run('translateText("Only when selected; vacancy text will be sent to the local Codex CLI.")');
   assert.equal(localizedHint, "Только при выборе; текст вакансии будет передан локальному Codex CLI.");
   assert.doesNotMatch(localizedHint, /undefined/);
@@ -866,11 +966,16 @@ async function testAiResponseLanguageSubmission() {
 
 async function testResponsiveSidebarToggleClosesAfterSelection() {
   const app = harness();
+  assert.equal(app.run("state.sidebarOpen"), true, "desktop vacancy list starts open");
   app.run(`renderVacancy(${JSON.stringify(first)})`);
+  assert.equal(app.run("state.sidebarOpen"), false, "selecting a vacancy hides the desktop list");
+  assert.match(app.workspace.innerHTML, /<h2 class="vacancy-title" tabindex="-1">First role<\/h2>/);
   const click = app.listeners.get("click");
   const toggleTarget = { closest: selector => selector === "#sidebar-toggle" ? {} : null };
   await click({ target: toggleTarget });
   assert.equal(app.run("state.sidebarOpen"), true);
+  await click({ target: { closest: () => null } });
+  assert.equal(app.run("state.sidebarOpen"), true, "clicking outside does not close the desktop panel");
   app.routes.set("GET /api/vacancies/1", first);
   const vacancyCard = {
     dataset: { id: "1" },
@@ -878,6 +983,47 @@ async function testResponsiveSidebarToggleClosesAfterSelection() {
   };
   await click({ target: vacancyCard });
   assert.equal(app.run("state.sidebarOpen"), false);
+  assert.equal(app.workspace.querySelector(".workspace-head .vacancy-title").focused, true);
+  await click({ target: toggleTarget });
+  assert.equal(app.run("state.sidebarOpen"), true);
+  const secondCard = {
+    dataset: { id: "2" },
+    closest: selector => selector === ".vacancy-card" ? secondCard : null,
+  };
+  app.routes.set("GET /api/vacancies/2", second);
+  await click({ target: secondCard });
+  assert.equal(app.run("state.selected.id"), 2);
+  assert.equal(app.run("state.sidebarOpen"), false);
+}
+
+async function testSidebarResizeAndCompactDismissal() {
+  const app = harness();
+  assert.equal(app.sidebarToggle.hidden, false);
+  assert.equal(app.run("state.sidebarOpen"), true);
+
+  app.run('setSection("analytics")');
+  assert.equal(app.sidebarToggle.hidden, true);
+  assert.equal(app.run("state.sidebarOpen"), false);
+
+  app.window.setViewport(700);
+  assert.equal(app.sidebarToggle.hidden, false, "compact sections expose the drawer button after resize");
+  assert.equal(app.run("state.sidebarOpen"), false);
+  await app.listeners.get("click")({ target: { closest: selector => selector === "#sidebar-toggle" ? {} : null } });
+  assert.equal(app.run("state.sidebarOpen"), true);
+  await app.listeners.get("click")({ target: { closest: () => null } });
+  assert.equal(app.run("state.sidebarOpen"), false, "outside clicks dismiss the compact drawer");
+
+  app.window.setViewport(1200);
+  assert.equal(app.sidebarToggle.hidden, true, "desktop sections hide the drawer button after resize");
+  assert.equal(app.run("state.sidebarOpen"), false);
+
+  app.run('setSection("vacancies")');
+  assert.equal(app.sidebarToggle.hidden, false);
+  assert.equal(app.run("state.sidebarOpen"), true);
+  app.window.setViewport(700);
+  assert.equal(app.run("state.sidebarOpen"), false, "compact viewport starts with the drawer closed");
+  app.window.setViewport(1200);
+  assert.equal(app.run("state.sidebarOpen"), true, "desktop vacancy list reopens when no vacancy is selected");
 }
 
 async function testResponsiveSidebarStaysOpenWhenArchiveFilterChanges() {
@@ -956,9 +1102,13 @@ async function testMutationFailuresAndDuplicateRecovery() {
   await testVacancyNavigationRestoresLastSelection();
   await testVacancyNavigationRestoresAfterReload();
   await testOverviewLinkAndTabOrder();
+  await testThemeTogglePreservesCurrentView();
   await testEditAndInterviewSubmitControls();
   await testInterviewCounterLifecycleAndStaleReads();
   await testResumePreviewAndEditableCopy();
+  await testResponsiveSidebarToggleClosesAfterSelection();
+  await testResponsiveSidebarStaysOpenWhenArchiveFilterChanges();
+  await testSidebarResizeAndCompactDismissal();
   await testStageFourMasterCrmAndAtsAcceptance();
   await testMasterResumeWorkspaceAndSave();
   await testImportPreviewEditConfirmAndRecovery();
@@ -967,8 +1117,6 @@ async function testMutationFailuresAndDuplicateRecovery() {
   await testSavedAiDetailAndLateRun();
   await testTailoredResumeActionAndExplicitDraftHandoff();
   await testAiResponseLanguageSubmission();
-  await testResponsiveSidebarToggleClosesAfterSelection();
-  await testResponsiveSidebarStaysOpenWhenArchiveFilterChanges();
   await testVacancyDeletionUsesInAppPolicyDialog();
   await testMutationFailuresAndDuplicateRecovery();
   process.stdout.write("SPA workflow regressions passed\n");

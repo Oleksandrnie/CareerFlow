@@ -27,9 +27,12 @@ Choose the model and effort by the kind of work:
 | --- | --- |
 | Reasoning, analysis of results, and data synthesis | GPT-6 Luna xHigh |
 | Architecture decisions and technical design | GPT-6.1 Sol Medium |
-| Review or audit | GPT-6 Sol High or GPT-6 Astra, only with the user's explicit consent |
+| UI or layout implementation | GPT-6 Luna xHigh |
+| Independent review or audit | GPT-6.1 Sol Medium, only when explicitly requested or approved |
+| Review-driven UI or layout fixes | GPT-6.1 Sol Low |
+| AGENTS.md model-routing edits | GPT-6 Luna Medium |
 
-For implementation work, use GPT-6 Luna xHigh for reasoning and synthesis, and GPT-6.1 Sol Medium when choosing or evaluating architecture and technical design. Keep review optional: do not start GPT-6 Sol High or GPT-6 Astra review unless the user requests it or explicitly approves a recommendation.
+For implementation work, use GPT-6 Luna xHigh for reasoning and synthesis, and GPT-6.1 Sol Medium when choosing or evaluating architecture and technical design. Use GPT-6 Luna xHigh for UI or layout implementation. Keep independent review optional: use GPT-6.1 Sol Medium only when the user requests it or explicitly approves a recommendation. Use GPT-6.1 Sol Low for review-driven UI or layout fixes.
 
 When reporting a routing decision, distinguish the selected model and effort from the effective executor. Report effective execution metadata only when the runtime exposes it; otherwise state that it is unavailable. Never infer the actual executor from this routing table alone.
 
@@ -43,10 +46,9 @@ For mixed tasks, split work along natural technical boundaries when useful; do n
 
 Validation is the primary assurance mechanism. AI review is an optional additional layer.
 
-- GPT-6 Sol review runs only when the user requests it or approves a clearly explained recommendation.
+- GPT-6.1 Sol Medium independent review runs only when the user requests it or approves a clearly explained recommendation.
 - A reviewer must independently check requirements, diff, regressions, edge cases, architectural boundaries, and tests without assuming the implementation is correct.
-- Use Medium for bounded review, High for substantial or regression-sensitive review, and xHigh only for unusually deep/high-risk audits or explicit user request.
-- GPT-6 Astra is not a routine final reviewer. Use it only for architectural/high-risk questions, on direct user request or after explicit approval.
+- Use GPT-6.1 Sol Low for review-driven UI or layout fixes.
 - Do not automatically chain developer, reviewer, second reviewer, and Astra.
 
 ## Project map and invariants

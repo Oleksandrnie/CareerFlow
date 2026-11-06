@@ -17,6 +17,7 @@ All records and uploaded files stay on your computer by default. The optional Co
 - Save dated notes, local attachments, and portable Markdown reports.
 - Optionally ask the local Codex CLI to analyze a vacancy, match or improve a resume, review ATS findings, or draft a tailored resume. Results are read-only until you explicitly save a new resume version.
 - Use the browser interface in English or Russian, with light and dark themes and responsive layouts.
+- Switch language and theme in place with a brief, reduced-motion-aware transition; the current page and analytics filters stay selected.
 
 ## Architecture
 
@@ -33,7 +34,7 @@ The project uses Python 3.11 or newer, FastAPI, SQLite from the Python standard 
 
 ## Quick start
 
-Requirements: Python 3.11 or newer. For AI actions, install and authenticate the Codex CLI separately; the core application does not require it.
+Requirements: Python 3.11 or newer. To use the **AI / Codex** module, install the Codex CLI separately and complete its local sign-in before starting CareerFlow. CareerFlow uses the CLI's existing authentication; it does not sign in or store Codex credentials. If the CLI is missing or not authenticated, AI actions are unavailable, while the rest of the local application continues to work.
 
 ```sh
 git clone https://github.com/Oleksandrnie/CareerFlow.git
@@ -63,6 +64,7 @@ CareerFlow reads optional `KEY=VALUE` settings from `.env` in the project root. 
 | `CAREERFLOW_HOST` | `127.0.0.1` | Bind address. Keep loopback for a single-user local setup. |
 | `CAREERFLOW_PORT` | `8000` | Local HTTP port. |
 | `CAREERFLOW_RELOAD` | `0` | Set to `1` to enable Uvicorn reload for development. |
+| `CAREERFLOW_OPEN_BROWSER` | `1` | Automatically open the local app in a browser when `run.py` starts. With Uvicorn reload enabled, the launcher opens one tab and reload workers do not open additional tabs. Set to `0` to disable. |
 | `CAREERFLOW_DATA_DIR` | `<project>/data` | Directory for the SQLite database. |
 | `CAREERFLOW_STORAGE_DIR` | `<project>/storage` | Directory for original documents, attachments and reports. |
 | `CAREERFLOW_DATABASE` | `<data dir>/careerflow.db` | Optional explicit SQLite database path. |
