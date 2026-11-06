@@ -185,7 +185,13 @@ Object.assign(RU, {
   "mismatch": "расхождение", "No Codex assessments for this resume version yet.": "Для этой версии резюме пока нет оценок Codex.",
   "This explanation is in English.": "Это пояснение на английском языке.", "Show original text": "Показать оригинальный текст",
   "Project administrator": "Администратор проекта", "Project proxy": "Представитель проекта", "Ritual agile PM": "Формальный Agile-менеджер",
-  "Unimmersed delivery manager": "Delivery-менеджер без погружения в домен", "Manager-router": "Менеджер-передатчик задач", "General management without domain": "Общее управление без доменной экспертизы"
+  "Unimmersed delivery manager": "Delivery-менеджер без погружения в домен", "Manager-router": "Менеджер-передатчик задач", "General management without domain": "Общее управление без доменной экспертизы",
+  "Cleaned description confirmed": "Очищенное описание подтверждено",
+  "Stored Markdown copied into the new-version draft.": "Сохранённый Markdown скопирован в черновик новой версии.",
+  "Master Resume copied into an editable draft. No AI generation was run.": "Главное резюме скопировано в редактируемый черновик. Генерация с помощью ИИ не выполнялась.",
+  "ATS analysis completed": "Анализ ATS завершён",
+  "Vacancy review saved as historical assessment": "Сопоставление с вакансией сохранено в истории",
+  "Resume audit saved as historical assessment": "Аудит резюме сохранён в истории"
 });
 
 const ENGLISH_FROM_RUSSIAN = new Map(Object.entries(RU).map(([english, russian]) => [russian, english]));
@@ -195,6 +201,8 @@ function translateText(value) {
   if (state.locale === "ru") {
     if (RU[trimmed]) return value.replace(trimmed, RU[trimmed]);
     return value
+      .replace(/^Error:\s*/, `${RU.Error}: `)
+      .replace(/Request failed(?: \((\d+)\))?/g, (_, status) => `${RU["Request failed"]}${status ? ` (${status})` : ""}`)
       .replace(/\bAdded\b/g, RU.Added)
       .replace(/\bATS (\d+%)/g, `${RU.ATS} $1`)
       .replace(/Company not set/g, RU["Company not set"])
@@ -208,6 +216,8 @@ function translateText(value) {
   }
   if (ENGLISH_FROM_RUSSIAN.has(trimmed)) return value.replace(trimmed, ENGLISH_FROM_RUSSIAN.get(trimmed));
   return value
+    .replace(/^Ошибка:\s*/, "Error: ")
+    .replace(/Запрос не выполнен(?: \((\d+)\))?/g, (_, status) => `Request failed${status ? ` (${status})` : ""}`)
     .replace(/Статус изменён на (.+)/g, (_, status) => `Status changed to ${ENGLISH_FROM_RUSSIAN.get(status) || status}`)
     .replace(/Собеседование ·/g, "Interview ·")
     .replace(/На основе (главного резюме|резюме вакансии) v(\d+)/g, (_, kind, version) => `Based on ${kind === "главного резюме" ? "Master Resume" : "Vacancy Resume"} v${version}`)
@@ -600,7 +610,7 @@ function isCurrentMasterView(epoch, panel = workspace) {
 
 function toast(message) {
   const el = document.querySelector("#toast");
-  el.textContent = message;
+  el.textContent = translateText(message);
   el.classList.add("show");
   setTimeout(() => el.classList.remove("show"), 2200);
 }
