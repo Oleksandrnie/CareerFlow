@@ -13,9 +13,10 @@ All records and uploaded files stay on your computer by default. The optional Co
 - Track vacancies through Saved, Applied, Interview, Waiting, Offer and Rejected, with an event timeline and interview rounds.
 - Import vacancy descriptions from pasted text, supported documents, or a public static HTML page; review the cleaned text before saving.
 - Keep a global Master Resume and immutable, vacancy-specific resume versions with source lineage.
-- Run a local heuristic ATS comparison that records the resume version and vacancy-description snapshot used for the analysis.
+- Run a local heuristic ATS comparison, then explicitly request a Codex manager-resume audit or evidence-based match against one confirmed vacancy. Each assessment records the selected resume version and source snapshot; changed or deleted sources mark the result historical, and deleting a resume—or permanently deleting a vacancy together with its resumes—redacts its saved assessment evidence. If Codex returns an invalid format, ATS shows an error and lets you rerun the assessment.
 - Save dated notes, local attachments, and portable Markdown reports.
-- Optionally ask the local Codex CLI to analyze a vacancy, match or improve a resume, review ATS findings, or draft a tailored resume. Results are read-only until you explicitly save a new resume version.
+- Open the vacancy sidebar from Vacancies, Master Resume, or Analytics; selecting a vacancy opens its workspace.
+- Optionally ask the local Codex CLI to analyze a vacancy, improve a resume, review ATS findings, prepare for an interview, or draft a tailored resume. Built-in AI/Codex prompts follow the interface language; manually edited prompt text is preserved when the language changes. Results are read-only until you explicitly review and save a new resume version.
 - Use the browser interface in English or Russian, with light and dark themes and responsive layouts.
 - Switch language and theme in place with a brief, reduced-motion-aware transition; the current page and analytics filters stay selected.
 
@@ -121,7 +122,7 @@ The Node checks use Node.js 24 or newer. Tests use temporary database and storag
 - The application does not automatically send records to an external service. Explicitly started Codex actions can send the context shown in the interface through the locally configured CLI account.
 - Vacancy URL import supports public static HTML only; authenticated pages, CAPTCHA, JavaScript-rendered pages and OCR are not supported.
 - PDF import requires a text layer. Audio is stored as a file and is not transcribed.
-- ATS results are heuristic guidance, not hiring predictions. Historical results retain the resume and vacancy-description provenance used for the analysis.
+- Local ATS results are limited lexical guidance, not hiring predictions. Codex manager audits and vacancy matches are separate, user-triggered assessments; they do not estimate hiring probability and cite the exact resume version and (for matching) confirmed vacancy description. Historical results retain that provenance, and resume deletion removes saved assessment evidence.
 - Before upgrading, make a backup of `data/` and `storage/` together. The app runs backward-compatible SQLite schema migrations on startup.
 
 ## Roadmap

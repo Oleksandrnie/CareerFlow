@@ -14,6 +14,7 @@ from fastapi.staticfiles import StaticFiles
 from . import __version__
 from .config import Settings
 from .db import Database
+from .routes_ats import assessment_router as ats_assessment_router
 from .routes_ats import router as ats_router
 from .routes_ai_reports import router as ai_reports_router
 from .routes_analytics import router as analytics_router
@@ -147,6 +148,7 @@ def create_app(settings: Settings | None = None) -> FastAPI:
     application.include_router(vacancies_router)
     application.include_router(resumes_router)
     application.include_router(ats_router)
+    application.include_router(ats_assessment_router)
     application.include_router(tracking_router)
     application.include_router(ai_reports_router)
     application.include_router(analytics_router)

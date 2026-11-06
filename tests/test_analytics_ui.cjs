@@ -24,7 +24,7 @@ assert.match(app, /analyticsLabel\(item\.stage\)/);
 assert.match(app, /analyticsLabel\(item\.transition\)/);
 assert.match(app, /analyticsLabel\(key\)/);
 assert.match(app, /window\.matchMedia\?\.\("\(max-width: 600px\)"\)\.matches/);
-assert.match(app, /sidebarToggle\.hidden = state\.section !== "vacancies" && !isCompactViewport/);
+assert.match(app, /sidebarToggle\.hidden = false;/);
 assert.match(app, /sidebarViewport\.addEventListener\("change", syncResponsiveSidebar\)/);
 assert.match(app, /sidebarToggle\.disabled = false/);
 assert.match(app, /const analyticsContext = state\.section === "analytics" \?/);

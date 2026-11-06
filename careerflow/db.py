@@ -81,6 +81,36 @@ CREATE TABLE IF NOT EXISTS ats_analyses (
     created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP
 );
 
+CREATE TABLE IF NOT EXISTS ats_assessments (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    schema_version INTEGER NOT NULL,
+    assessment_kind TEXT NOT NULL CHECK (assessment_kind IN ('manager_audit', 'vacancy_match')),
+    engine TEXT NOT NULL,
+    rubric_version TEXT NOT NULL,
+    prompt_template_id TEXT NOT NULL,
+    prompt_template_version INTEGER NOT NULL,
+    resume_version_id INTEGER REFERENCES resume_versions(id) ON DELETE SET NULL,
+    resume_kind TEXT NOT NULL,
+    resume_version INTEGER NOT NULL,
+    resume_sha256 TEXT NOT NULL,
+    vacancy_id INTEGER REFERENCES vacancies(id) ON DELETE CASCADE,
+    description_snapshot TEXT,
+    description_revision INTEGER,
+    locale TEXT NOT NULL CHECK (locale IN ('ru', 'en')),
+    model TEXT NOT NULL DEFAULT '',
+    reasoning_effort TEXT NOT NULL DEFAULT '',
+    status TEXT NOT NULL CHECK (status IN ('completed', 'invalid_response')),
+    result_json TEXT NOT NULL,
+    response TEXT NOT NULL DEFAULT '',
+    redacted_at TEXT,
+    created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP
+);
+
+CREATE INDEX IF NOT EXISTS idx_ats_assessments_resume
+ON ats_assessments(resume_version_id, created_at DESC);
+CREATE INDEX IF NOT EXISTS idx_ats_assessments_vacancy
+ON ats_assessments(vacancy_id, created_at DESC);
+
 CREATE TABLE IF NOT EXISTS timeline_events (
     id INTEGER PRIMARY KEY AUTOINCREMENT,
     vacancy_id INTEGER NOT NULL REFERENCES vacancies(id) ON DELETE CASCADE,
@@ -221,6 +251,7 @@ class Database:
             connection.execute("INSERT OR IGNORE INTO schema_version(version) VALUES (9)")
             self._ensure_resume_series_columns(connection)
             connection.execute("INSERT OR IGNORE INTO schema_version(version) VALUES (10)")
+            connection.execute("INSERT OR IGNORE INTO schema_version(version) VALUES (11)")
 
     @staticmethod
     def _ensure_analytics_foundation(connection: sqlite3.Connection) -> None:

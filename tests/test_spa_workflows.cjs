@@ -36,6 +36,7 @@ function fakeElement(tagName = "DIV") {
     close() { this.open = false; },
     reset() { this.fields = {}; },
     focus() { this.focused = true; },
+    closest() { return fakeElement("DIV"); },
     querySelector(selector) {
       if (!children.has(selector)) {
         const child = fakeElement(selector.includes("button") ? "BUTTON" : selector.includes("form") ? "FORM" : "DIV");
@@ -43,6 +44,7 @@ function fakeElement(tagName = "DIV") {
       }
       return children.get(selector);
     },
+    querySelectorAll() { return []; },
     get innerHTML() { return this.html ?? html; },
     set innerHTML(value) {
       for (const [form] of String(value).matchAll(/<form\b[^>]*>[\s\S]*?<\/form>/g)) {
@@ -74,6 +76,11 @@ function harness(storage = new Map()) {
   const workspace = fakeElement();
   const themeToggle = fakeElement("BUTTON");
   const sidebarToggle = fakeElement("BUTTON");
+  const sectionButtons = ["vacancies", "master-resume", "analytics"].map(section => {
+    const button = fakeElement("BUTTON");
+    button.dataset.section = section;
+    return button;
+  });
   const vacancySidebar = fakeElement("ASIDE");
   vacancySidebar.inert = false;
   const appLayout = fakeElement("MAIN");
@@ -98,6 +105,7 @@ function harness(storage = new Map()) {
     return root.get(selector);
   }
   function list(selector) {
+    if (selector === "button[data-section]") return sectionButtons;
     const owner = ["[data-tab]", "[data-stage]", "[data-section]"].includes(selector)
       || (selector === "[data-delete-resume]" && workspace.innerHTML.includes("master-panel")) ? workspace : panel;
     if (owner.lists.has(selector)) return owner.lists.get(selector);
@@ -202,10 +210,10 @@ function harness(storage = new Map()) {
     setItem(key, value) { storage.set(key, String(value)); },
     removeItem(key) { storage.delete(key); },
   };
-  const context = vm.createContext({ document, fetch, FormData: MockFormData, window, localStorage, setTimeout: () => 0 });
+  const context = vm.createContext({ document, fetch, FormData: MockFormData, URLSearchParams, window, localStorage, setTimeout: () => 0 });
   vm.runInContext(source, context);
   return {
-    context, document, routes, calls, listeners,
+    context, document, routes, calls, listeners, sectionButtons,
     get panel() { return panel; },
     workspace, themeToggle, sidebarToggle, vacancySidebar, appLayout, documentElement,
     run(code) { return vm.runInContext(code, context); },
@@ -565,10 +573,10 @@ async function testStageFourMasterCrmAndAtsAcceptance() {
   app.run('state.selected.description_confirmed_at = "2026-09-21"');
   app.routes.set("GET /api/vacancies/1/ats", null);
   await app.run('openTab("ATS", state.selected)');
-  assert.match(app.panel.innerHTML, /ATS analysis requires a resume/);
-  assert.match(app.panel.innerHTML, /data-open-resume/);
+  assert.match(app.panel.innerHTML, /Master Resume v3 — Canonical/);
+  assert.match(app.panel.innerHTML, /data-run-assessment="manager_audit"/);
   const atsWorkspace = app.panel.innerHTML;
-  assert.equal((atsWorkspace.match(/data-open-resume/g) || []).length, 2);
+  assert.match(atsWorkspace, /data-run-assessment="vacancy_match"/);
   assert.match(fs.readFileSync(path.join(__dirname, "../careerflow/static/app.js"), "utf8"), /not an employer decision and not a Codex analysis/);
 
   app.run("state.selected.description_confirmed_at = null");
@@ -852,18 +860,28 @@ async function testSavedAiDetailAndLateRun() {
   assert.match(app.panel.innerHTML, /name="response_language" id="ai-response-language"/);
   assert.match(app.panel.innerHTML, /value="auto" selected>Auto<\/option><option value="russian">Russian<\/option><option value="english">English/);
   assert.match(app.panel.innerHTML, /gpt-5\.6-luna · low · Russian/);
-  assert.match(app.panel.innerHTML, /Match resume to vacancy/);
-  app.panel.querySelector("#ai-action").value = "Match resume to vacancy";
+  assert.match(app.panel.innerHTML, /Review ATS analysis/);
+  app.panel.querySelector("#ai-action").value = "Improve resume";
   app.panel.querySelector("#ai-action").onchange({ target: app.panel.querySelector("#ai-action") });
-  assert.match(app.panel.querySelector("#ai-prompt").value, /match_percent/);
+  assert.match(app.panel.querySelector("#ai-prompt").value, /truthful improvements/i);
+  await app.run('setLocale("ru")');
+  assert.match(app.panel.querySelector("#ai-prompt").value, /Предложи правдивые улучшения/);
+  app.panel.querySelector("#ai-prompt").value = "My custom prompt";
+  app.panel.querySelector("#ai-prompt").oninput({ target: app.panel.querySelector("#ai-prompt") });
+  await app.run('setLocale("en")');
+  assert.equal(app.panel.querySelector("#ai-prompt").value, "My custom prompt", "language switch preserves manually edited prompt");
   app.panel.querySelector("#ai-model").value = "gpt-6-sol";
   app.panel.querySelector("#ai-model").onchange();
   assert.equal(app.panel.querySelector("#ai-effort").value, "high");
   const savedButtons = app.document.querySelectorAll("[data-open-ai-run]");
   await savedButtons[0].onclick();
-  assert.match(savedButtons[0].aiRow.querySelector(".ai-inline-result").innerHTML, /FULL_SAVED_ANSWER/);
-  assert.match(savedButtons[0].aiRow.querySelector(".ai-inline-result").innerHTML, /gpt-5\.6-luna · low/);
-  assert.match(savedButtons[0].aiRow.querySelector(".ai-inline-result").innerHTML, /Russian/);
+  const savedResponseHtml = savedButtons[0].aiRow.querySelector(".ai-inline-result").innerHTML;
+  assert.match(savedResponseHtml, /FULL_SAVED_ANSWER/);
+  assert.match(savedResponseHtml, /gpt-5\.6-luna · low/);
+  assert.match(savedResponseHtml, /Russian/);
+  assert.match(savedResponseHtml, /<details class="ai-prompt-disclosure"><summary>Show request<\/summary><div class="ai-prompt-text">Saved prompt<\/div><\/details>/);
+  assert.doesNotMatch(savedResponseHtml, /<details[^>]*\bopen/);
+  assert.ok(savedResponseHtml.indexOf("FULL_SAVED_ANSWER") < savedResponseHtml.indexOf("<details class=\"ai-prompt-disclosure\">"), "saved response must appear before the collapsed prompt disclosure");
   await savedButtons[1].onclick();
   assert.match(savedButtons[1].aiRow.querySelector(".ai-inline-result").innerHTML, /SAVED_FAILURE_DETAIL/);
   assert.doesNotMatch(app.panel.innerHTML, /id="ai-history-result"/);
@@ -996,13 +1014,82 @@ async function testResponsiveSidebarToggleClosesAfterSelection() {
   assert.equal(app.run("state.sidebarOpen"), false);
 }
 
+async function testSidebarAcrossMainSectionsAndBlankHeaderClick() {
+  const app = harness();
+  app.run(`renderVacancy(${JSON.stringify(first)})`);
+  app.routes.set("GET /api/analytics?bucket=month", {
+    activity_metrics: {}, funnel: [], conversions: [], outcomes: {}, series: [], incomplete_records: [],
+  });
+  app.routes.set("GET /api/resumes?kind=master", []);
+  await app.run("renderAnalytics()");
+  app.run('state.activeTab = "ATS"; state.lastSelectedVacancyTab = "ATS"');
+  const click = app.listeners.get("click");
+  const toggleTarget = { closest: selector => selector === "#sidebar-toggle" ? {} : null };
+  const workspaceBeforeToggle = app.workspace.innerHTML;
+
+  assert.equal(app.sidebarToggle.hidden, false, "desktop drawer toggle stays available in Analytics");
+  await click({ target: toggleTarget });
+  assert.equal(app.run("state.sidebarOpen"), true);
+  assert.equal(app.sectionButtons.find(button => button.dataset.section === "analytics").classList.active, true);
+  assert.equal(app.run("state.section"), "analytics");
+  assert.equal(app.run("state.selected.id"), first.id);
+  assert.equal(app.run("state.activeTab"), "ATS");
+  assert.equal(app.workspace.innerHTML, workspaceBeforeToggle, "opening the sidebar does not replace the current workspace");
+  assert.equal(app.vacancySidebar.getAttribute("aria-hidden"), "false");
+  assert.equal(app.vacancySidebar.inert, false);
+
+  const blankHeaderArea = {
+    closest: selector => selector === "[data-section]" ? { dataset: { section: "vacancies" } } : null,
+  };
+  await click({ target: blankHeaderArea });
+  assert.equal(app.run("state.section"), "analytics", "blank header space does not act like a navigation control");
+  assert.equal(app.run("state.selected.id"), first.id);
+  assert.equal(app.workspace.innerHTML, workspaceBeforeToggle);
+  assert.equal(app.run("state.sidebarOpen"), true);
+
+  await click({ target: toggleTarget });
+  assert.equal(app.run("state.sidebarOpen"), false);
+  assert.equal(app.run("state.section"), "analytics");
+  assert.equal(app.run("state.selected.id"), first.id);
+  assert.equal(app.run("state.activeTab"), "ATS");
+  assert.equal(app.workspace.innerHTML, workspaceBeforeToggle, "closing the sidebar leaves the current workspace intact");
+  assert.equal(app.vacancySidebar.getAttribute("aria-hidden"), "true");
+  assert.equal(app.vacancySidebar.inert, true);
+
+  await app.run("renderMasterResume()");
+  assert.equal(app.sidebarToggle.hidden, false, "desktop drawer toggle stays available in Master Resume");
+  const masterWorkspace = app.workspace.innerHTML;
+  await click({ target: toggleTarget });
+  assert.equal(app.run("state.section"), "master-resume");
+  assert.equal(app.run("state.activeTab"), "Master Resume");
+  assert.equal(app.workspace.innerHTML, masterWorkspace);
+  assert.equal(app.run("state.sidebarOpen"), true);
+  assert.equal(app.sectionButtons.find(button => button.dataset.section === "master-resume").classList.active, true);
+  await click({ target: toggleTarget });
+  assert.equal(app.run("state.sidebarOpen"), false);
+  assert.equal(app.run("state.section"), "master-resume");
+  assert.equal(app.workspace.innerHTML, masterWorkspace);
+
+  app.routes.set("GET /api/vacancies/1", first);
+  const vacancyCard = {
+    dataset: { id: "1" },
+    closest: selector => selector === ".vacancy-card" ? vacancyCard : null,
+  };
+  await click({ target: toggleTarget });
+  await click({ target: vacancyCard });
+  assert.equal(app.run("state.section"), "vacancies", "selecting a vacancy from another section opens its workspace");
+  assert.equal(app.run("state.selected.id"), first.id);
+  assert.equal(app.run("state.activeTab"), "Overview");
+  assert.equal(app.run("state.sidebarOpen"), false);
+}
+
 async function testSidebarResizeAndCompactDismissal() {
   const app = harness();
   assert.equal(app.sidebarToggle.hidden, false);
   assert.equal(app.run("state.sidebarOpen"), true);
 
   app.run('setSection("analytics")');
-  assert.equal(app.sidebarToggle.hidden, true);
+  assert.equal(app.sidebarToggle.hidden, false, "desktop sections keep the vacancy-list button available");
   assert.equal(app.run("state.sidebarOpen"), false);
 
   app.window.setViewport(700);
@@ -1014,7 +1101,7 @@ async function testSidebarResizeAndCompactDismissal() {
   assert.equal(app.run("state.sidebarOpen"), false, "outside clicks dismiss the compact drawer");
 
   app.window.setViewport(1200);
-  assert.equal(app.sidebarToggle.hidden, true, "desktop sections hide the drawer button after resize");
+  assert.equal(app.sidebarToggle.hidden, false, "desktop sections keep the drawer button after resize");
   assert.equal(app.run("state.sidebarOpen"), false);
 
   app.run('setSection("vacancies")');
@@ -1107,6 +1194,7 @@ async function testMutationFailuresAndDuplicateRecovery() {
   await testInterviewCounterLifecycleAndStaleReads();
   await testResumePreviewAndEditableCopy();
   await testResponsiveSidebarToggleClosesAfterSelection();
+  await testSidebarAcrossMainSectionsAndBlankHeaderClick();
   await testResponsiveSidebarStaysOpenWhenArchiveFilterChanges();
   await testSidebarResizeAndCompactDismissal();
   await testStageFourMasterCrmAndAtsAcceptance();
