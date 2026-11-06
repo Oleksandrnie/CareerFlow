@@ -868,9 +868,13 @@ async function testSavedAiDetailAndLateRun() {
   assert.equal(app.panel.querySelector("#ai-effort").value, "high");
   const savedButtons = app.document.querySelectorAll("[data-open-ai-run]");
   await savedButtons[0].onclick();
-  assert.match(savedButtons[0].aiRow.querySelector(".ai-inline-result").innerHTML, /FULL_SAVED_ANSWER/);
-  assert.match(savedButtons[0].aiRow.querySelector(".ai-inline-result").innerHTML, /gpt-5\.6-luna · low/);
-  assert.match(savedButtons[0].aiRow.querySelector(".ai-inline-result").innerHTML, /Russian/);
+  const savedResponseHtml = savedButtons[0].aiRow.querySelector(".ai-inline-result").innerHTML;
+  assert.match(savedResponseHtml, /FULL_SAVED_ANSWER/);
+  assert.match(savedResponseHtml, /gpt-5\.6-luna · low/);
+  assert.match(savedResponseHtml, /Russian/);
+  assert.match(savedResponseHtml, /<details class="ai-prompt-disclosure"><summary>Show request<\/summary><div class="ai-prompt-text">Saved prompt<\/div><\/details>/);
+  assert.doesNotMatch(savedResponseHtml, /<details[^>]*\bopen/);
+  assert.ok(savedResponseHtml.indexOf("FULL_SAVED_ANSWER") < savedResponseHtml.indexOf("<details class=\"ai-prompt-disclosure\">"), "saved response must appear before the collapsed prompt disclosure");
   await savedButtons[1].onclick();
   assert.match(savedButtons[1].aiRow.querySelector(".ai-inline-result").innerHTML, /SAVED_FAILURE_DETAIL/);
   assert.doesNotMatch(app.panel.innerHTML, /id="ai-history-result"/);

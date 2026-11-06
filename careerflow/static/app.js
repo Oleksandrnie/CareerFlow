@@ -143,6 +143,8 @@ const RU = {
   "Review description": "Проверить описание", "Preparing preview…": "Подготовка предпросмотра…", "Vacancy imported": "Вакансия импортирована", "Deletion cancelled": "Удаление отменено", "Vacancy deleted": "Вакансия удалена", "Vacancy archived": "Вакансия отправлена в архив", "Vacancy restored": "Вакансия восстановлена", "Vacancy updated": "Вакансия обновлена", "Status changed to": "Статус изменён на", "Invalid value": "Недопустимое значение", "Request failed": "Запрос не выполнен", "Error": "Ошибка"
 };
 
+RU["Show request"] = "Показать запрос";
+
 const ENGLISH_FROM_RUSSIAN = new Map(Object.entries(RU).map(([english, russian]) => [russian, english]));
 
 function translateText(value) {
@@ -1476,7 +1478,11 @@ function aiResponseBlock(run, title = "Saved response") {
   const draftAction = run.status === "completed" && run.action === "Create tailored resume"
     ? `<div class="actions"><button class="primary" type="button" data-create-ai-draft="${run.id}">Create editable resume draft</button></div>`
     : "";
-  return `<h4>${title} · ${escapeHtml(run.model || "Legacy model unknown")} · ${escapeHtml(run.reasoning_effort || "effort unknown")} · ${escapeHtml(responseLanguageLabel(run.response_language))}</h4><p class="muted">${escapeHtml(run.prompt || "")}</p>${run.status === "completed" ? formatAiResponse(response, run.prompt) : `<p class="error">${escapeHtml(response || "Codex request failed")}</p>`}${draftAction}`;
+  const requestDisclosure = run.prompt
+    ? `<details class="ai-prompt-disclosure"><summary>${escapeHtml(translateText("Show request"))}</summary><div class="ai-prompt-text">${escapeHtml(run.prompt)}</div></details>`
+    : "";
+  const result = run.status === "completed" ? formatAiResponse(response, run.prompt) : `<p class="error">${escapeHtml(response || "Codex request failed")}</p>`;
+  return `<h4>${title} · ${escapeHtml(run.model || "Legacy model unknown")} · ${escapeHtml(run.reasoning_effort || "effort unknown")} · ${escapeHtml(responseLanguageLabel(run.response_language))}</h4>${result}${draftAction}${requestDisclosure}`;
 }
 
 async function renderAi(vacancy, view = null) {

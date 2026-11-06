@@ -399,6 +399,10 @@ textarea { resize: vertical; max-width: 100%; }
 .ai-history-row { display: grid; grid-template-columns: minmax(0, 1fr) auto; }
 .ai-inline-result { grid-column: 1 / -1; min-width: 0; margin-top: 10px; padding-top: 10px; border-top: 1px solid var(--line); }
 .ai-inline-result .ai-response { max-height: 34vh; margin-top: 8px; font-size: 12px; }
+.ai-prompt-disclosure { margin-top: 12px; }
+.ai-prompt-disclosure summary { width: fit-content; color: var(--muted); cursor: pointer; font-size: 12px; font-weight: 600; }
+.ai-prompt-disclosure summary:focus-visible { outline: 3px solid var(--focus); outline-offset: 3px; border-radius: 4px; }
+.ai-prompt-text { max-height: 28vh; margin-top: 8px; padding: 10px 12px; overflow: auto; white-space: pre-wrap; overflow-wrap: anywhere; border: 1px solid var(--line); border-radius: var(--radius-control); background: var(--readonly-bg); color: var(--readonly-ink); font-size: 12px; line-height: 1.5; }
 .ai-history-head { align-items: center; }
 .ai-history-head h4 { margin: 0; }
 .ai-history-head input { width: min(280px, 45%); padding: 7px 10px; font-size: 12px; }
