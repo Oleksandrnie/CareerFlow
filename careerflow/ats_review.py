@@ -41,7 +41,9 @@ _TEN_SECOND_CHECKS = ("grade", "domain", "first_bullet_impact", "scope", "tools"
 
 
 def _manager_audit_contract(locale: str) -> str:
-    risk_example = json.dumps({"name": _ANTI_PERSONAS[0], "status": _RISK_STATUSES[0], "quotes": [], "line_refs": []})
+    risk_example = json.dumps(
+        {"name": _ANTI_PERSONAS[0], "status": _RISK_STATUSES[0], "quotes": [], "line_refs": []}
+    )
     risk_names = json.dumps(_ANTI_PERSONAS)
     statuses = json.dumps(_RISK_STATUSES)
     checks = json.dumps(_TEN_SECOND_CHECKS)
@@ -156,11 +158,15 @@ def _validate_result(kind: str, payload: dict) -> str | None:
             return "Manager audit is missing the evidence line review."
         if not payload.get("verdict"):
             return "Manager audit is missing the verdict."
-        if {item.get("name") for item in flags if isinstance(item.get("name"), str)} != set(_ANTI_PERSONAS):
+        if {item.get("name") for item in flags if isinstance(item.get("name"), str)} != set(
+            _ANTI_PERSONAS
+        ):
             return "Manager audit must use the six named manager risk checks."
         if any(item.get("status") not in _RISK_STATUSES for item in flags):
             return "Manager risk checks must use CLEAR, PARTIAL, or NONE status."
-        if {item.get("check") for item in checks if isinstance(item.get("check"), str)} != set(_TEN_SECOND_CHECKS):
+        if {item.get("check") for item in checks if isinstance(item.get("check"), str)} != set(
+            _TEN_SECOND_CHECKS
+        ):
             return "Manager audit is missing one or more recruiter-read checks."
         structure = payload.get("structure")
         if not isinstance(structure, dict) or structure.get("rubric") != "T":
@@ -169,11 +175,18 @@ def _validate_result(kind: str, payload: dict) -> str | None:
         expected_axes = _SCORE_WEIGHTS.keys()
         if not isinstance(scores, dict) or not expected_axes <= scores.keys():
             return "Manager audit is missing one or more rubric scores."
-        if any(isinstance(scores[axis], bool) or not isinstance(scores[axis], (int, float)) or not 0 <= scores[axis] <= 1 for axis in expected_axes):
+        if any(
+            isinstance(scores[axis], bool)
+            or not isinstance(scores[axis], (int, float))
+            or not 0 <= scores[axis] <= 1
+            for axis in expected_axes
+        ):
             return "Rubric scores must be between 0 and 1."
     else:
         requirements = payload.get("requirements")
-        if not isinstance(requirements, list) or any(not isinstance(item, dict) for item in requirements):
+        if not isinstance(requirements, list) or any(
+            not isinstance(item, dict) for item in requirements
+        ):
             return "Vacancy match is missing a structured requirement list."
         allowed_statuses = {"covered", "partial", "not_evidenced", "insufficient_input"}
         if any(item.get("status") not in allowed_statuses for item in requirements):
@@ -199,7 +212,9 @@ def _assessment_row(row: dict) -> dict:
     )
     current_hash = result.pop("current_resume_sha256", None)
     result["resume_changed"] = bool(current_hash and current_hash != result.get("resume_sha256"))
-    result["is_stale"] = result["resume_deleted"] or result["resume_changed"] or result["description_changed"]
+    result["is_stale"] = (
+        result["resume_deleted"] or result["resume_changed"] or result["description_changed"]
+    )
     return result
 
 
@@ -230,7 +245,9 @@ def list_assessments(
     assessments = []
     for row in rows:
         resume_text = row.pop("current_resume_text", None)
-        row["current_resume_sha256"] = hashlib.sha256(resume_text.encode()).hexdigest() if resume_text else None
+        row["current_resume_sha256"] = (
+            hashlib.sha256(resume_text.encode()).hexdigest() if resume_text else None
+        )
         assessments.append(_assessment_row(row))
     return assessments
 
@@ -254,14 +271,17 @@ def create_assessment(
         raise ValueError("Vacancy matching requires a vacancy")
     with database.connect() as connection:
         resume_row = connection.execute(
-            "SELECT * FROM resume_versions WHERE id = ? AND deleted_at IS NULL", (resume_version_id,)
+            "SELECT * FROM resume_versions WHERE id = ? AND deleted_at IS NULL",
+            (resume_version_id,),
         ).fetchone()
         if resume_row is None:
             raise LookupError("Resume not found")
         resume = dict(resume_row)
         vacancy = None
         if vacancy_id is not None:
-            vacancy_row = connection.execute("SELECT * FROM vacancies WHERE id = ?", (vacancy_id,)).fetchone()
+            vacancy_row = connection.execute(
+                "SELECT * FROM vacancies WHERE id = ?", (vacancy_id,)
+            ).fetchone()
             if vacancy_row is None:
                 raise LookupError("Vacancy not found")
             vacancy = dict(vacancy_row)
@@ -288,22 +308,31 @@ def create_assessment(
     except (CodexError, ValueError):
         raise
     parsed = _extract_json(response)
-    validation_error = _validate_result(kind, parsed) if parsed is not None else "Codex did not return a valid JSON object."
+    validation_error = (
+        _validate_result(kind, parsed)
+        if parsed is not None
+        else "Codex did not return a valid JSON object."
+    )
     is_completed = parsed is not None and validation_error is None
     if is_completed and kind == "manager_audit":
-        weighted_total = sum(float(parsed["scores"][axis]) * weight for axis, weight in _SCORE_WEIGHTS.items())
+        weighted_total = sum(
+            float(parsed["scores"][axis]) * weight for axis, weight in _SCORE_WEIGHTS.items()
+        )
         parsed["overall_score_percent"] = round(weighted_total * 100)
         parsed["weighted_sum"] = {
             "weights": _SCORE_WEIGHTS,
             "arithmetic": " + ".join(
-                f"{weight:.2f}×{float(parsed['scores'][axis]):.2f}" for axis, weight in _SCORE_WEIGHTS.items()
+                f"{weight:.2f}×{float(parsed['scores'][axis]):.2f}"
+                for axis, weight in _SCORE_WEIGHTS.items()
             ),
             "total": round(weighted_total, 4),
         }
     result_payload = parsed if is_completed else {"response_format_error": validation_error}
     resume_sha256 = hashlib.sha256(resume["content_text"].encode()).hexdigest()
     description_snapshot = vacancy["description"] if kind == "vacancy_match" and vacancy else None
-    description_revision = vacancy["description_revision"] if description_snapshot is not None else None
+    description_revision = (
+        vacancy["description_revision"] if description_snapshot is not None else None
+    )
     with database.transaction(immediate=True) as connection:
         current_resume = connection.execute(
             "SELECT deleted_at FROM resume_versions WHERE id = ?", (resume_version_id,)
@@ -335,10 +364,23 @@ def create_assessment(
                 status, result_json, response
             ) VALUES (?, ?, 'codex', ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)""",
             (
-                ASSESSMENT_SCHEMA_VERSION, kind, RUBRIC_VERSION, f"ats.{kind}", _PROMPT_TEMPLATE_VERSIONS[kind], resume_version_id,
-                resume["kind"], resume["version"], resume_sha256, vacancy_id if kind == "vacancy_match" else None,
-                description_snapshot, description_revision, locale, selected_model, selected_effort,
-                "completed" if is_completed else "invalid_response", json.dumps(result_payload, ensure_ascii=False),
+                ASSESSMENT_SCHEMA_VERSION,
+                kind,
+                RUBRIC_VERSION,
+                f"ats.{kind}",
+                _PROMPT_TEMPLATE_VERSIONS[kind],
+                resume_version_id,
+                resume["kind"],
+                resume["version"],
+                resume_sha256,
+                vacancy_id if kind == "vacancy_match" else None,
+                description_snapshot,
+                description_revision,
+                locale,
+                selected_model,
+                selected_effort,
+                "completed" if is_completed else "invalid_response",
+                json.dumps(result_payload, ensure_ascii=False),
                 response_to_store,
             ),
         )

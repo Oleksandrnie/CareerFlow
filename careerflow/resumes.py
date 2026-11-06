@@ -400,7 +400,10 @@ def delete_resume(database: Database, storage_dir: Path, resume_id: int) -> dict
                    WHERE resume_version_id = ? AND redacted_at IS NULL""",
                 (
                     json.dumps(
-                        {"redacted": True, "message": "Resume content was deleted; assessment evidence was removed."},
+                        {
+                            "redacted": True,
+                            "message": "Resume content was deleted; assessment evidence was removed.",
+                        },
                         ensure_ascii=False,
                     ),
                     resume_id,

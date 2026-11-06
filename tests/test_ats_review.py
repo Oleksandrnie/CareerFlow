@@ -26,7 +26,8 @@ class AtsReviewTest(unittest.TestCase):
             "/api/vacancies", data={"text": "Product Project Manager\nOwn delivery planning"}
         ).json()
         self.master = self.client.post(
-            "/api/resumes", data={"kind": "master", "text": "L1 evidence: led a product delivery team."}
+            "/api/resumes",
+            data={"kind": "master", "text": "L1 evidence: led a product delivery team."},
         ).json()
         self.other = self.client.post(
             "/api/resumes", data={"kind": "master", "text": "SECRET_OTHER_RESUME"}
@@ -46,7 +47,10 @@ class AtsReviewTest(unittest.TestCase):
     def manager_audit_response(summary: str) -> dict:
         return {
             "overall_summary": summary,
-            "role_family": {"claimed_family": "Project Manager", "supported_family": "Project Manager"},
+            "role_family": {
+                "claimed_family": "Project Manager",
+                "supported_family": "Project Manager",
+            },
             "grade_inflation": {"severity": "none"},
             "scores": {
                 "Evidence": 0.5,
@@ -60,8 +64,11 @@ class AtsReviewTest(unittest.TestCase):
             "anti_persona_flags": [
                 {"name": name, "status": "CLEAR", "line_refs": []}
                 for name in (
-                    "Project administrator", "Project proxy", "Ritual agile PM",
-                    "Unimmersed delivery manager", "Manager-router",
+                    "Project administrator",
+                    "Project proxy",
+                    "Ritual agile PM",
+                    "Unimmersed delivery manager",
+                    "Manager-router",
                     "General management without domain",
                 )
             ],
@@ -74,6 +81,7 @@ class AtsReviewTest(unittest.TestCase):
             "priority_improvements": [],
             "verdict": "Conditional",
         }
+
     def run_manager_audit(self, locale: str, raw_response: str):
         with (
             patch("careerflow.ats_review.load_model_catalog", return_value=self.catalog),
@@ -124,7 +132,9 @@ class AtsReviewTest(unittest.TestCase):
             with self.subTest(locale=locale):
                 payload = self.manager_audit_response(summary)
                 payload["anti_persona_flags"].reverse()
-                assessment, prompt = self.run_manager_audit(locale, json.dumps(payload, ensure_ascii=False))
+                assessment, prompt = self.run_manager_audit(
+                    locale, json.dumps(payload, ensure_ascii=False)
+                )
                 self.assertEqual(assessment["status"], "completed")
                 self.assertEqual(assessment["prompt_template_version"], 3)
                 self.assertEqual(assessment["result"]["overall_summary"], summary)
@@ -134,9 +144,16 @@ class AtsReviewTest(unittest.TestCase):
                 for flag in payload["anti_persona_flags"]:
                     self.assertIn(f'"{flag["name"]}"', prompt)
 
-    def test_manager_audit_rejects_missing_translated_duplicate_and_malformed_risk_names(self) -> None:
+    def test_manager_audit_rejects_missing_translated_duplicate_and_malformed_risk_names(
+        self,
+    ) -> None:
         expected = "Manager audit must use the six named manager risk checks."
-        for invalid_fields in ({}, {"name": "Администратор проекта"}, {"name": "Project proxy"}, {"name": []}):
+        for invalid_fields in (
+            {},
+            {"name": "Администратор проекта"},
+            {"name": "Project proxy"},
+            {"name": []},
+        ):
             with self.subTest(invalid_fields=invalid_fields):
                 payload = self.manager_audit_response("Есть подтверждения")
                 payload["anti_persona_flags"][0] = {"status": "CLEAR", **invalid_fields}
