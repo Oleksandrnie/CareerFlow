@@ -122,7 +122,7 @@ The Node checks use Node.js 24 or newer. Tests use temporary database and storag
 - The application does not automatically send records to an external service. Explicitly started Codex actions can send the context shown in the interface through the locally configured CLI account.
 - Vacancy URL import supports public static HTML only; authenticated pages, CAPTCHA, JavaScript-rendered pages and OCR are not supported.
 - PDF import requires a text layer. Audio is stored as a file and is not transcribed.
-- Local ATS results are limited lexical guidance, not hiring predictions. Codex manager audits and vacancy matches are separate, user-triggered assessments; they do not estimate hiring probability and cite the exact resume version and (for matching) confirmed vacancy description. Historical results retain that provenance, and resume deletion removes saved assessment evidence.
+- Local ATS results are limited lexical guidance, not hiring predictions. Codex manager audits and vacancy matches are separate, user-triggered assessments; they do not estimate hiring probability and cite the exact resume version and (for matching) confirmed vacancy description. Historical results retain that provenance; deleting a resume or permanently deleting a vacancy together with its resumes removes saved assessment evidence.
 - Before upgrading, make a backup of `data/` and `storage/` together. The app runs backward-compatible SQLite schema migrations on startup.
 
 ## Roadmap
